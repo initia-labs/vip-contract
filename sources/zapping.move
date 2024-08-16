@@ -113,7 +113,7 @@ module vip::zapping {
         };
 
         let liquidity = dex::provide_liquidity(pair, coin_a, coin_b, min_liquidity);
-        lock_staking::delegate(
+        lock_staking::delegate_internal(
             account,
             liquidity,
             release_time,
