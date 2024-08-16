@@ -75,9 +75,7 @@ module vip::zapping {
     // Entry Functions
     //
 
-    public entry fun update_lock_period_script(
-        chain: &signer, lock_period: u64,
-    ) acquires ModuleStore {
+    public entry fun update_lock_period_script(chain: &signer, lock_period: u64) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         module_store.lock_period = lock_period;
@@ -97,7 +95,7 @@ module vip::zapping {
     ) acquires ModuleStore {
         assert!(
             fungible_asset::amount(&esinit) > 0 && fungible_asset::amount(&stakelisted) >
-            0,
+                0,
             error::invalid_argument(EINVALID_ZAPPING_AMOUNT),
         );
 
@@ -110,15 +108,17 @@ module vip::zapping {
         let (coin_a_metadata, _) = dex::pool_metadata(pair);
 
         // if pair is reversed, swap coin_a and coin_b
-        let (coin_a, coin_b) =
-            if (coin_a_metadata == esinit_metadata) {
-                (esinit, stakelisted)
-            } else {
-                (stakelisted, esinit)
-            };
+        let (coin_a, coin_b) = if (coin_a_metadata == esinit_metadata) {(esinit, stakelisted) } else {
+            (stakelisted, esinit)
+        };
 
         let liquidity = dex::provide_liquidity(pair, coin_a, coin_b, min_liquidity);
-        lock_staking::delegate(account, liquidity, release_time, validator);
+        lock_staking::delegate(
+            account,
+            liquidity,
+            release_time,
+            validator
+        );
     }
 
     #[test_only]
