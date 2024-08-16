@@ -1,6 +1,7 @@
 #[test_only]
 module vip::test {
     use std::hash::sha3_256;
+    use initia_std::address::to_sdk;
     use initia_std::block;
     use initia_std::bcs;
     use initia_std::coin;
@@ -22,6 +23,7 @@ module vip::test {
     use vip::vesting;
     use vip::reward;
     use vip::operator;
+    use vip::lock_staking;
 
     struct TestState has key {
         last_submitted_stage: u64,
@@ -469,6 +471,14 @@ module vip::test {
             l2_scores,
         );
         let stage = *vector::borrow(&stages, 0);
+
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(user_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::zapping_script(
             user,
             get_bridge_id(),
@@ -824,6 +834,13 @@ module vip::test {
             vesting::get_user_vesting_remaining(receiver_addr, get_bridge_id(), 1);
         // zapping stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
         // without waiting the challenge period
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(receiver_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::zapping_script(
             receiver,
             1,
@@ -903,6 +920,13 @@ module vip::test {
             vesting::get_user_vesting_remaining(receiver_addr, get_bridge_id(), 1);
         // zapping stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
         // without waiting the challenge period of vesting position2
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(receiver_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::zapping_script(
             receiver,
             1,
@@ -1276,6 +1300,13 @@ module vip::test {
         let extra = 1000;
         let zapping_amount = 8 * vesting1_initial_reward / get_vesting_period() + extra;
         // zapping stage 1 vesting position
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(receiver_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::zapping_script(
             receiver,
             get_bridge_id(),
@@ -1416,6 +1447,13 @@ module vip::test {
             );
         let zapping_amount = 7 * vesting1_initial_reward / get_vesting_period() + 100;
         // zapping stage 1 vesting position
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(receiver_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::zapping_script(
             receiver,
             get_bridge_id(),
@@ -1539,6 +1577,13 @@ module vip::test {
                 1,
             );
         // user can only zap the deregisterd minitia positions
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(receiver_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::zapping_script(
             receiver,
             get_bridge_id(),
@@ -1799,6 +1844,13 @@ module vip::test {
             stage = stage + 1;
         };
 
+        lock_staking::set_delegation_query(
+            get_validator(),
+            to_sdk(lock_staking::get_staking_address(receiver_addr)),
+            vector[],
+            vector[],
+            vector[],
+        );
         vip::batch_zapping_script(
             receiver,
             get_bridge_id(),

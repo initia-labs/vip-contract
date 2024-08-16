@@ -532,11 +532,9 @@ module vip::vip {
 
         zapping::zapping(
             account,
-            bridge_id,
             lp_metadata,
             min_liquidity,
             validator,
-            stage,
             esinit,
             stakelisted,
         );
@@ -1914,6 +1912,9 @@ module vip::vip {
 
     #[test_only]
     use initia_std::decimal128;
+
+    #[test_only]
+    use vip::lock_staking;
 
     #[test_only]
     struct TestCapability has key {
@@ -4114,6 +4115,13 @@ module vip::vip {
             );
 
         // zap vesting in stage 1
+        lock_staking::set_delegation_query(
+            validator,
+            initia_std::address::to_sdk(lock_staking::get_staking_address(signer::address_of(receiver))),
+            vector[],
+            vector[],
+            vector[],
+        );
         zapping_script(
             receiver,
             bridge_id,
