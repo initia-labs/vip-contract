@@ -190,6 +190,16 @@ module vip::weight_vote {
         );
     }
 
+    public entry fun update_pair_weight(
+        chain: &signer,
+        metadata: Object<Metadata>,
+        weight: Decimal128,
+    ) acquires ModuleStore {
+        utils::check_chain_permission(chain);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        table::upsert(&mut module_store.pair_weights, metadata, weight);
+    }
+
     //
     // entry functions
     //
