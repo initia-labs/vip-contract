@@ -197,7 +197,11 @@ module vip::weight_vote {
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        table::upsert(&mut module_store.pair_weights, metadata, weight);
+        table::upsert(
+            &mut module_store.pair_weights,
+            metadata,
+            weight
+        );
     }
 
     //
