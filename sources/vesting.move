@@ -1,4 +1,4 @@
-module publisher::vip_vesting {
+module vip::vesting {
     use std::error;
     use std::signer;
     use std::vector;
@@ -10,10 +10,10 @@ module publisher::vip_vesting {
     use initia_std::table_key;
     use initia_std::bcs;
     use initia_std::decimal256::{Self, Decimal256};
-    use publisher::vip_reward;
-    use publisher::vip_vault;
-    use publisher::vip_utils;
-    friend publisher::vip;
+    use vip::reward;
+    use vip::vault;
+    use vip::utils;
+    friend vip::vip;
 
     //
     // Errors
@@ -204,7 +204,7 @@ module publisher::vip_vesting {
         user_vestings: &mut Table<vector<u8>, UserVesting>
     ): vector<UserVesting> {
         let user_vestings_cache: vector<UserVesting> = vector[];
-        vip_utils::table_loop(
+        utils::table_loop(
             user_vestings,
             |_stage_key, user_vesting| {
                 use_user_vesting_ref(user_vesting);
@@ -225,7 +225,7 @@ module publisher::vip_vesting {
         operator_vestings: &mut Table<vector<u8>, OperatorVesting>
     ): vector<OperatorVesting> {
         let operator_vestings_cache: vector<OperatorVesting> = vector[];
-        vip_utils::table_loop(
+        utils::table_loop(
             operator_vestings,
             |_stage_key, operator_vesting| {
                 use_operator_vesting_ref(operator_vesting);
@@ -258,7 +258,7 @@ module publisher::vip_vesting {
     fun get_last_claimed_stage<Vesting: copy + drop + store>(
         account_addr: address, bridge_id: u64
     ): u64 acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let table_key = get_vesting_table_key(bridge_id, account_addr);
         if (type_info::type_name<Vesting>() == type_info::type_name<OperatorVesting>()) {
             let operator_vestings =
@@ -284,7 +284,7 @@ module publisher::vip_vesting {
     inline fun load_user_vestings_mut(
         bridge_id: u64, account_addr: address
     ): &mut Table<vector<u8>, UserVesting> {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
         assert!(
             table::contains(
@@ -316,7 +316,7 @@ module publisher::vip_vesting {
     inline fun load_operator_vestings_mut(
         bridge_id: u64, account_addr: address
     ): &mut Table<vector<u8>, OperatorVesting> {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
         assert!(
             table::contains(
@@ -351,7 +351,7 @@ module publisher::vip_vesting {
     public(friend) fun register_user_vesting_store(
         account: &signer, bridge_id: u64
     ) acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let account_addr = signer::address_of(account);
         let table_key = get_vesting_table_key(bridge_id, account_addr);
         assert!(
@@ -371,7 +371,7 @@ module publisher::vip_vesting {
     public(friend) fun register_operator_vesting_store(
         account: &signer, bridge_id: u64
     ) acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let account_addr = signer::address_of(account);
         let table_key = get_vesting_table_key(bridge_id, account_addr);
         assert!(
@@ -418,7 +418,7 @@ module publisher::vip_vesting {
                     if (claim_info.total_l2_score == 0) { 0 }
                     else {
                         let total_user_reward =
-                            vip_reward::get_user_distrubuted_reward(
+                            reward::get_user_distrubuted_reward(
                                 bridge_id, claim_info.start_stage
                             );
                         (
@@ -546,7 +546,7 @@ module publisher::vip_vesting {
         );
 
         // withdraw net reward from vault
-        vip_vault::withdraw(total_vested_reward)
+        vault::withdraw(total_vested_reward)
 
     }
 
@@ -576,7 +576,7 @@ module publisher::vip_vesting {
 
                 total_vested_reward = total_vested_reward + vested_reward;
                 let initial_reward =
-                    vip_reward::get_operator_distrubuted_reward(
+                    reward::get_operator_distrubuted_reward(
                         bridge_id, claim_info.start_stage
                     );
 
@@ -632,7 +632,7 @@ module publisher::vip_vesting {
             },
         );
         // withdraw total vested reward from reward store
-        vip_vault::withdraw(total_vested_reward)
+        vault::withdraw(total_vested_reward)
     }
 
     public(friend) fun zapping_vesting(
@@ -642,7 +642,7 @@ module publisher::vip_vesting {
         zapping_amount: u64
     ): FungibleAsset acquires ModuleStore {
 
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let user_vestings =
             table::borrow_mut(
                 &mut module_store.user_vestings,
@@ -686,7 +686,7 @@ module publisher::vip_vesting {
             );
         };
 
-        vip_vault::withdraw(zapping_amount)
+        vault::withdraw(zapping_amount)
     }
 
     public(friend) fun build_user_vesting_claim_infos(
@@ -717,7 +717,7 @@ module publisher::vip_vesting {
     public fun is_user_vesting_store_registered(
         account_addr: address, bridge_id: u64
     ): bool acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.user_vestings,
             get_vesting_table_key(bridge_id, account_addr),
@@ -727,7 +727,7 @@ module publisher::vip_vesting {
     public fun is_operator_vesting_store_registered(
         account_addr: address, bridge_id: u64
     ): bool acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_vestings,
             get_vesting_table_key(bridge_id, account_addr),
@@ -1019,7 +1019,7 @@ module publisher::vip_vesting {
     ): u64 acquires ModuleStore {
         let total_unlocked_reward = 0;
         let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        vip_utils::table_loop<vector<u8>, UserVesting>(
+        utils::table_loop<vector<u8>, UserVesting>(
             user_vestings,
             |_k, user_vesting| {
                 use_user_vesting_ref(user_vesting);
@@ -1037,7 +1037,7 @@ module publisher::vip_vesting {
     ): u64 acquires ModuleStore {
         let total_locked_reward = 0;
         let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        vip_utils::table_loop<vector<u8>, UserVesting>(
+        utils::table_loop<vector<u8>, UserVesting>(
             user_vestings,
             |_k, user_vesting| {
                 use_user_vesting_ref(user_vesting);
@@ -1061,7 +1061,7 @@ module publisher::vip_vesting {
     ): vector<u64> acquires ModuleStore {
         let claimed_stages = vector::empty<u64>();
         let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        vip_utils::table_loop(
+        utils::table_loop(
             user_vestings,
             |stage_key, _v| {
                 vector::push_back(
@@ -1081,7 +1081,7 @@ module publisher::vip_vesting {
     ): u64 acquires ModuleStore {
         let total_unlocked_reward = 0;
         let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
-        vip_utils::table_loop(
+        utils::table_loop(
             operator_vestings,
             |_k, operator_vesting| {
                 use_operator_vesting_ref(operator_vesting);
@@ -1108,7 +1108,7 @@ module publisher::vip_vesting {
     ): vector<u64> acquires ModuleStore {
         let claimed_stages = vector::empty<u64>();
         let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
-        vip_utils::table_loop(
+        utils::table_loop(
             operator_vestings,
             |stage_key, _v| {
                 vector::push_back(
@@ -1273,11 +1273,11 @@ module publisher::vip_vesting {
 
     // <-- VESTING ----->
 
-    #[test(publisher = @publisher, account = @0x99)]
+    #[test(vip = @vip, account = @0x99)]
     fun test_register_vesting_store(
-        publisher: &signer, account: &signer
+        vip: &signer, account: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         let account_addr = signer::address_of(account);
         assert!(
             !is_user_vesting_store_registered(account_addr, 1),
@@ -1291,12 +1291,12 @@ module publisher::vip_vesting {
         register_user_vesting_store(account, 2);
     }
 
-    #[test(publisher = @publisher, account = @0x99)]
+    #[test(vip = @vip, account = @0x99)]
     #[expected_failure(abort_code = 0x80001, location = Self)]
     fun failed_register_vesting_store_twice(
-        publisher: &signer, account: &signer
+        vip: &signer, account: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         register_user_vesting_store(account, 1);
         register_user_vesting_store(account, 1);
     }

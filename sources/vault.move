@@ -1,4 +1,4 @@
-module publisher::vip_vault {
+module vip::vault {
     use std::error;
     use std::signer;
 
@@ -6,11 +6,11 @@ module publisher::vip_vault {
     use initia_std::fungible_asset::FungibleAsset;
     use initia_std::primary_fungible_store;
     use initia_std::fungible_asset;
-    use initia_std::vip_reward;
 
-    use publisher::vip_utils;
+    use vip::reward;
+    use vip::utils;
     // friend initia_std::vip;
-    friend publisher::vip_vesting;
+    friend vip::vesting;
     //
     // Errors
     //
@@ -69,7 +69,7 @@ module publisher::vip_vault {
     //
 
     public(friend) fun withdraw(amount: u64): FungibleAsset acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             module_store.reward_per_stage > 0,
             error::invalid_state(EINVALID_REWARD_PER_STAGE),
@@ -79,7 +79,7 @@ module publisher::vip_vault {
         let vault_store =
             primary_fungible_store::ensure_primary_store_exists(
                 module_store.vault_store_addr,
-                vip_reward::reward_metadata(),
+                reward::reward_metadata(),
             );
         fungible_asset::withdraw(&vault_signer, vault_store, amount)
     }
@@ -96,7 +96,7 @@ module publisher::vip_vault {
         );
         primary_fungible_store::transfer(
             funder,
-            vip_reward::reward_metadata(),
+            reward::reward_metadata(),
             vault_store_addr,
             amount,
         );
@@ -105,9 +105,9 @@ module publisher::vip_vault {
     public entry fun update_reward_per_stage(
         chain: &signer, reward_per_stage: u64
     ) acquires ModuleStore {
-        vip_utils::check_chain_permission(chain);
+        utils::check_chain_permission(chain);
 
-        let vault_store = borrow_global_mut<ModuleStore>(@publisher);
+        let vault_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             reward_per_stage > 0,
             error::invalid_argument(EINVALID_REWARD_PER_STAGE),
@@ -121,14 +121,14 @@ module publisher::vip_vault {
 
     #[view]
     public fun get_total_reward_per_stage(): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         module_store.reward_per_stage
 
     }
 
     #[view]
     public fun get_vault_store_address(): address acquires ModuleStore {
-        borrow_global<ModuleStore>(@publisher).vault_store_addr
+        borrow_global<ModuleStore>(@vip).vault_store_addr
     }
 
     #[view]
@@ -136,13 +136,13 @@ module publisher::vip_vault {
         let vault_store_addr = get_vault_store_address();
         primary_fungible_store::balance(
             vault_store_addr,
-            vip_reward::reward_metadata(),
+            reward::reward_metadata(),
         )
     }
 
     #[view]
     public fun reward_per_stage(): u64 acquires ModuleStore {
-        let vault_store = borrow_global<ModuleStore>(@publisher);
+        let vault_store = borrow_global<ModuleStore>(@vip);
         vault_store.reward_per_stage
     }
 
@@ -180,10 +180,10 @@ module publisher::vip_vault {
         (burn_cap, freeze_cap, mint_cap,)
     }
 
-    // #[test(chain = @0x1, publisher = @publisher, funder = @0x2)]
+    // #[test(chain = @0x1, vip = @vip, funder = @0x2)]
     // fun e2e(
     //     chain: &signer,
-    //     publisher: &signer,
+    //     vip: &signer,
     //     funder: &signer
     // ) acquires ModuleStore {
     //     primary_fungible_store::init_module_for_test(chain);
@@ -217,7 +217,7 @@ module publisher::vip_vault {
     //         fungible_asset::amount(&fa) == 1000,
     //         4
     //     );
-    //     let module_store = borrow_global<ModuleStore>(@publisher);
+    //     let module_store = borrow_global<ModuleStore>(@vip);
     //     assert!(module_store.claimable_stage == 2, 5);
 
     //     coin::deposit(@0x1, fa);

@@ -1,4 +1,4 @@
-module publisher::vip_zapping {
+module vip::zapping {
     use std::error;
     use std::signer;
     use std::option::Option;
@@ -16,8 +16,8 @@ module publisher::vip_zapping {
     use initia_std::simple_map::{Self, SimpleMap};
     use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
 
-    use publisher::vip_utils;
-    friend publisher::vip;
+    use vip::utils;
+    friend vip::vip;
 
     //
     // Errors
@@ -233,7 +233,7 @@ module publisher::vip_zapping {
             error::not_found(EZAPPING_NOT_EXIST),
         );
 
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let zapping = table::borrow_mut(&mut module_store.zappings, zid);
         let reward = staking::claim_reward(&mut zapping.delegation);
 
@@ -253,8 +253,8 @@ module publisher::vip_zapping {
     public entry fun update_lock_period_script(
         chain: &signer, lock_period: u64,
     ) acquires ModuleStore {
-        vip_utils::check_chain_permission(chain);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        utils::check_chain_permission(chain);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         module_store.lock_period = lock_period;
     }
 
@@ -280,7 +280,7 @@ module publisher::vip_zapping {
 
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
         let (_height, timestamp) = block::get_block_info();
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let release_time = timestamp + module_store.lock_period;
         let zapping_amount = fungible_asset::amount(&esinit);
         let esinit_metadata = fungible_asset::asset_metadata(&esinit);
@@ -433,7 +433,7 @@ module publisher::vip_zapping {
             object::object_address(&fungible_asset::asset_metadata(&lock_coin));
         let delegation = staking::delegate(validator, lock_coin);
 
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let zid = module_store.zid;
         assert!(
             !table::contains(&module_store.zappings, zid),
@@ -515,7 +515,7 @@ module publisher::vip_zapping {
             error::not_found(EZAPPING_NOT_EXIST),
         );
 
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let zapping = table::remove(&mut module_store.zappings, zid);
         simple_map::remove(&mut ls_store.entries, &zid);
 
@@ -595,7 +595,7 @@ module publisher::vip_zapping {
 
     #[view]
     public fun get_zapping(zid: u64): ZappingResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
             table::contains(&module_store.zappings, zid),
             error::not_found(EZAPPING_NOT_EXIST),
@@ -620,7 +620,7 @@ module publisher::vip_zapping {
 
     #[view]
     public fun get_delegation_info(zid: u64): DelegationInfo acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
             table::contains(&module_store.zappings, zid),
             error::not_found(EZAPPING_NOT_EXIST),
@@ -665,7 +665,7 @@ module publisher::vip_zapping {
     use std::string;
 
     #[test_only]
-    use initia_std::vip_reward;
+    use vip::reward;
 
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
@@ -694,14 +694,14 @@ module publisher::vip_zapping {
     #[test_only]
     public fun test_setup_for_zapping(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         account: &signer,
         esinit_amount: u64,
         stakelisted_amount: u64,
     ): (Object<Metadata>, Object<Metadata>, Object<Metadata>, String, MintCapability,) {
         dex::init_module_for_test();
         staking::test_setup();
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
 
         let (_burn_cap, _freeze_cap, mint_cap) =
             initialize_coin(chain, string::utf8(b"INIT"));
@@ -783,16 +783,16 @@ module publisher::vip_zapping {
         (esinit_metadata, stakelisted_metadata, lp_metadata, validator, mint_cap)
     }
 
-    #[test(chain = @0x1, publisher = @publisher, account = @0x999)]
+    #[test(chain = @0x1, vip = @vip, account = @0x999)]
     fun test_zapping(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         account: &signer,
     ) acquires ModuleStore, LSStore {
         let (esinit_metadata, stakelisted_metadata, lp_metadata, val, _) =
             test_setup_for_zapping(
                 chain,
-                publisher,
+                vip,
                 account,
                 1_000_000_000,
                 1_000_000_000,
@@ -865,16 +865,16 @@ module publisher::vip_zapping {
         );
     }
 
-    #[test(chain = @0x1, publisher = @publisher, account = @0x999)]
+    #[test(chain = @0x1, vip = @vip, account = @0x999)]
     fun test_zapping_multiple(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         account: &signer,
     ) acquires ModuleStore, LSStore {
         let (esinit_metadata, stakelisted_metadata, lp_metadata, val, _) =
             test_setup_for_zapping(
                 chain,
-                publisher,
+                vip,
                 account,
                 1_000_000_000,
                 1_000_000_000,
@@ -914,17 +914,17 @@ module publisher::vip_zapping {
         }
     }
 
-    #[test(chain = @0x1, publisher = @publisher, account = @0x999)]
+    #[test(chain = @0x1, vip = @vip, account = @0x999)]
     #[expected_failure(abort_code = 0x10004, location = fungible_asset)]
     fun test_zapping_insufficient_zapping(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         account: &signer,
     ) acquires ModuleStore, LSStore {
         let (e_m, s_m, l_m, val, _) =
             test_setup_for_zapping(
                 chain,
-                publisher,
+                vip,
                 account,
                 0,
                 0,
@@ -948,17 +948,17 @@ module publisher::vip_zapping {
         );
     }
 
-    #[test(chain = @0x1, publisher = @publisher, account = @0x3, relayer = @0x3d18d54532fc42e567090852db6eb21fa528f952)]
+    #[test(chain = @0x1, vip = @vip, account = @0x3, relayer = @0x3d18d54532fc42e567090852db6eb21fa528f952)]
     fun test_claim_reward(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         account: &signer,
         relayer: &signer,
     ) acquires ModuleStore, LSStore {
         let (e_m, s_m, l_m, val, _) =
             test_setup_for_zapping(
                 chain,
-                publisher,
+                vip,
                 account,
                 1_000_000_000,
                 1_000_000_000,
@@ -1001,16 +1001,16 @@ module publisher::vip_zapping {
         assert!(
             primary_fungible_store::balance(
                 signer::address_of(account),
-                vip_reward::reward_metadata(),
+                reward::reward_metadata(),
             ) == zapping_reward,
             0,
         );
     }
 
-    #[test(chain = @0x1, publisher = @publisher, user_a = @0x998, user_b = @0x999, relayer = @0x3d18d54532fc42e567090852db6eb21fa528f952)]
+    #[test(chain = @0x1, vip = @vip, user_a = @0x998, user_b = @0x999, relayer = @0x3d18d54532fc42e567090852db6eb21fa528f952)]
     fun test_zapping_claim(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         user_a: &signer,
         user_b: &signer,
         relayer: &signer,
@@ -1018,7 +1018,7 @@ module publisher::vip_zapping {
         let (e_m, s_m, l_m, val, _) =
             test_setup_for_zapping(
                 chain,
-                publisher,
+                vip,
                 user_a,
                 1_000_000_000,
                 1_000_000_000,
@@ -1070,7 +1070,7 @@ module publisher::vip_zapping {
         assert!(
             primary_fungible_store::balance(
                 signer::address_of(user_a),
-                vip_reward::reward_metadata(),
+                reward::reward_metadata(),
             ) == 0,
             2,
         );
@@ -1091,23 +1091,23 @@ module publisher::vip_zapping {
         assert!(
             primary_fungible_store::balance(
                 signer::address_of(user_a),
-                vip_reward::reward_metadata(),
+                reward::reward_metadata(),
             ) == (validator_reward * 2) / 3,
             3,
         );
     }
 
-    #[test(chain = @0x1, publisher = @publisher, account = @0x2)]
+    #[test(chain = @0x1, vip = @vip, account = @0x2)]
     #[expected_failure(abort_code = 0xD0002, location = Self)]
     fun test_zapping_claim_not_released(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         account: &signer,
     ) acquires ModuleStore, LSStore {
         let (e_m, s_m, l_m, val, _) =
             test_setup_for_zapping(
                 chain,
-                publisher,
+                vip,
                 account,
                 1_000_000_000,
                 1_000_000_000,

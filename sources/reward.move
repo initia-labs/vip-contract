@@ -1,4 +1,4 @@
-module publisher::vip_reward {
+module vip::reward {
     use std::string;
     use std::vector;
     use std::error;
@@ -8,11 +8,11 @@ module publisher::vip_reward {
     use initia_std::table;
     use initia_std::table_key;
     use initia_std::coin;
-    friend publisher::vip_weight_vote;
-    friend publisher::vip_vesting;
-    friend publisher::vip_zapping;
-    friend publisher::vip_vault;
-    friend publisher::vip;
+    friend vip::weight_vote;
+    friend vip::vesting;
+    friend vip::zapping;
+    friend vip::vault;
+    friend vip::vip;
 
     //
     // Errors
@@ -41,9 +41,9 @@ module publisher::vip_reward {
         operator_reward: u64,
     }
 
-    fun init_module(publisher: &signer) {
+    fun init_module(vip: &signer) {
         move_to(
-            publisher,
+            vip,
             ModuleStore { distributed_reward: table::new<vector<u8>, RewardRecord>() },
         );
     }
@@ -72,7 +72,7 @@ module publisher::vip_reward {
         user_reward: u64,
         operator_reward: u64
     ) acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let key = get_distrubuted_reward_table_key(bridge_id, stage);
         assert!(
             !table::contains(&module_store.distributed_reward, key),
@@ -96,7 +96,7 @@ module publisher::vip_reward {
 
     #[view]
     public fun get_user_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
 
         if (table::contains(
                 &module_store.distributed_reward,
@@ -115,7 +115,7 @@ module publisher::vip_reward {
 
     #[view]
     public fun get_operator_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
 
         if (table::contains(
                 &module_store.distributed_reward,

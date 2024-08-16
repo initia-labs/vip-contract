@@ -1,12 +1,12 @@
-module publisher::vip_tvl_manager {
+module vip::tvl_manager {
     use std::error;
     use initia_std::vector;
     use initia_std::table_key;
     use initia_std::table;
     use initia_std::block;
     
-    use publisher::vip_utils;
-    friend publisher::vip;
+    use vip::utils;
+    friend vip::vip;
     const EINVALID_EPOCH: u64 = 1;
     ///
     const EINVALID_BRIDGE_ID: u64 = 2;
@@ -38,7 +38,7 @@ module publisher::vip_tvl_manager {
         stage: u64, bridge_id: u64, balance: u64
     ) acquires ModuleStore {
         let (_, block_time) = block::get_block_info();
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
 
         // create the average tvl table for the stage(vip stage) if not exist
         if (!table::contains(
@@ -124,7 +124,7 @@ module publisher::vip_tvl_manager {
     public fun get_average_tvl(stage: u64, bridge_id: u64,): u64 acquires ModuleStore {
         let stage_key = table_key::encode_u64(stage);
         let bridge_id_key = table_key::encode_u64(bridge_id);
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         if (!table::contains(
                 &module_store.average_tvl,
                 stage_key,
@@ -151,7 +151,7 @@ module publisher::vip_tvl_manager {
 
     #[view]
     public fun get_snapshots(stage: u64, bridge_id: u64): vector<TVLSnapshotResponse> acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         if (!table::contains(
                 &module_store.snapshots,
                 table_key::encode_u64(stage),
@@ -181,7 +181,7 @@ module publisher::vip_tvl_manager {
                 table_key::encode_u64(bridge_id),
             );
         let snapshot_responses = vector::empty<TVLSnapshotResponse>();
-        vip_utils::table_loop(
+        utils::table_loop(
             snapshots_table,
             |time_vec, snapshot_tvl| {
                 vector::push_back(
@@ -216,9 +216,9 @@ module publisher::vip_tvl_manager {
         block::set_block_info(height, curr_time + period);
     }
 
-    #[test(publisher = @publisher)]
-    public fun add_snapshot_for_test(publisher: &signer) acquires ModuleStore {
-        init_module_for_test(publisher);
+    #[test(vip = @vip)]
+    public fun add_snapshot_for_test(vip: &signer) acquires ModuleStore {
+        init_module_for_test(vip);
         let balance = 1_000_000_000_000;
         add_snapshot(
             DEFAULT_EPOCH_FOR_TEST,
@@ -234,9 +234,9 @@ module publisher::vip_tvl_manager {
         assert!(average_tvl == balance, 0);
     }
 
-    #[test(publisher = @publisher)]
-    public fun add_multi_snapshot_for_test(publisher: &signer) acquires ModuleStore {
-        init_module_for_test(publisher);
+    #[test(vip = @vip)]
+    public fun add_multi_snapshot_for_test(vip: &signer) acquires ModuleStore {
+        init_module_for_test(vip);
         let balance1 = 1_000_000_000_000;
         let balance2 = 2_000_000_000_000;
         let balance3 = 3_000_000_000_000;

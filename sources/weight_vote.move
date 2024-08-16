@@ -1,4 +1,4 @@
-module publisher::vip_weight_vote {
+module vip::weight_vote {
     use std::bcs;
     use std::error;
     use std::signer;
@@ -17,9 +17,9 @@ module publisher::vip_weight_vote {
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
 
-    use publisher::vip;
-    use publisher::vip_reward;
-    use publisher::vip_utils;
+    use vip::vip;
+    use vip::reward;
+    use vip::utils;
 
     //
     // Errors
@@ -270,11 +270,11 @@ module publisher::vip_weight_vote {
         challenge_deposit_amount: u64,
     ) {
         assert!(
-            signer::address_of(chain) == @publisher,
+            signer::address_of(chain) == @vip,
             error::permission_denied(EUNAUTHORIZED),
         );
         assert!(
-            !exists<ModuleStore>(@publisher),
+            !exists<ModuleStore>(@vip),
             error::already_exists(EMODULE_STORE_ALREADY_EXISTS),
         );
 
@@ -312,8 +312,8 @@ module publisher::vip_weight_vote {
         quorum_ratio: Option<Decimal128>,
         proposal_deposit_amount: Option<u64>,
     ) acquires ModuleStore {
-        vip_utils::check_chain_permission(chain);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        utils::check_chain_permission(chain);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
 
         if (option::is_some(&cycle_interval)) {
             module_store.cycle_interval = option::extract(&mut cycle_interval);
@@ -366,7 +366,7 @@ module publisher::vip_weight_vote {
         api_uri: String,
         snapshot_height: u64,
     ) acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, timestamp) = get_block_info();
 
         assert!(
@@ -412,7 +412,7 @@ module publisher::vip_weight_vote {
         weights: vector<Decimal128>,
     ) acquires ModuleStore {
         let addr = signer::address_of(account);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, timestamp) = get_block_info();
 
         // check bridge valid
@@ -507,7 +507,7 @@ module publisher::vip_weight_vote {
 
     // it will be executed by agent; but there is no permission to execute proposal
     public entry fun execute_proposal() acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, timestamp) = get_block_info();
 
         // get the last voting proposal
@@ -584,13 +584,13 @@ module publisher::vip_weight_vote {
     ) acquires ModuleStore {
         let (_, timestamp) = get_block_info();
         let challenger = signer::address_of(account);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (cycle, proposal) = last_finalized_proposal(module_store, timestamp);
 
         // transfer deposit
         primary_fungible_store::transfer(
             account,
-            vip_reward::reward_metadata(),
+            reward::reward_metadata(),
             object::address_from_extend_ref(&module_store.challenge_deposit_store),
             module_store.challenge_deposit_amount,
         );
@@ -685,7 +685,7 @@ module publisher::vip_weight_vote {
         let addr = signer::address_of(account);
 
         // check challenge state
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let challenge_key = table_key::encode_u64(challenge_id);
         assert!(
             table::contains(
@@ -802,7 +802,7 @@ module publisher::vip_weight_vote {
 
     fun execute_challenge_internal(challenge_id: u64): bool acquires ModuleStore {
         let (_, timestamp) = get_block_info();
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
 
         // get challenge
         let challenge_key = table_key::encode_u64(challenge_id);
@@ -847,7 +847,7 @@ module publisher::vip_weight_vote {
         if (total_tally < challenge.quorum) {
             cosmos::fund_community_pool(
                 &object_signer,
-                vip_reward::reward_metadata(),
+                reward::reward_metadata(),
                 challenge.deposit_amount,
             );
             return false
@@ -856,7 +856,7 @@ module publisher::vip_weight_vote {
         // return deposit to challenger
         primary_fungible_store::transfer(
             &object_signer,
-            vip_reward::reward_metadata(),
+            reward::reward_metadata(),
             challenge.challenger,
             challenge.deposit_amount,
         );
@@ -1153,7 +1153,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_module_store(): ModuleResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
 
         ModuleResponse {
             current_cycle: module_store.current_cycle,
@@ -1171,7 +1171,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_total_tally(cycle: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
         assert!(
             table::contains(&module_store.proposals, cycle_key),
@@ -1183,7 +1183,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_tally(cycle: u64, bridge_id: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
         assert!(
             table::contains(&module_store.proposals, cycle_key),
@@ -1199,7 +1199,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_tally_infos(cycle: u64): vector<TallyResponse> acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
         assert!(
             table::contains(&module_store.proposals, cycle_key),
@@ -1233,7 +1233,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_challenge(challenge_id: u64): ChallengeResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let challenge_key = table_key::encode_u64(challenge_id);
         assert!(
             table::contains(
@@ -1268,9 +1268,9 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_challenge_by_cycle(cycle: u64): vector<ChallengeResponse> acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let challenge_responses = vector::empty<ChallengeResponse>();
-        vip_utils::table_loop(
+        utils::table_loop(
             &module_store.challenges,
             |_k, challenge| {
                 use_challenge(challenge);
@@ -1305,7 +1305,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_proposal(cycle: u64): ProposalResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
         assert!(
             table::contains(&module_store.proposals, cycle_key),
@@ -1325,7 +1325,7 @@ module publisher::vip_weight_vote {
 
     #[view]
     public fun get_weight_vote(cycle: u64, user: address): WeightVoteResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@publisher);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
         assert!(
             table::contains(&module_store.proposals, cycle_key),
@@ -1362,9 +1362,9 @@ module publisher::vip_weight_vote {
     }
 
     #[test_only]
-    fun init_test(chain: &signer, publisher: &signer): coin::MintCapability {
+    fun init_test(chain: &signer, vip: &signer): coin::MintCapability {
         initialize(
-            publisher,
+            vip,
             @0x2,
             100,
             100,
@@ -1387,9 +1387,9 @@ module publisher::vip_weight_vote {
                 string::utf8(b""),
                 string::utf8(b""),
             );
-        vip::init_module_for_test(publisher);
+        vip::init_module_for_test(vip);
         vip::register(
-            publisher,
+            vip,
             @0x2,
             1,
             @0x12,
@@ -1399,7 +1399,7 @@ module publisher::vip_weight_vote {
             decimal256::zero(),
         );
         vip::register(
-            publisher,
+            vip,
             @0x2,
             2,
             @0x12,
@@ -1501,17 +1501,17 @@ module publisher::vip_weight_vote {
         proofs
     }
 
-    #[test(chain = @0x1, publisher = @publisher, submitter = @0x2, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
+    #[test(chain = @0x1, vip = @vip, submitter = @0x2, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
     fun proposal_end_to_end(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         submitter: &signer,
         u1: &signer,
         u2: &signer,
         u3: &signer,
         u4: &signer,
     ) acquires ModuleStore {
-        init_test(chain, publisher);
+        init_test(chain, vip);
         let addresses = vector[
             signer::address_of(u1),
             signer::address_of(u2),
@@ -1621,10 +1621,10 @@ module publisher::vip_weight_vote {
         execute_proposal();
     }
 
-    #[test(chain = @0x1, publisher = @publisher, submitter = @0x2, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
+    #[test(chain = @0x1, vip = @vip, submitter = @0x2, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
     fun challenge_end_to_end(
         chain: &signer,
-        publisher: &signer,
+        vip: &signer,
         submitter: &signer,
         u1: &signer,
         u2: &signer,
@@ -1632,7 +1632,7 @@ module publisher::vip_weight_vote {
         u4: &signer,
     ) acquires ModuleStore {
         // fund
-        let mint_cap = init_test(chain, publisher);
+        let mint_cap = init_test(chain, vip);
         coin::mint_to(
             &mint_cap,
             signer::address_of(u1),

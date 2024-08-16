@@ -1,4 +1,4 @@
-module publisher::vip_utils {
+module vip::utils {
     use std::signer;
     use std::error;
 
@@ -43,7 +43,7 @@ module publisher::vip_utils {
     public fun check_chain_permission(chain: &signer) {
         let addr = signer::address_of(chain);
         assert!(
-            addr == @initia_std || addr == @publisher,
+            addr == @initia_std || addr == @vip,
             error::permission_denied(EUNAUTHORIZED),
         );
     }

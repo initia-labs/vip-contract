@@ -1,4 +1,4 @@
-module publisher::vip_operator {
+module vip::operator {
     use std::error;
     use std::signer;
     use std::event;
@@ -7,8 +7,8 @@ module publisher::vip_operator {
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
 
-    use publisher::vip_utils;
-    friend publisher::vip;
+    use vip::utils;
+    friend vip::vip;
     //
     // Errors
     //
@@ -66,9 +66,9 @@ module publisher::vip_operator {
         commission_rate: Decimal256,
     }
 
-    fun init_module(publisher: &signer) {
+    fun init_module(vip: &signer) {
         move_to(
-            publisher,
+            vip,
             ModuleStore { operator_infos: table::new<vector<u8>, OperatorInfo>() },
         );
     }
@@ -111,8 +111,8 @@ module publisher::vip_operator {
         commission_max_change_rate: Decimal256,
         commission_rate: Decimal256
     ) acquires ModuleStore {
-        vip_utils::check_chain_permission(chain);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        utils::check_chain_permission(chain);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let bridge_id_key = table_key::encode_u64(bridge_id);
         assert!(
             !table::contains(
@@ -150,7 +150,7 @@ module publisher::vip_operator {
     ) acquires ModuleStore {
         let operator_addr = signer::address_of(operator);
         let bridge_id_key = table_key::encode_u64(bridge_id);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
 
         let operator_info =
             table::borrow_mut(
@@ -210,7 +210,7 @@ module publisher::vip_operator {
         new_operator_addr: address,
     ) acquires ModuleStore {
         let bridge_id_key = table_key::encode_u64(bridge_id);
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let operator_info =
             table::borrow_mut(
                 &mut module_store.operator_infos,
@@ -230,7 +230,7 @@ module publisher::vip_operator {
 
     #[view]
     public fun is_bridge_registered(bridge_id: u64): bool acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_infos,
             table_key::encode_u64(bridge_id),
@@ -239,7 +239,7 @@ module publisher::vip_operator {
 
     #[view]
     public fun get_operator_commission(bridge_id: u64): Decimal256 acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
@@ -257,7 +257,7 @@ module publisher::vip_operator {
 
     #[view]
     public fun get_operator_info(bridge_id: u64): OperatorInfoResponse acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@publisher);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
@@ -291,16 +291,16 @@ module publisher::vip_operator {
         init_module(chain);
     }
 
-    #[test(publisher = @publisher, operator = @0x999)]
+    #[test(vip = @vip, operator = @0x999)]
     fun test_update_operator_commission(
-        publisher: &signer, operator: &signer
+        vip: &signer, operator: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         let bridge_id = 1;
         let operator_addr = signer::address_of(operator);
 
         register_operator_store(
-            publisher,
+            vip,
             operator_addr,
             bridge_id,
             10,
@@ -366,17 +366,17 @@ module publisher::vip_operator {
         );
     }
 
-    #[test(publisher = @publisher, operator = @0x999)]
+    #[test(vip = @vip, operator = @0x999)]
     #[expected_failure(abort_code = 0x10003, location = Self)]
     fun failed_invalid_change_rate(
-        publisher: &signer, operator: &signer
+        vip: &signer, operator: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         let bridge_id = 1;
         let operator_addr = signer::address_of(operator);
 
         register_operator_store(
-            publisher,
+            vip,
             operator_addr,
             bridge_id,
             10,
@@ -393,17 +393,17 @@ module publisher::vip_operator {
         );
     }
 
-    #[test(publisher = @publisher, operator = @0x999)]
+    #[test(vip = @vip, operator = @0x999)]
     #[expected_failure(abort_code = 0x10004, location = Self)]
     fun failed_over_max_rate(
-        publisher: &signer, operator: &signer
+        vip: &signer, operator: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         let bridge_id = 1;
         let operator_addr = signer::address_of(operator);
 
         register_operator_store(
-            publisher,
+            vip,
             operator_addr,
             bridge_id,
             10,
@@ -420,17 +420,17 @@ module publisher::vip_operator {
         );
     }
 
-    #[test(publisher = @publisher, operator = @0x999)]
+    #[test(vip = @vip, operator = @0x999)]
     #[expected_failure(abort_code = 0x10005, location = Self)]
     fun failed_not_valid_stage(
-        publisher: &signer, operator: &signer
+        vip: &signer, operator: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         let bridge_id = 1;
         let operator_addr = signer::address_of(operator);
 
         register_operator_store(
-            publisher,
+            vip,
             operator_addr,
             bridge_id,
             10,
@@ -447,17 +447,17 @@ module publisher::vip_operator {
         );
     }
 
-    #[test(publisher = @publisher, operator = @0x999)]
+    #[test(vip = @vip, operator = @0x999)]
     #[expected_failure(abort_code = 0x10006, location = Self)]
     fun failed_invalid_commission_rate(
-        publisher: &signer, operator: &signer
+        vip: &signer, operator: &signer
     ) acquires ModuleStore {
-        init_module_for_test(publisher);
+        init_module_for_test(vip);
         let bridge_id = 1;
         let operator_addr = signer::address_of(operator);
 
         register_operator_store(
-            publisher,
+            vip,
             operator_addr,
             bridge_id,
             10,
