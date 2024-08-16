@@ -143,7 +143,7 @@ module vip::lock_staking {
         release_time: u64,
         validator_address: String
     ) acquires StakingAccount {
-        assert!(false, error::not_implemented(0)); // only allow for zapping for now;
+        // TODO: disable this
         let fa = coin::withdraw(account, metadata, amount);
         delegate_internal(
             account,
@@ -698,6 +698,9 @@ module vip::lock_staking {
 
     public fun get_locked_delegations(addr: address): vector<LockedDelegationResponse> acquires StakingAccount {
         let staking_account_addr = get_staking_address(addr);
+        if (!exists<StakingAccount>(staking_account_addr)) {
+            return vector[]
+        };
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
         let iter = table::iter(
             &staking_account.delegations,

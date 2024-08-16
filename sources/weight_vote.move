@@ -680,6 +680,11 @@ module vip::weight_vote {
         }
     }
 
+    #[view]
+    public fun get_voting_power(user: address): u64 acquires ModuleStore {
+        calculate_voting_power(user)
+    }
+
     inline fun use_weight(_v: Weight) {
     }
 
