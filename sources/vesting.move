@@ -216,7 +216,7 @@ module vip::vesting {
         user_vestings: &mut Table<vector<u8>, UserVesting>
     ): vector<UserVesting> {
         let user_vestings_cache: vector<UserVesting> = vector[];
-        utils::table_loop(
+        utils::walk(
             user_vestings,
             |_stage_key, user_vesting| {
                 use_user_vesting_ref(user_vesting);
@@ -237,7 +237,7 @@ module vip::vesting {
         operator_vestings: &mut Table<vector<u8>, OperatorVesting>
     ): vector<OperatorVesting> {
         let operator_vestings_cache: vector<OperatorVesting> = vector[];
-        utils::table_loop(
+        utils::walk(
             operator_vestings,
             |_stage_key, operator_vesting| {
                 use_operator_vesting_ref(operator_vesting);
@@ -1021,7 +1021,7 @@ module vip::vesting {
     public fun get_user_unlocked_reward(account_addr: address, bridge_id: u64): u64 acquires ModuleStore {
         let total_unlocked_reward = 0;
         let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        utils::table_loop<vector<u8>, UserVesting>(
+        utils::walk<vector<u8>, UserVesting>(
             user_vestings,
             |_k, user_vesting| {
                 use_user_vesting_ref(user_vesting);
@@ -1037,7 +1037,7 @@ module vip::vesting {
     public fun get_user_locked_reward(account_addr: address, bridge_id: u64): u64 acquires ModuleStore {
         let total_locked_reward = 0;
         let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        utils::table_loop<vector<u8>, UserVesting>(
+        utils::walk<vector<u8>, UserVesting>(
             user_vestings,
             |_k, user_vesting| {
                 use_user_vesting_ref(user_vesting);
@@ -1063,7 +1063,7 @@ module vip::vesting {
     ): vector<u64> acquires ModuleStore {
         let claimed_stages = vector::empty<u64>();
         let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        utils::table_loop(
+        utils::walk(
             user_vestings,
             |stage_key, _v| {
                 vector::push_back(
@@ -1084,7 +1084,7 @@ module vip::vesting {
     ): u64 acquires ModuleStore {
         let total_unlocked_reward = 0;
         let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
-        utils::table_loop(
+        utils::walk(
             operator_vestings,
             |_k, operator_vesting| {
                 use_operator_vesting_ref(operator_vesting);
@@ -1112,7 +1112,7 @@ module vip::vesting {
     ): vector<u64> acquires ModuleStore {
         let claimed_stages = vector::empty<u64>();
         let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
-        utils::table_loop(
+        utils::walk(
             operator_vestings,
             |stage_key, _v| {
                 vector::push_back(

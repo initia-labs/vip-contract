@@ -7,7 +7,7 @@ module vip::tvl_manager {
 
     use vip::utils;
     friend vip::vip;
-    const EINVALID_EPOCH: u64 = 1;
+    const EINVALID_STAGE: u64 = 1;
     ///
     const EINVALID_BRIDGE_ID: u64 = 2;
 
@@ -147,20 +147,14 @@ module vip::tvl_manager {
                 &module_store.average_tvl,
                 stage_key,
             )) {
-            assert!(
-                false,
-                error::not_found(EINVALID_EPOCH),
-            );
+            abort(error::not_found(EINVALID_STAGE))
         };
         let average_tvl_by_stage = table::borrow(
             &module_store.average_tvl,
             stage_key
         );
         if (!table::contains(average_tvl_by_stage, bridge_id_key)) {
-            assert!(
-                false,
-                error::not_found(EINVALID_BRIDGE_ID),
-            );
+            abort(error::not_found(EINVALID_BRIDGE_ID))
         };
 
         let average_tvl = table::borrow(average_tvl_by_stage, bridge_id_key);
@@ -175,10 +169,7 @@ module vip::tvl_manager {
                 &module_store.snapshots,
                 table_key::encode_u64(stage),
             )) {
-            assert!(
-                false,
-                error::not_found(EINVALID_EPOCH),
-            );
+            abort(error::not_found(EINVALID_STAGE))
         };
         let average_tvl_stage = table::borrow_mut(
             &mut module_store.snapshots,
@@ -188,17 +179,14 @@ module vip::tvl_manager {
                 average_tvl_stage,
                 table_key::encode_u64(bridge_id),
             )) {
-            assert!(
-                false,
-                error::not_found(EINVALID_BRIDGE_ID),
-            );
+            abort(error::not_found(EINVALID_BRIDGE_ID))
         };
         let snapshots_table = table::borrow_mut(
             average_tvl_stage,
             table_key::encode_u64(bridge_id),
         );
         let snapshot_responses = vector::empty<TVLSnapshotResponse>();
-        utils::table_loop(
+        utils::walk(
             snapshots_table,
             |time_vec, snapshot_tvl| {
                 vector::push_back(

@@ -17,7 +17,7 @@ module vip::utils {
 
     const EUNAUTHORIZED: u64 = 1;
 
-    public inline fun table_loop_mut<K: copy + drop, V>(
+    public inline fun walk_mut<K: copy + drop, V>(
         mut_table: &mut Table<K, V>,
         f: |K, &mut V| bool
     ) {
@@ -35,7 +35,7 @@ module vip::utils {
         }
     }
 
-    public inline fun table_loop<K: copy + drop, V>(mut_table: &Table<K, V>, f: |K, &V| bool) {
+    public inline fun walk<K: copy + drop, V>(mut_table: &Table<K, V>, f: |K, &V| bool) {
         let iter = table::iter(
             mut_table,
             option::none(),

@@ -1262,6 +1262,16 @@ module vip::test {
     ) acquires TestState {
         initialize(chain, vip, operator);
         let receiver_addr = signer::address_of(receiver);
+        vip::register(
+            vip,
+            signer::address_of(operator),
+            2, // bridge_id
+            get_bridge_address(),
+            string::utf8(b"contract"),
+            decimal256::from_ratio(1, 2),
+            decimal256::from_ratio(1, 2),
+            decimal256::from_ratio(1, 2),
+        );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
         // stage 1 snapshot submitted
