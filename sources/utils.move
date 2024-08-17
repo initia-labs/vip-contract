@@ -25,7 +25,7 @@ module vip::utils {
             mut_table,
             option::none(),
             option::none(),
-            1
+            1,
         );
         loop {
             if (!table::prepare_mut<K, V>(iter)) { break };
@@ -35,12 +35,14 @@ module vip::utils {
         }
     }
 
-    public inline fun walk<K: copy + drop, V>(mut_table: &Table<K, V>, f: |K, &V| bool) {
+    public inline fun walk<K: copy + drop, V>(
+        mut_table: &Table<K, V>, f: |K, &V| bool
+    ) {
         let iter = table::iter(
             mut_table,
             option::none(),
             option::none(),
-            1
+            1,
         );
         loop {
             if (!table::prepare<K, V>(iter)) { break };

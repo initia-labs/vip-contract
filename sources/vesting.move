@@ -205,10 +205,8 @@ module vip::vesting {
     // get table key by bridge_id, account address,vesting start stage
     fun get_vesting_table_key(bridge_id: u64, account_addr: address): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
-        vector::append(
-            &mut key,
-            bcs::to_bytes(&account_addr)
-        );key
+        vector::append(&mut key, bcs::to_bytes(&account_addr));
+        key
     }
 
     // make user vesting cache with non-finalized vesting positions
@@ -1276,10 +1274,8 @@ module vip::vesting {
     }
 
     #[test_only]
-    public fun initialize_coin(
-        account: &signer,
-        symbol: string::String,
-    ): (
+    public fun initialize_coin(account: &signer, symbol: string::String,)
+        : (
         coin::BurnCapability,
         coin::FreezeCapability,
         coin::MintCapability,

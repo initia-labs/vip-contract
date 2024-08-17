@@ -131,10 +131,7 @@ module vip::vault {
     #[view]
     public fun balance(): u64 acquires ModuleStore {
         let vault_store_addr = get_vault_store_address();
-        primary_fungible_store::balance(
-            vault_store_addr,
-            reward::reward_metadata(),
-        )
+        primary_fungible_store::balance(vault_store_addr, reward::reward_metadata())
     }
 
     #[view]

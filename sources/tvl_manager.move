@@ -124,11 +124,11 @@ module vip::tvl_manager {
             table_key::encode_u64(bridge_id),
         );
         // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
-        let new_average_tvl = (
+        let new_average_tvl = 
             (
-                (snapshot_count as u128) * (*average_tvl as u128) + (balance as u128)
-            ) / ((snapshot_count + 1) as u128)
-        );
+                ((snapshot_count as u128) * (*average_tvl as u128) + (balance as u128))
+                    / ((snapshot_count + 1) as u128)
+            );
 
         table::upsert(
             average_tvl_table,
@@ -149,10 +149,7 @@ module vip::tvl_manager {
             )) {
             abort(error::not_found(EINVALID_STAGE))
         };
-        let average_tvl_by_stage = table::borrow(
-            &module_store.average_tvl,
-            stage_key
-        );
+        let average_tvl_by_stage = table::borrow(&module_store.average_tvl, stage_key);
         if (!table::contains(average_tvl_by_stage, bridge_id_key)) {
             abort(error::not_found(EINVALID_BRIDGE_ID))
         };

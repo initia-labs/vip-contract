@@ -52,10 +52,8 @@ module vip::reward {
 
     fun get_distrubuted_reward_table_key(bridge_id: u64, stage: u64): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
-        vector::append(
-            &mut key,
-            table_key::encode_u64(stage)
-        );key
+        vector::append(&mut key, table_key::encode_u64(stage));
+        key
     }
 
     //
@@ -63,10 +61,7 @@ module vip::reward {
     //
 
     public fun reward_metadata(): Object<Metadata> {
-        coin::metadata(
-            @initia_std,
-            string::utf8(REWARD_SYMBOL)
-        )
+        coin::metadata(@initia_std, string::utf8(REWARD_SYMBOL))
     }
 
     public(friend) fun record_distributed_reward(
