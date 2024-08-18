@@ -200,164 +200,6 @@ module vip::vesting {
     }
 
     //
-    // Helper function
-    //
-    // get table key by bridge_id, account address,vesting start stage
-    fun get_vesting_table_key(bridge_id: u64, account_addr: address): vector<u8> {
-        let key = table_key::encode_u64(bridge_id);
-        vector::append(&mut key, bcs::to_bytes(&account_addr));
-        key
-    }
-
-    // make user vesting cache with non-finalized vesting positions
-    fun make_user_vestings_cache(
-        user_vestings: &mut Table<vector<u8>, UserVesting>
-    ): vector<UserVesting> {
-        let user_vestings_cache: vector<UserVesting> = vector[];
-        utils::walk(
-            user_vestings,
-            |_stage_key, user_vesting| {
-                use_user_vesting_ref(user_vesting);
-                if (!user_vesting.finalized) {
-                    vector::push_back(
-                        &mut user_vestings_cache,
-                        *user_vesting,
-                    );
-                };
-                false
-            },
-        );
-        user_vestings_cache
-    }
-
-    // make operator vesting cache with non-finalized vesting positions
-    fun make_operator_vestings_cache(
-        operator_vestings: &mut Table<vector<u8>, OperatorVesting>
-    ): vector<OperatorVesting> {
-        let operator_vestings_cache: vector<OperatorVesting> = vector[];
-        utils::walk(
-            operator_vestings,
-            |_stage_key, operator_vesting| {
-                use_operator_vesting_ref(operator_vesting);
-                if (!operator_vesting.finalized) {
-                    vector::push_back(
-                        &mut operator_vestings_cache,
-                        *operator_vesting,
-                    );
-                };
-                false
-            },
-        );
-        operator_vestings_cache
-    }
-
-    fun get_last_key<K: copy + drop, V>(table: &Table<K, V>): K {
-        let iter = table::iter(
-            table,
-            option::none(),
-            option::none(),
-            2,
-        );
-        if (!table::prepare<K, V>(iter)) {
-            abort(
-                error::invalid_argument(ENOT_FOUND)
-            )
-        };
-        let (key, _) = table::next<K, V>(iter);key
-    }
-
-    fun get_last_claimed_stage<Vesting: copy + drop + store>(account_addr: address, bridge_id: u64)
-        : u64 acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let table_key = get_vesting_table_key(bridge_id, account_addr);
-        if (type_info::type_name<Vesting>() == type_info::type_name<OperatorVesting>()) {
-            let operator_vestings = table::borrow_mut(
-                &mut module_store.operator_vestings,
-                table_key,
-            );
-            let stage_key = get_last_key(operator_vestings);
-            table_key::decode_u64(stage_key)
-        }
-        else if (type_info::type_name<Vesting>() == type_info::type_name<UserVesting>()) {
-            let user_vestings = table::borrow_mut(
-                &mut module_store.user_vestings,
-                table_key,
-            );
-            let stage_key = get_last_key(user_vestings);
-            table_key::decode_u64(stage_key)
-        }
-        else {
-            abort(
-                error::invalid_argument(EINVALID_VESTING_TYPE)
-            )
-        }
-    }
-
-    inline fun load_user_vestings_mut(bridge_id: u64, account_addr: address)
-        : &mut Table<vector<u8>, UserVesting> {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
-        assert!(
-            table::contains(
-                &mut module_store.user_vestings,
-                vesting_table_key,
-            ),
-            error::not_found(EVESTING_NOT_FOUND),
-        );
-        let user_vestings = table::borrow_mut(
-            &mut module_store.user_vestings,
-            vesting_table_key,
-        );
-        user_vestings
-    }
-
-    inline fun load_user_vesting_mut(
-        bridge_id: u64,
-        account_addr: address,
-        stage: u64
-    ): &mut UserVesting {
-        let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
-        let stage_key = table_key::encode_u64(stage);
-        assert!(
-            table::contains(user_vestings, stage_key),
-            error::not_found(EINVALID_STAGE),
-        );
-        table::borrow_mut(user_vestings, stage_key)
-    }
-
-    inline fun load_operator_vestings_mut(bridge_id: u64, account_addr: address)
-        : &mut Table<vector<u8>, OperatorVesting> {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
-        assert!(
-            table::contains(
-                &mut module_store.operator_vestings,
-                vesting_table_key,
-            ),
-            error::not_found(EVESTING_NOT_FOUND),
-        );
-        let operator_vestings = table::borrow_mut(
-            &mut module_store.operator_vestings,
-            vesting_table_key,
-        );
-        operator_vestings
-    }
-
-    inline fun load_operator_vesting_mut(
-        bridge_id: u64,
-        account_addr: address,
-        stage: u64
-    ): &mut OperatorVesting {
-        let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
-        let stage_key = table_key::encode_u64(stage);
-        assert!(
-            table::contains(operator_vestings, stage_key),
-            error::not_found(EINVALID_STAGE),
-        );
-        table::borrow_mut(operator_vestings, stage_key)
-    }
-
-    //
     // Implementations
     //
     public(friend) fun register_user_vesting_store(account: &signer, bridge_id: u64) acquires ModuleStore {
@@ -401,9 +243,10 @@ module vip::vesting {
         bridge_id: u64,
         claim_infos: vector<UserVestingClaimInfo>, /*asc sorted claim info*/
     ): FungibleAsset acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let total_vested_reward = 0; // net reward vested to user
         let total_penalty_reward = 0;
-        let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
+        let user_vestings = load_user_vestings_mut(module_store, bridge_id, account_addr);
         // make cache from user vesting without finalized
         let user_vestings_cache = make_user_vestings_cache(user_vestings);
         // claim
@@ -450,7 +293,7 @@ module vip::vesting {
                         initial_reward_amount,
                     );
                 } else {
-                    // if user score is 0 emit create,finalize event and add to user vestings marked finalized true
+                    // if user score is 0 emit create, finalize event and add to user vestings marked finalized true
                     table::add(
                         user_vestings,
                         table_key::encode_u64(claim_info.start_stage),
@@ -560,8 +403,9 @@ module vip::vesting {
         bridge_id: u64,
         claim_infos: vector<OperatorVestingClaimInfo>, /*asc sorted claim info*/
     ): FungibleAsset acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         let total_vested_reward = 0;
-        let operator_vestings = load_operator_vestings_mut(bridge_id, operator_addr);
+        let operator_vestings = load_operator_vestings_mut(module_store,bridge_id, operator_addr);
         // make cache from operator vesting without finalized
         let operator_vestings_cache = make_operator_vestings_cache(operator_vestings);
 
@@ -737,7 +581,8 @@ module vip::vesting {
         bridge_id: u64,
         stage: u64,
     ): bool acquires ModuleStore {
-        load_user_vesting_mut(bridge_id, account_addr, stage).finalized
+        let module_store = borrow_global<ModuleStore>(@vip);
+        load_user_vesting_imut(module_store, bridge_id, account_addr, stage).finalized
     }
 
     public fun is_operator_vesting_position_finalized(
@@ -745,7 +590,8 @@ module vip::vesting {
         bridge_id: u64,
         stage: u64,
     ): bool acquires ModuleStore {
-        load_operator_vesting_mut(bridge_id, account_addr, stage).finalized
+        let module_store = borrow_global<ModuleStore>(@vip);
+        load_operator_vesting_imut(module_store,bridge_id, account_addr, stage).finalized
     }
 
     // calculate user vesting til current stage
@@ -1012,13 +858,235 @@ module vip::vesting {
     }
 
     //
+    // Helper function
+    //
+    // get table key by bridge_id, account address,vesting start stage
+    fun get_vesting_table_key(bridge_id: u64, account_addr: address): vector<u8> {
+        let key = table_key::encode_u64(bridge_id);
+        vector::append(&mut key, bcs::to_bytes(&account_addr));
+        key
+    }
+
+    // make user vesting cache with non-finalized vesting positions
+    fun make_user_vestings_cache(
+        user_vestings: &mut Table<vector<u8>, UserVesting>
+    ): vector<UserVesting> {
+        let user_vestings_cache: vector<UserVesting> = vector[];
+        utils::walk(
+            user_vestings,
+            |_stage_key, user_vesting| {
+                use_user_vesting_ref(user_vesting);
+                if (!user_vesting.finalized) {
+                    vector::push_back(
+                        &mut user_vestings_cache,
+                        *user_vesting,
+                    );
+                };
+                false
+            },
+        );
+        user_vestings_cache
+    }
+
+    // make operator vesting cache with non-finalized vesting positions
+    fun make_operator_vestings_cache(
+        operator_vestings: &mut Table<vector<u8>, OperatorVesting>
+    ): vector<OperatorVesting> {
+        let operator_vestings_cache: vector<OperatorVesting> = vector[];
+        utils::walk(
+            operator_vestings,
+            |_stage_key, operator_vesting| {
+                use_operator_vesting_ref(operator_vesting);
+                if (!operator_vesting.finalized) {
+                    vector::push_back(
+                        &mut operator_vestings_cache,
+                        *operator_vesting,
+                    );
+                };
+                false
+            },
+        );
+        operator_vestings_cache
+    }
+
+    fun get_last_key<K: copy + drop, V>(table: &Table<K, V>): K {
+        let iter = table::iter(
+            table,
+            option::none(),
+            option::none(),
+            2,
+        );
+        if (!table::prepare<K, V>(iter)) {
+            abort(
+                error::invalid_argument(ENOT_FOUND)
+            )
+        };
+        let (key, _) = table::next<K, V>(iter);key
+    }
+
+    fun get_last_claimed_stage<Vesting: copy + drop + store>(account_addr: address, bridge_id: u64)
+        : u64 acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let table_key = get_vesting_table_key(bridge_id, account_addr);
+        if (type_info::type_name<Vesting>() == type_info::type_name<OperatorVesting>()) {
+            let operator_vestings = table::borrow_mut(
+                &mut module_store.operator_vestings,
+                table_key,
+            );
+            let stage_key = get_last_key(operator_vestings);
+            table_key::decode_u64(stage_key)
+        }
+        else if (type_info::type_name<Vesting>() == type_info::type_name<UserVesting>()) {
+            let user_vestings = table::borrow_mut(
+                &mut module_store.user_vestings,
+                table_key,
+            );
+            let stage_key = get_last_key(user_vestings);
+            table_key::decode_u64(stage_key)
+        }
+        else {
+            abort(
+                error::invalid_argument(EINVALID_VESTING_TYPE)
+            )
+        }
+    }
+
+    fun load_user_vestings_mut(module_store: &mut ModuleStore, bridge_id: u64, account_addr: address)
+        : &mut Table<vector<u8>, UserVesting> {
+        let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
+        assert!(
+            table::contains(
+                &mut module_store.user_vestings,
+                vesting_table_key,
+            ),
+            error::not_found(EVESTING_NOT_FOUND),
+        );
+        let user_vestings = table::borrow_mut(
+            &mut module_store.user_vestings,
+            vesting_table_key,
+        );
+        user_vestings
+    }
+
+    fun load_user_vestings_imut(module_store: &ModuleStore, bridge_id: u64, account_addr: address)
+        : &Table<vector<u8>, UserVesting> {
+        let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
+        assert!(
+            table::contains(
+                &module_store.user_vestings,
+                vesting_table_key,
+            ),
+            error::not_found(EVESTING_NOT_FOUND),
+        );
+        let user_vestings = table::borrow(
+            &module_store.user_vestings,
+            vesting_table_key,
+        );
+        user_vestings
+    }
+
+    fun load_user_vesting_mut(
+        module_store: &mut ModuleStore,
+        bridge_id: u64,
+        account_addr: address,
+        stage: u64
+    ): &mut UserVesting {
+        let user_vestings = load_user_vestings_mut(module_store,bridge_id, account_addr);
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(user_vestings, stage_key),
+            error::not_found(EINVALID_STAGE),
+        );
+        table::borrow_mut(user_vestings, stage_key)
+    }
+
+    fun load_user_vesting_imut(
+        module_store: &ModuleStore,
+        bridge_id: u64,
+        account_addr: address,
+        stage: u64
+    ): &UserVesting {
+        let user_vestings = load_user_vestings_imut(module_store,bridge_id, account_addr);
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(user_vestings, stage_key),
+            error::not_found(EINVALID_STAGE),
+        );
+        table::borrow(user_vestings, stage_key)
+    }
+
+    fun load_operator_vestings_mut(module_store: &mut ModuleStore, bridge_id: u64, account_addr: address)
+        : &mut Table<vector<u8>, OperatorVesting> {
+        let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
+        assert!(
+            table::contains(
+                &mut module_store.operator_vestings,
+                vesting_table_key,
+            ),
+            error::not_found(EVESTING_NOT_FOUND),
+        );
+        let operator_vestings = table::borrow_mut(
+            &mut module_store.operator_vestings,
+            vesting_table_key,
+        );
+        operator_vestings
+    }
+
+    fun load_operator_vestings_imut(module_store: &ModuleStore, bridge_id: u64, account_addr: address)
+        : &Table<vector<u8>, OperatorVesting> {
+        let vesting_table_key = get_vesting_table_key(bridge_id, account_addr);
+        assert!(
+            table::contains(
+                &module_store.operator_vestings,
+                vesting_table_key,
+            ),
+            error::not_found(EVESTING_NOT_FOUND),
+        );
+        let operator_vestings = table::borrow(
+            &module_store.operator_vestings,
+            vesting_table_key,
+        );
+        operator_vestings
+    }
+
+    fun load_operator_vesting_mut(
+        module_store: &mut ModuleStore,
+        bridge_id: u64,
+        account_addr: address,
+        stage: u64
+    ): &mut OperatorVesting {
+        let operator_vestings = load_operator_vestings_mut(module_store,bridge_id, account_addr);
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(operator_vestings, stage_key),
+            error::not_found(EINVALID_STAGE),
+        );
+        table::borrow_mut(operator_vestings, stage_key)
+    }
+
+    fun load_operator_vesting_imut(
+        module_store: &ModuleStore,
+        bridge_id: u64,
+        account_addr: address,
+        stage: u64
+    ): &OperatorVesting {
+        let operator_vestings = load_operator_vestings_imut(module_store,bridge_id, account_addr);
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(operator_vestings, stage_key),
+            error::not_found(EINVALID_STAGE),
+        );
+        table::borrow(operator_vestings, stage_key)
+    }
+    //
     // View Functions
     //
     // <----- USER ----->
     #[view]
     public fun get_user_unlocked_reward(account_addr: address, bridge_id: u64): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
         let total_unlocked_reward = 0;
-        let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
+        let user_vestings = load_user_vestings_imut(module_store,bridge_id, account_addr);
         utils::walk<vector<u8>, UserVesting>(
             user_vestings,
             |_k, user_vesting| {
@@ -1033,8 +1101,9 @@ module vip::vesting {
 
     #[view]
     public fun get_user_locked_reward(account_addr: address, bridge_id: u64): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
         let total_locked_reward = 0;
-        let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
+        let user_vestings = load_user_vestings_imut(module_store, bridge_id, account_addr);
         utils::walk<vector<u8>, UserVesting>(
             user_vestings,
             |_k, user_vesting| {
@@ -1059,8 +1128,9 @@ module vip::vesting {
         account_addr: address,
         bridge_id: u64,
     ): vector<u64> acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
         let claimed_stages = vector::empty<u64>();
-        let user_vestings = load_user_vestings_mut(bridge_id, account_addr);
+        let user_vestings = load_user_vestings_imut(module_store,bridge_id, account_addr);
         utils::walk(
             user_vestings,
             |stage_key, _v| {
@@ -1080,8 +1150,9 @@ module vip::vesting {
         account_addr: address,
         bridge_id: u64,
     ): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
         let total_unlocked_reward = 0;
-        let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
+        let operator_vestings = load_operator_vestings_imut(module_store,bridge_id, account_addr);
         utils::walk(
             operator_vestings,
             |_k, operator_vesting| {
@@ -1108,8 +1179,9 @@ module vip::vesting {
         account_addr: address,
         bridge_id: u64,
     ): vector<u64> acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
         let claimed_stages = vector::empty<u64>();
-        let operator_vestings = load_operator_vestings_mut(bridge_id, account_addr);
+        let operator_vestings = load_operator_vestings_imut(module_store,bridge_id, account_addr);
         utils::walk(
             operator_vestings,
             |stage_key, _v| {
@@ -1129,7 +1201,8 @@ module vip::vesting {
         bridge_id: u64,
         stage: u64
     ): UserVestingResponse acquires ModuleStore {
-        let user_vesting = load_user_vesting_mut(bridge_id, account_addr, stage);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let user_vesting = load_user_vesting_imut(module_store,bridge_id, account_addr, stage);
         UserVestingResponse {
             finalized: user_vesting.finalized,
             initial_reward: user_vesting.initial_reward,
@@ -1149,7 +1222,8 @@ module vip::vesting {
         bridge_id: u64,
         stage: u64
     ): OperatorVestingResponse acquires ModuleStore {
-        let operator_vesting = load_operator_vesting_mut(bridge_id, account_addr, stage);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let operator_vesting = load_operator_vesting_imut(module_store,bridge_id, account_addr, stage);
         OperatorVestingResponse {
             finalized: operator_vesting.finalized,
             initial_reward: operator_vesting.initial_reward,

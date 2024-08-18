@@ -269,88 +269,7 @@ module vip::vip {
         merkle_root: vector<u8>,
         create_time: u64,
     }
-
-    fun get_last_bridge_version(
-        module_store: &ModuleStore, bridge_id: u64
-    ): (bool, u64) {
-        assert!(
-            table::contains(&module_store.bridges, table_key::encode_u64(bridge_id)),
-            EBRIDGE_NOT_FOUND,
-        );
-        let bridge_info =
-            table::borrow(&module_store.bridges, table_key::encode_u64(bridge_id));
-        let iter = table::iter(bridge_info, option::none(), option::none(), 2);
-
-        if (!table::prepare<vector<u8>, Bridge>(iter)) {
-            abort(error::invalid_argument(ENOT_FOUND))
-        };
-        let (version_vec, bridge) = table::next<vector<u8>, Bridge>(iter);
-
-        (bridge.is_registered, table_key::decode_u64(version_vec))
-
-    }
-
-    inline fun load_stage_data_mut(stage: u64): &mut StageData {
-
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let stage_key = table_key::encode_u64(stage);
-        assert!(
-            table::contains(&module_store.stage_data, stage_key),
-            error::not_found(ESTAGE_DATA_NOT_FOUND),
-        );
-        table::borrow_mut(
-            &mut module_store.stage_data,
-            table_key::encode_u64(stage),
-        )
-    }
-
-    fun load_snapshot_mut(
-        module_store: &mut ModuleStore, stage: u64, bridge_id: u64, version: u64
-    ): &mut Snapshot {
-        let stage_key = table_key::encode_u64(stage);
-        assert!(
-            table::contains(&module_store.stage_data, stage_key),
-            error::not_found(ESTAGE_DATA_NOT_FOUND),
-        );
-        let stage_data =
-            table::borrow_mut(
-                &mut module_store.stage_data,
-                table_key::encode_u64(stage),
-            );
-        let bridge_id_key = table_key::encode_u64(bridge_id);
-        assert!(
-            table::contains(
-                &stage_data.snapshots,
-                bridge_id_key,
-            ),
-            error::not_found(ESNAPSHOT_NOT_EXISTS),
-        );
-        let bridge_info = table::borrow_mut(&mut stage_data.snapshots, bridge_id_key);
-
-        table::borrow_mut(bridge_info, table_key::encode_u64(version))
-    }
-
-    fun load_bridge_mut(
-        module_store: &mut ModuleStore, bridge_id: u64, version: u64
-    ): &mut Bridge {
-        let bridge_id_key = table_key::encode_u64(bridge_id);
-        assert!(
-            table::contains(
-                &module_store.bridges,
-                bridge_id_key,
-            ),
-            error::not_found(EBRIDGE_NOT_FOUND),
-        );
-        let bridge_info = table::borrow_mut(&mut module_store.bridges, bridge_id_key);
-
-        let version_key = table_key::encode_u64(version);
-        assert!(
-            table::contains(bridge_info, version_key),
-            error::not_found(EINVALID_VERSION),
-        );
-
-        table::borrow_mut(bridge_info, version_key)
-    }
+    
 
     //
     // Implementations
@@ -1193,7 +1112,7 @@ module vip::vip {
         assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
         // check previous stage snapshot for preventing skipping stage
         check_previous_stage_snapshot(module_store, bridge_id, version, stage);
-        let stage_data = load_stage_data_mut(stage);
+        let stage_data = load_stage_data_mut(module_store, stage);
         assert!(
             !table::contains(
                 &stage_data.snapshots,
@@ -1326,7 +1245,7 @@ module vip::vip {
                 let merkle_proof = vector::borrow(&merkle_proofs, i);
                 let l2_score = vector::borrow(&l2_scores, i);
 
-                let snapshot = load_snapshot_mut(module_store, *stage, bridge_id, version);
+                let snapshot = load_snapshot_imut(module_store, *stage, bridge_id, version);
                 // check merkle proof
                 let target_hash =
                     score_hash(
@@ -1702,17 +1621,160 @@ module vip::vip {
     }
 
     //
+    // Helper Functions
+    //
+    fun get_last_bridge_version(
+        module_store: &ModuleStore, bridge_id: u64
+    ): (bool, u64) {
+        assert!(
+            table::contains(&module_store.bridges, table_key::encode_u64(bridge_id)),
+            EBRIDGE_NOT_FOUND,
+        );
+        let bridge_info =
+            table::borrow(&module_store.bridges, table_key::encode_u64(bridge_id));
+        let iter = table::iter(bridge_info, option::none(), option::none(), 2);
+
+        if (!table::prepare<vector<u8>, Bridge>(iter)) {
+            abort(error::invalid_argument(ENOT_FOUND))
+        };
+        let (version_vec, bridge) = table::next<vector<u8>, Bridge>(iter);
+
+        (bridge.is_registered, table_key::decode_u64(version_vec))
+
+    }
+
+    fun load_stage_data_mut(module_store: &mut ModuleStore, stage: u64): &mut StageData {
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(&module_store.stage_data, stage_key),
+            error::not_found(ESTAGE_DATA_NOT_FOUND),
+        );
+        table::borrow_mut(
+            &mut module_store.stage_data,
+            table_key::encode_u64(stage),
+        )
+    }
+
+    fun load_stage_data_imut(module_store: &ModuleStore, stage: u64): &StageData {
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(&module_store.stage_data, stage_key),
+            error::not_found(ESTAGE_DATA_NOT_FOUND),
+        );
+        table::borrow(
+            &module_store.stage_data,
+            table_key::encode_u64(stage),
+        )
+    }
+
+    fun load_snapshot_mut(
+        module_store: &mut ModuleStore, stage: u64, bridge_id: u64, version: u64
+    ): &mut Snapshot {
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(&mut module_store.stage_data, stage_key),
+            error::not_found(ESTAGE_DATA_NOT_FOUND),
+        );
+        let stage_data =
+            table::borrow_mut(
+                &mut module_store.stage_data,
+                table_key::encode_u64(stage),
+            );
+        let bridge_id_key = table_key::encode_u64(bridge_id);
+        assert!(
+            table::contains(
+                &mut stage_data.snapshots,
+                bridge_id_key,
+            ),
+            error::not_found(ESNAPSHOT_NOT_EXISTS),
+        );
+        let bridge_info = table::borrow_mut(&mut stage_data.snapshots, bridge_id_key);
+
+        table::borrow_mut(bridge_info, table_key::encode_u64(version))
+    }
+
+    fun load_snapshot_imut(
+        module_store: &ModuleStore, stage: u64, bridge_id: u64, version: u64
+    ): &Snapshot {
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(&module_store.stage_data, stage_key),
+            error::not_found(ESTAGE_DATA_NOT_FOUND),
+        );
+        let stage_data =
+            table::borrow(
+                &module_store.stage_data,
+                table_key::encode_u64(stage),
+            );
+        let bridge_id_key = table_key::encode_u64(bridge_id);
+        assert!(
+            table::contains(
+                &stage_data.snapshots,
+                bridge_id_key,
+            ),
+            error::not_found(ESNAPSHOT_NOT_EXISTS),
+        );
+        let bridge_info = table::borrow(&stage_data.snapshots, bridge_id_key);
+
+        table::borrow(bridge_info, table_key::encode_u64(version))
+    }
+
+    fun load_bridge_mut(
+        module_store: &mut ModuleStore, bridge_id: u64, version: u64
+    ): &mut Bridge {
+        let bridge_id_key = table_key::encode_u64(bridge_id);
+        assert!(
+            table::contains(
+                &module_store.bridges,
+                bridge_id_key,
+            ),
+            error::not_found(EBRIDGE_NOT_FOUND),
+        );
+        let bridge_info = table::borrow_mut(&mut module_store.bridges, bridge_id_key);
+
+        let version_key = table_key::encode_u64(version);
+        assert!(
+            table::contains(bridge_info, version_key),
+            error::not_found(EINVALID_VERSION),
+        );
+
+        table::borrow_mut(bridge_info, version_key)
+    }
+
+    fun load_bridge_imut(
+        module_store: &ModuleStore, bridge_id: u64, version: u64
+    ): &Bridge {
+        let bridge_id_key = table_key::encode_u64(bridge_id);
+        assert!(
+            table::contains(
+                &module_store.bridges,
+                bridge_id_key,
+            ),
+            error::not_found(EBRIDGE_NOT_FOUND),
+        );
+        let bridge_info = table::borrow(&module_store.bridges, bridge_id_key);
+
+        let version_key = table_key::encode_u64(version);
+        assert!(
+            table::contains(bridge_info, version_key),
+            error::not_found(EINVALID_VERSION),
+        );
+
+        table::borrow(bridge_info, version_key)
+    }
+
+    //
     // View Functions
     //
     #[view]
     public fun get_snapshot(bridge_id: u64, stage: u64): SnapshotResponse acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
         assert!(
             is_registered,
             error::unavailable(EINVALID_REGISTERD_BRIDGE),
         );
-        let snapshot = load_snapshot_mut(module_store, stage, bridge_id, version);
+        let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
         SnapshotResponse {
             create_time: snapshot.create_time,
             upsert_time: snapshot.upsert_time,
@@ -1787,7 +1849,8 @@ module vip::vip {
 
     #[view]
     public fun get_stage_data(stage: u64): StageDataResponse acquires ModuleStore {
-        let stage_data = load_stage_data_mut(stage);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let stage_data = load_stage_data_imut(module_store,stage);
         StageDataResponse {
             stage_start_time: stage_data.stage_start_time,
             stage_end_time: stage_data.stage_end_time,
@@ -1801,10 +1864,10 @@ module vip::vip {
 
     #[view]
     public fun get_bridge_info(bridge_id: u64): BridgeResponse acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
         assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
-        let bridge = load_bridge_mut(module_store, bridge_id, version);
+        let bridge = load_bridge_imut(module_store, bridge_id, version);
         BridgeResponse {
             init_stage: bridge.init_stage,
             bridge_id: bridge_id,
@@ -3803,7 +3866,7 @@ module vip::vip {
         );
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, version) = get_last_bridge_version(module_store, bridge_id1);
-        let init_stage = load_bridge_mut(module_store, bridge_id1, version).init_stage;
+        let init_stage = load_bridge_imut(module_store, bridge_id1, version).init_stage;
         assert!(init_stage == 1, 1);
 
         let (merkle_root_map, merkle_proof_map, score_map, total_score_map) =
