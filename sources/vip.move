@@ -1684,7 +1684,7 @@ module vip::vip {
             option::none(),
             1,
         );
-        if (!table::prepare<BridgeInfoKey, Bridge>(iter)) {
+        if (table::prepare<BridgeInfoKey, Bridge>(iter)) {
             let (key, _) = table::next<BridgeInfoKey, Bridge>(iter);
             let last_version = table_key::decode_u64(key.version);
             if (bridge_id == table_key::decode_u64(key.bridge_id)) {
@@ -1703,7 +1703,7 @@ module vip::vip {
             }), // exclusive
             2,
         );
-        if (!table::prepare<BridgeInfoKey, Bridge>(iter)) {
+        if (table::prepare<BridgeInfoKey, Bridge>(iter)) {
             let (key, _) = table::next<BridgeInfoKey, Bridge>(iter);
             let last_version = table_key::decode_u64(key.version);
             if (bridge_id == table_key::decode_u64(key.bridge_id)) {
