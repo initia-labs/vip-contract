@@ -121,13 +121,13 @@ module vip::vip {
 
     struct BridgeInfoKey has drop, copy {
         is_registered: bool,
-        bridge_id: u64,
-        version: u64
+        bridge_id: vector<u8>,
+        version: vector<u8>
     }
 
     struct SnapshotKey has drop, copy {
-        bridge_id: u64,
-        version: u64
+        bridge_id: vector<u8>,
+        version: vector<u8>
     }
 
     struct AgentData has store, drop {
@@ -450,7 +450,9 @@ module vip::vip {
         version: u64,
         stage: u64,
     ) {
-        let key = BridgeInfoKey { is_registered: true, bridge_id, version, };
+        let bridge_vec = table_key::encode_u64(bridge_id);
+        let version_vec = table_key::encode_u64(version);
+        let key = BridgeInfoKey { is_registered: true, bridge_id:bridge_vec, version:version_vec };
         assert!(
             table::contains(
                 &imut_module_store.bridges,
@@ -470,7 +472,7 @@ module vip::vip {
             assert!(
                 table::contains(
                     &prev_stage_data.snapshots,
-                    SnapshotKey { bridge_id, version },
+                    SnapshotKey { bridge_id:bridge_vec, version:version_vec },
                 ),
                 error::not_found(EPREV_STAGE_SNAPSHOT_NOT_FOUND),
             );
@@ -810,8 +812,8 @@ module vip::vip {
                 assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
                 let key = BridgeInfoKey {
                     is_registered,
-                    bridge_id: table_key::decode_u64(bridge_id_key),
-                    version
+                    bridge_id: bridge_id_key,
+                    version: table_key::encode_u64(version)
                 };
                 let bridge = table::borrow_mut(&mut module_store.bridges, key);
                 bridge.vip_weight = *vector::borrow(&weights, i);
@@ -940,7 +942,7 @@ module vip::vip {
         // bridge info
         table::add(
             &mut module_store.bridges,
-            BridgeInfoKey { is_registered: true, bridge_id, version: new_version },
+            BridgeInfoKey { is_registered: true, bridge_id: table_key::encode_u64(bridge_id), version: table_key::encode_u64(new_version) },
             Bridge {
                 init_stage: module_store.stage + 1,
                 bridge_addr: bridge_address,
@@ -957,10 +959,12 @@ module vip::vip {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
         assert!(is_registered, error::unavailable(EINVALID_REGISTERD_BRIDGE));
-        let bridge = table::remove(&mut module_store.bridges, BridgeInfoKey { is_registered: true, bridge_id, version, });
+        let bridge_id_vec = table_key::encode_u64(bridge_id);
+        let version_vec =  table_key::encode_u64(version);
+        let bridge = table::remove(&mut module_store.bridges, BridgeInfoKey { is_registered: true, bridge_id: bridge_id_vec, version: version_vec });
         table::add(
             &mut module_store.bridges,
-            BridgeInfoKey { is_registered: false, bridge_id, version, },
+            BridgeInfoKey { is_registered: false, bridge_id: bridge_id_vec, version: version_vec },
             Bridge {
                 init_stage: bridge.init_stage,
                 bridge_addr: bridge.bridge_addr,
@@ -1112,7 +1116,7 @@ module vip::vip {
         // check previous stage snapshot for preventing skipping stage
         check_previous_stage_snapshot(module_store, bridge_id, version, stage);
         let stage_data = load_stage_data_mut(module_store, stage);
-        let snapshot_key = SnapshotKey { bridge_id, version };
+        let snapshot_key = SnapshotKey { bridge_id: table_key::encode_u64(bridge_id), version: table_key::encode_u64(version) };
         assert!(
             !table::contains(
                 &stage_data.snapshots,
@@ -1209,7 +1213,7 @@ module vip::vip {
         let bridge_info =
             table::borrow(
                 &module_store.bridges,
-                BridgeInfoKey { is_registered, bridge_id, version },
+                BridgeInfoKey { is_registered, bridge_id: table_key::encode_u64(bridge_id), version: table_key::encode_u64(version) },
             );
         let init_stage = bridge_info.init_stage;
         let is_registered =
@@ -1314,7 +1318,7 @@ module vip::vip {
         else { false };
         let first_stage = *vector::borrow(&mut stages, 0);
         let prev_stage = first_stage - 1;
-        let key = BridgeInfoKey { is_registered, bridge_id, version, };
+        let key = BridgeInfoKey { is_registered, bridge_id: table_key::encode_u64(bridge_id), version: table_key::encode_u64(version), };
         let bridge_info = table::borrow(&module_store.bridges, key);
         let init_stage = bridge_info.init_stage;
         // hypothesis: for a claimed vesting position, all its previous stages must also be claimed.
@@ -1358,7 +1362,7 @@ module vip::vip {
                 assert!(
                     table::contains(
                         &stage_data.snapshots,
-                        SnapshotKey { bridge_id, version },
+                        SnapshotKey { bridge_id: table_key::encode_u64(bridge_id), version: table_key::encode_u64(version) },
                     ),
                     error::not_found(ESNAPSHOT_NOT_EXISTS),
                 );
@@ -1628,15 +1632,15 @@ module vip::vip {
         module_store: &ModuleStore, bridge_id: u64
     ): (bool, u64) {
 
-        let iter = table::iter(&module_store.bridges, option::none(), option::none(), 1);
+        let iter = table::iter(&module_store.bridges, option::none(), option::none(), 2);
         let last_version = 0;
         let is_registered = false;
         loop {
             if (!table::prepare<BridgeInfoKey, Bridge>(iter)) { break };
             let (key, _) = table::next<BridgeInfoKey, Bridge>(iter);
-            if (bridge_id == key.bridge_id && last_version < key.version) {
-                last_version = key.version;
-                is_registered = key.is_registered;
+            let last_version = table_key::decode_u64(key.version);
+            if (bridge_id == table_key::decode_u64(key.bridge_id)) {
+                return (key.is_registered, last_version)
             };
         };
 
@@ -1681,7 +1685,7 @@ module vip::vip {
                 &mut module_store.stage_data,
                 table_key::encode_u64(stage),
             );
-        let key = SnapshotKey { bridge_id, version, };
+        let key = SnapshotKey { bridge_id:table_key::encode_u64(bridge_id), version: table_key::encode_u64(version) };
         assert!(
             table::contains(
                 &mut stage_data.snapshots,
@@ -1706,7 +1710,7 @@ module vip::vip {
                 &module_store.stage_data,
                 table_key::encode_u64(stage),
             );
-        let key = SnapshotKey { bridge_id, version, };
+        let key = SnapshotKey { bridge_id:table_key::encode_u64(bridge_id), version: table_key::encode_u64(version) };
         assert!(
             table::contains(&stage_data.snapshots, key),
             error::not_found(ESNAPSHOT_NOT_EXISTS),
@@ -1718,7 +1722,7 @@ module vip::vip {
     fun load_registered_bridge_mut(
         module_store: &mut ModuleStore, bridge_id: u64, version: u64
     ): &mut Bridge {
-        let key = BridgeInfoKey { is_registered: true, bridge_id, version, };
+        let key = BridgeInfoKey { is_registered: true, bridge_id:table_key::encode_u64(bridge_id), version: table_key::encode_u64(version), };
         assert!(
             table::contains(&module_store.bridges, key),
             error::not_found(EBRIDGE_NOT_FOUND),
@@ -1729,7 +1733,7 @@ module vip::vip {
     fun load_registered_bridge_imut(
         module_store: &ModuleStore, bridge_id: u64, version: u64
     ): &Bridge {
-        let key = BridgeInfoKey { is_registered: true, bridge_id, version, };
+        let key = BridgeInfoKey { is_registered: true, bridge_id:table_key::encode_u64(bridge_id), version: table_key::encode_u64(version), };
         assert!(
             table::contains(&module_store.bridges, key),
             error::not_found(EBRIDGE_NOT_FOUND),
@@ -1740,7 +1744,7 @@ module vip::vip {
     fun load_deregistered_bridge_mut(
         module_store: &mut ModuleStore, bridge_id: u64, version: u64
     ): &mut Bridge {
-        let key = BridgeInfoKey { is_registered: false, bridge_id, version, };
+        let key = BridgeInfoKey { is_registered: false, bridge_id:table_key::encode_u64(bridge_id), version: table_key::encode_u64(version), };
         assert!(
             table::contains(&module_store.bridges, key),
             error::not_found(EBRIDGE_NOT_FOUND),
@@ -1751,7 +1755,7 @@ module vip::vip {
     fun load_deregistered_bridge_imut(
         module_store: &ModuleStore, bridge_id: u64, version: u64
     ): &Bridge {
-        let key = BridgeInfoKey { is_registered: false, bridge_id, version, };
+        let key = BridgeInfoKey { is_registered: false, bridge_id:table_key::encode_u64(bridge_id), version: table_key::encode_u64(version), };
         assert!(
             table::contains(&module_store.bridges, key),
             error::not_found(EBRIDGE_NOT_FOUND),
@@ -1837,6 +1841,7 @@ module vip::vip {
             option::none(),
             2,
         );
+
         loop {
             if (!table::prepare<vector<u8>, StageData>(iter)) { break };
 
@@ -1850,8 +1855,8 @@ module vip::vip {
             );
             loop {
                 if (!table::prepare<SnapshotKey, Snapshot>(_iter)) { break };
-                let (_key, _value) = table::next<SnapshotKey, Snapshot>(_iter);
-                if (_key.bridge_id == bridge_id && _key.version == version) {
+                let (_key, _value) = table::next<SnapshotKey, Snapshot>(_iter); 
+                if (table_key::decode_u64(_key.bridge_id) == bridge_id && table_key::decode_u64(_key.version) == version) {
                     return table_key::decode_u64(stage_vec)
                 }
             };
@@ -1927,7 +1932,7 @@ module vip::vip {
                         &mut bridge_infos,
                         BridgeResponse {
                             init_stage: bridge.init_stage,
-                            bridge_id: bridge_id,
+                            bridge_id,
                             version,
                             bridge_addr: bridge.bridge_addr,
                             operator_addr: bridge.operator_addr,
@@ -2099,11 +2104,11 @@ module vip::vip {
     inline fun use_snapshot(_snapshot: &Snapshot) {}
 
     fun unpack_bridge_info_key(bridge_info_key: BridgeInfoKey): (bool, u64, u64) {
-        (bridge_info_key.is_registered, bridge_info_key.bridge_id, bridge_info_key.version)
+        (bridge_info_key.is_registered,table_key::decode_u64(bridge_info_key.bridge_id), table_key::decode_u64(bridge_info_key.version))
     }
 
     fun unpack_snapshot_key(snapshot_key: SnapshotKey): (u64, u64) {
-        (snapshot_key.bridge_id, snapshot_key.version)
+        (table_key::decode_u64(snapshot_key.bridge_id), table_key::decode_u64(snapshot_key.version))
     }
 
     //
