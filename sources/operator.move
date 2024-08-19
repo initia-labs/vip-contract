@@ -69,9 +69,7 @@ module vip::operator {
     fun init_module(vip: &signer) {
         move_to(
             vip,
-            ModuleStore {
-                operator_infos: table::new<vector<u8>, OperatorInfo>()
-            },
+            ModuleStore { operator_infos: table::new<vector<u8>, OperatorInfo>() },
         );
     }
 
@@ -154,10 +152,11 @@ module vip::operator {
         let bridge_id_key = table_key::encode_u64(bridge_id);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
 
-        let operator_info = table::borrow_mut(
-            &mut module_store.operator_infos,
-            bridge_id_key,
-        );
+        let operator_info =
+            table::borrow_mut(
+                &mut module_store.operator_infos,
+                bridge_id_key,
+            );
         assert!(
             operator_addr == operator_info.operator_addr,
             error::permission_denied(EUNAUTHORIZED),
@@ -170,9 +169,8 @@ module vip::operator {
 
         let old_commission_rate = decimal256::val(&operator_info.commission_rate);
         let new_commission_rate = decimal256::val(&commission_rate);
-        let max_commission_change_rate = decimal256::val(
-            &operator_info.commission_max_change_rate
-        );
+        let max_commission_change_rate =
+            decimal256::val(&operator_info.commission_max_change_rate);
         let max_commission_rate = decimal256::val(&operator_info.commission_max_rate);
 
         assert!(
@@ -181,11 +179,12 @@ module vip::operator {
         );
 
         // operator max change rate limits
-        let change = if (old_commission_rate > new_commission_rate) {
-            old_commission_rate - new_commission_rate
-        } else {
-            new_commission_rate - old_commission_rate
-        };
+        let change =
+            if (old_commission_rate > new_commission_rate) {
+                old_commission_rate - new_commission_rate
+            } else {
+                new_commission_rate - old_commission_rate
+            };
 
         assert!(
             change <= max_commission_change_rate,
@@ -212,10 +211,11 @@ module vip::operator {
     ) acquires ModuleStore {
         let bridge_id_key = table_key::encode_u64(bridge_id);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let operator_info = table::borrow_mut(
-            &mut module_store.operator_infos,
-            bridge_id_key,
-        );
+        let operator_info =
+            table::borrow_mut(
+                &mut module_store.operator_infos,
+                bridge_id_key,
+            );
         assert!(
             operator_info.operator_addr == signer::address_of(old_operator),
             error::permission_denied(EUNAUTHORIZED),
@@ -247,10 +247,11 @@ module vip::operator {
             ),
             error::not_found(EOPERATOR_STORE_NOT_FOUND),
         );
-        let operator_info = table::borrow(
-            &module_store.operator_infos,
-            table_key::encode_u64(bridge_id),
-        );
+        let operator_info =
+            table::borrow(
+                &module_store.operator_infos,
+                table_key::encode_u64(bridge_id),
+            );
         operator_info.commission_rate
     }
 
@@ -264,10 +265,11 @@ module vip::operator {
             ),
             error::not_found(EOPERATOR_STORE_NOT_FOUND),
         );
-        let operator_info = table::borrow(
-            &module_store.operator_infos,
-            table_key::encode_u64(bridge_id),
-        );
+        let operator_info =
+            table::borrow(
+                &module_store.operator_infos,
+                table_key::encode_u64(bridge_id),
+            );
 
         OperatorInfoResponse {
             operator_addr: operator_info.operator_addr,
@@ -306,13 +308,16 @@ module vip::operator {
         );
 
         assert!(
-            get_operator_info(bridge_id) == OperatorInfoResponse {
-                operator_addr: operator_addr,
-                last_changed_stage: 10,
-                commission_max_rate: decimal256::from_string(&string::utf8(b"0.2")),
-                commission_max_change_rate: decimal256::from_string(&string::utf8(b"0.2")),
-                commission_rate: decimal256::from_string(&string::utf8(b"0")),
-            },
+            get_operator_info(bridge_id)
+                == OperatorInfoResponse {
+                    operator_addr: operator_addr,
+                    last_changed_stage: 10,
+                    commission_max_rate: decimal256::from_string(&string::utf8(b"0.2")),
+                    commission_max_change_rate: decimal256::from_string(
+                        &string::utf8(b"0.2")
+                    ),
+                    commission_rate: decimal256::from_string(&string::utf8(b"0")),
+                },
             1,
         );
 
@@ -324,13 +329,16 @@ module vip::operator {
         );
 
         assert!(
-            get_operator_info(bridge_id) == OperatorInfoResponse {
-                operator_addr: operator_addr,
-                last_changed_stage: 11,
-                commission_max_rate: decimal256::from_string(&string::utf8(b"0.2")),
-                commission_max_change_rate: decimal256::from_string(&string::utf8(b"0.2")),
-                commission_rate: decimal256::from_string(&string::utf8(b"0.2")),
-            },
+            get_operator_info(bridge_id)
+                == OperatorInfoResponse {
+                    operator_addr: operator_addr,
+                    last_changed_stage: 11,
+                    commission_max_rate: decimal256::from_string(&string::utf8(b"0.2")),
+                    commission_max_change_rate: decimal256::from_string(
+                        &string::utf8(b"0.2")
+                    ),
+                    commission_rate: decimal256::from_string(&string::utf8(b"0.2")),
+                },
             2,
         );
 
@@ -342,13 +350,16 @@ module vip::operator {
         );
 
         assert!(
-            get_operator_info(bridge_id) == OperatorInfoResponse {
-                operator_addr: operator_addr,
-                last_changed_stage: 12,
-                commission_max_rate: decimal256::from_string(&string::utf8(b"0.2")),
-                commission_max_change_rate: decimal256::from_string(&string::utf8(b"0.2")),
-                commission_rate: decimal256::from_string(&string::utf8(b"0.1")),
-            },
+            get_operator_info(bridge_id)
+                == OperatorInfoResponse {
+                    operator_addr: operator_addr,
+                    last_changed_stage: 12,
+                    commission_max_rate: decimal256::from_string(&string::utf8(b"0.2")),
+                    commission_max_change_rate: decimal256::from_string(
+                        &string::utf8(b"0.2")
+                    ),
+                    commission_rate: decimal256::from_string(&string::utf8(b"0.1")),
+                },
             3,
         );
     }

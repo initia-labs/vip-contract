@@ -2,7 +2,7 @@ module vip::reward {
     use std::string;
     use std::vector;
     use std::error;
-    use initia_std::object::{ Object };
+    use initia_std::object::{Object};
     use initia_std::fungible_asset::{Metadata,};
     use initia_std::primary_fungible_store;
     use initia_std::table;
@@ -44,9 +44,7 @@ module vip::reward {
     fun init_module(vip: &signer) {
         move_to(
             vip,
-            ModuleStore {
-                distributed_reward: table::new<vector<u8>, RewardRecord>()
-            },
+            ModuleStore { distributed_reward: table::new<vector<u8>, RewardRecord>() },
         );
     }
 
@@ -73,18 +71,13 @@ module vip::reward {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let key = get_distrubuted_reward_table_key(bridge_id, stage);
         assert!(
-            !table::contains(
-                &module_store.distributed_reward, key
-            ),
+            !table::contains(&module_store.distributed_reward, key),
             error::unavailable(EREWARD_STORE_ALREADY_EXISTS),
         );
         table::add(
             &mut module_store.distributed_reward,
             get_distrubuted_reward_table_key(bridge_id, stage),
-            RewardRecord {
-                user_reward: user_reward,
-                operator_reward: operator_reward
-            },
+            RewardRecord { user_reward: user_reward, operator_reward: operator_reward },
         );
     }
 
@@ -101,15 +94,15 @@ module vip::reward {
     public fun get_user_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
 
-        if (
-            table::contains(
+        if (table::contains(
                 &module_store.distributed_reward,
                 get_distrubuted_reward_table_key(bridge_id, stage),
             )) {
-            let reward_data = table::borrow(
-                &module_store.distributed_reward,
-                get_distrubuted_reward_table_key(bridge_id, stage),
-            );
+            let reward_data =
+                table::borrow(
+                    &module_store.distributed_reward,
+                    get_distrubuted_reward_table_key(bridge_id, stage),
+                );
             return reward_data.user_reward
         };
 
@@ -120,15 +113,15 @@ module vip::reward {
     public fun get_operator_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
 
-        if (
-            table::contains(
+        if (table::contains(
                 &module_store.distributed_reward,
                 get_distrubuted_reward_table_key(bridge_id, stage),
             )) {
-            let reward_data = table::borrow(
-                &module_store.distributed_reward,
-                get_distrubuted_reward_table_key(bridge_id, stage),
-            );
+            let reward_data =
+                table::borrow(
+                    &module_store.distributed_reward,
+                    get_distrubuted_reward_table_key(bridge_id, stage),
+                );
             return reward_data.operator_reward
         };
 

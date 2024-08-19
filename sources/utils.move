@@ -85,17 +85,17 @@ module vip::utils {
         vector::for_each_ref(
             &delegations,
             |delegation| {
-                let DelegationResponse {delegation: _, balance} = *delegation;
+                let DelegationResponse { delegation: _, balance } = *delegation;
                 vector::for_each_ref(
                     &balance,
                     |coin| {
-                        let Coin {denom, amount} = *coin;
+                        let Coin { denom, amount } = *coin;
                         let weight = simple_map::borrow(&weight_map, &denom);
                         let voting_power = decimal128::mul_u64(weight, amount);
                         total_voting_power = total_voting_power + voting_power;
-                    }
+                    },
                 );
-            }
+            },
         );
 
         total_voting_power
@@ -104,10 +104,7 @@ module vip::utils {
     public fun unpack_delegation_response(
         delegation_response: &DelegationResponse
     ): (Delegation, vector<Coin>) {
-        (
-            delegation_response.delegation,
-            delegation_response.balance
-        )
+        (delegation_response.delegation, delegation_response.balance)
     }
 
     public fun unpack_coin(coin: &Coin): (String, u64) {
@@ -115,8 +112,7 @@ module vip::utils {
     }
 
     public inline fun get_customized_voting_power(
-        delegator_addr: address,
-        f: |Object<Metadata>, u64| u64
+        delegator_addr: address, f: |Object<Metadata>, u64| u64
     ): u64 {
         let weight_map = get_weight_map();
         let total_voting_power = 0;
@@ -134,10 +130,12 @@ module vip::utils {
                         let metadata = coin::denom_to_metadata(denom);
                         let weight = simple_map::borrow(&weight_map, &denom);
                         let voting_power = decimal128::mul_u64(weight, amount);
-                        total_voting_power = total_voting_power + f(metadata, voting_power);
-                    }
+                        total_voting_power = total_voting_power + f(
+                            metadata, voting_power
+                        );
+                    },
                 );
-            }
+            },
         );
 
         total_voting_power
@@ -149,9 +147,9 @@ module vip::utils {
         vector::for_each_ref(
             &pool.voting_power_weights,
             |weight| {
-                let DecCoin {denom, amount} = *weight;
+                let DecCoin { denom, amount } = *weight;
                 simple_map::add(&mut weight_map, denom, amount);
-            }
+            },
         );
         weight_map
     }
@@ -173,13 +171,13 @@ module vip::utils {
                 delegator_addr,
                 pagination: option::some(pagination)
             };
-            let response = query<
-                DelegatorDelegationsRequest,
-                DelegatorDelegationsResponse
-            >(path, request);
+            let response =
+                query<DelegatorDelegationsRequest, DelegatorDelegationsResponse>(
+                    path, request
+                );
             vector::append(
                 &mut delegation_responses,
-                response.delegation_responses
+                response.delegation_responses,
             );
 
             if (option::is_none(&response.pagination)) { break };
@@ -199,10 +197,12 @@ module vip::utils {
         let response = query_stargate(path, b"{}");
         unmarshal<PoolResponse>(response)
         // TODO: use below when json marshal fixed
-        // query<PoolRequest, PoolResponse>(path, PoolRequest {}) 
+        // query<PoolRequest, PoolResponse>(path, PoolRequest {})
     }
 
-    fun query<Request: drop, Response: drop>(path: vector<u8>, data: Request): Response {
+    fun query<Request: drop, Response: drop>(
+        path: vector<u8>, data: Request
+    ): Response {
         let response = query_stargate(path, marshal(&data));
         unmarshal<Response>(response)
     }

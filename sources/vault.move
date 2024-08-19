@@ -43,9 +43,8 @@ module vip::vault {
 
     fun init_module(chain: &signer) {
         let seed = generate_vault_store_seed();
-        let vault_store_addr = object::create_object_address(
-            &signer::address_of(chain), seed
-        );
+        let vault_store_addr =
+            object::create_object_address(&signer::address_of(chain), seed);
 
         let constructor_ref = object::create_named_object(chain, seed);
         let extend_ref = object::generate_extend_ref(&constructor_ref);
@@ -75,11 +74,13 @@ module vip::vault {
             module_store.reward_per_stage > 0,
             error::invalid_state(EINVALID_REWARD_PER_STAGE),
         );
-        let vault_signer = object::generate_signer_for_extending(&module_store.extend_ref);
-        let vault_store = primary_fungible_store::ensure_primary_store_exists(
-            module_store.vault_store_addr,
-            reward::reward_metadata(),
-        );
+        let vault_signer =
+            object::generate_signer_for_extending(&module_store.extend_ref);
+        let vault_store =
+            primary_fungible_store::ensure_primary_store_exists(
+                module_store.vault_store_addr,
+                reward::reward_metadata(),
+            );
         fungible_asset::withdraw(&vault_signer, vault_store, amount)
     }
 
@@ -101,7 +102,9 @@ module vip::vault {
         );
     }
 
-    public entry fun update_reward_per_stage(chain: &signer, reward_per_stage: u64) acquires ModuleStore {
+    public entry fun update_reward_per_stage(
+        chain: &signer, reward_per_stage: u64
+    ) acquires ModuleStore {
         utils::check_chain_permission(chain);
 
         let vault_store = borrow_global_mut<ModuleStore>(@vip);
@@ -157,23 +160,20 @@ module vip::vault {
     use initia_std::option;
 
     #[test_only]
-    fun initialize_coin(
-        account: &signer,
-        symbol: string::String,
-    ): (
-        coin::BurnCapability,
-        coin::FreezeCapability,
-        coin::MintCapability,
+    fun initialize_coin(account: &signer, symbol: string::String,)
+        : (
+        coin::BurnCapability, coin::FreezeCapability, coin::MintCapability,
     ) {
-        let (mint_cap, burn_cap, freeze_cap) = coin::initialize(
-            account,
-            option::none(),
-            string::utf8(b""),
-            symbol,
-            6,
-            string::utf8(b""),
-            string::utf8(b""),
-        );
+        let (mint_cap, burn_cap, freeze_cap) =
+            coin::initialize(
+                account,
+                option::none(),
+                string::utf8(b""),
+                symbol,
+                6,
+                string::utf8(b""),
+                string::utf8(b""),
+            );
 
         (burn_cap, freeze_cap, mint_cap)
     }

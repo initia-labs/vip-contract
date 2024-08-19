@@ -71,7 +71,7 @@ module vip::weight_vote {
     struct Proposal has store {
         votes: Table<address, WeightVote>,
         total_tally: u64,
-        tally: Table<vector<u8> /* bridge id */, u64 /* tally */ >,
+        tally: Table<vector<u8> /* bridge id */, u64 /* tally */>,
         voting_end_time: u64,
         executed: bool,
     }
@@ -200,7 +200,7 @@ module vip::weight_vote {
         table::upsert(
             &mut module_store.pair_weights,
             metadata,
-            weight
+            weight,
         );
     }
 
@@ -250,10 +250,7 @@ module vip::weight_vote {
             table::contains(&module_store.proposals, cycle_key),
             error::not_found(ECYCLE_NOT_FOUND),
         );
-        let proposal = table::borrow_mut(
-            &mut module_store.proposals,
-            cycle_key
-        );
+        let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
         assert!(
             timestamp < proposal.voting_end_time,
             error::invalid_state(EVOTING_END),
@@ -261,7 +258,8 @@ module vip::weight_vote {
 
         // remove former vote
         if (table::contains(&proposal.votes, addr)) {
-            let WeightVote {voting_power: _, weights} = table::remove(&mut proposal.votes, addr);
+            let WeightVote { voting_power: _, weights } =
+                table::remove(&mut proposal.votes, addr);
             remove_vote(proposal, max_voting_power, weights);
         };
 
@@ -272,10 +270,7 @@ module vip::weight_vote {
             |bridge_id, weight| {
                 vector::push_back(
                     &mut weight_vector,
-                    Weight {
-                        bridge_id: bridge_id,
-                        weight: weight,
-                    },
+                    Weight { bridge_id: bridge_id, weight: weight, },
                 );
             },
         );
@@ -291,10 +286,7 @@ module vip::weight_vote {
         table::add(
             &mut proposal.votes,
             addr,
-            WeightVote {
-                voting_power: voting_power_used,
-                weights: weight_vector
-            },
+            WeightVote { voting_power: voting_power_used, weights: weight_vector },
         );
 
         // emit event
@@ -315,10 +307,11 @@ module vip::weight_vote {
 
         // get the last voting proposal
         // check vote state
-        let proposal = table::borrow_mut(
-            &mut module_store.proposals,
-            table_key::encode_u64(module_store.current_cycle),
-        );
+        let proposal =
+            table::borrow_mut(
+                &mut module_store.proposals,
+                table_key::encode_u64(module_store.current_cycle),
+            );
         assert!(
             proposal.voting_end_time < timestamp,
             error::invalid_state(EPROPOSAL_IN_PROGRESS),
@@ -328,15 +321,11 @@ module vip::weight_vote {
             error::invalid_state(EPROPOSAL_ALREADY_EXECUTED),
         );
 
-        execute_proposal_internal(
-            proposal,
-            module_store.current_cycle
-        );
+        execute_proposal_internal(proposal, module_store.current_cycle);
     }
 
     fun execute_proposal_internal(
-        proposal: &mut Proposal,
-        current_cycle: u64
+        proposal: &mut Proposal, current_cycle: u64
     ) {
         // update vip weights
         let bridge_ids = vip::get_whitelisted_bridge_ids();
@@ -346,19 +335,21 @@ module vip::weight_vote {
         let weights: vector<Decimal256> = vector[];
         while (index < len) {
             let bridge_id = *vector::borrow(&bridge_ids, index);
-            let tally = table::borrow_with_default(
-                &proposal.tally,
-                table_key::encode_u64(bridge_id),
-                &0,
-            );
-            let weight = if (proposal.total_tally == 0) {
-                decimal256::from_ratio(1,(len as u256))
-            } else {
-                decimal256::from_ratio(
-                    (*tally as u256),
-                    (proposal.total_tally as u256),
-                )
-            };
+            let tally =
+                table::borrow_with_default(
+                    &proposal.tally,
+                    table_key::encode_u64(bridge_id),
+                    &0,
+                );
+            let weight =
+                if (proposal.total_tally == 0) {
+                    decimal256::from_ratio(1, (len as u256))
+                } else {
+                    decimal256::from_ratio(
+                        (*tally as u256),
+                        (proposal.total_tally as u256),
+                    )
+                };
             vector::push_back(&mut weights, weight);
             index = index + 1;
         };
@@ -367,11 +358,7 @@ module vip::weight_vote {
 
         // emit event
         event::emit(
-            ExecuteProposalEvent {
-                cycle: current_cycle,
-                bridge_ids,
-                weights,
-            },
+            ExecuteProposalEvent { cycle: current_cycle, bridge_ids, weights, },
         );
 
         // update proposal state
@@ -380,8 +367,7 @@ module vip::weight_vote {
 
     // helper functions
     fun last_finalized_proposal(
-        module_store: &ModuleStore,
-        timestamp: u64
+        module_store: &ModuleStore, timestamp: u64
     ): (u64, &Proposal) {
         let iter = table::iter(
             &module_store.proposals,
@@ -406,18 +392,13 @@ module vip::weight_vote {
 
         let last_finalized_proposal_cycle = table_key::decode_u64(cycle_key);
         let last_finalized_proposal = table::borrow(&module_store.proposals, cycle_key);
-        (
-            last_finalized_proposal_cycle,
-            last_finalized_proposal
-        )
+        (last_finalized_proposal_cycle, last_finalized_proposal)
     }
 
     // weight vote
 
     fun remove_vote(
-        proposal: &mut Proposal,
-        max_voting_power: u64,
-        weights: vector<Weight>
+        proposal: &mut Proposal, max_voting_power: u64, weights: vector<Weight>
     ) {
         let voting_power_removed = 0;
         vector::for_each(
@@ -426,11 +407,12 @@ module vip::weight_vote {
                 use_weight(w);
                 let bridge_vp = decimal128::mul_u64(&w.weight, max_voting_power);
                 voting_power_removed = voting_power_removed + bridge_vp;
-                let tally = table::borrow_mut_with_default(
-                    &mut proposal.tally,
-                    table_key::encode_u64(w.bridge_id),
-                    0,
-                );
+                let tally =
+                    table::borrow_mut_with_default(
+                        &mut proposal.tally,
+                        table_key::encode_u64(w.bridge_id),
+                        0,
+                    );
                 *tally = *tally - (bridge_vp as u64);
             },
         );
@@ -439,9 +421,7 @@ module vip::weight_vote {
     }
 
     fun apply_vote(
-        proposal: &mut Proposal,
-        max_voting_power: u64,
-        weights: vector<Weight>
+        proposal: &mut Proposal, max_voting_power: u64, weights: vector<Weight>
     ) {
         let voting_power_used = 0;
         vector::for_each(
@@ -450,11 +430,12 @@ module vip::weight_vote {
                 use_weight(w);
                 let bridge_vp = decimal128::mul_u64(&w.weight, max_voting_power);
                 voting_power_used = voting_power_used + bridge_vp;
-                let tally = table::borrow_mut_with_default(
-                    &mut proposal.tally,
-                    table_key::encode_u64(w.bridge_id),
-                    0,
-                );
+                let tally =
+                    table::borrow_mut_with_default(
+                        &mut proposal.tally,
+                        table_key::encode_u64(w.bridge_id),
+                        0,
+                    );
                 *tally = *tally + (bridge_vp as u64);
             },
         );
@@ -470,17 +451,19 @@ module vip::weight_vote {
 
     fun calculate_voting_power(addr: address): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let cosmos_voting_power = utils::get_customized_voting_power(
-            addr,
-            |metadata, voting_power| {
-                let weight = table::borrow_with_default(
-                    &module_store.pair_weights,
-                    metadata,
-                    &decimal128::one()
-                );
-                decimal128::mul_u64(weight, voting_power)
-            }
-        );
+        let cosmos_voting_power =
+            utils::get_customized_voting_power(
+                addr,
+                |metadata, voting_power| {
+                    let weight =
+                        table::borrow_with_default(
+                            &module_store.pair_weights,
+                            metadata,
+                            &decimal128::one(),
+                        );
+                    decimal128::mul_u64(weight, voting_power)
+                },
+            );
 
         // TODO: adjust lock period
         let lock_staking_voting_power = 0;
@@ -489,21 +472,20 @@ module vip::weight_vote {
         vector::for_each_ref(
             &locked_delegations,
             |delegation| {
-                let (metadata, _, amount, _) = lock_staking::unpack_locked_delegation(
-                    delegation
-                );
+                let (metadata, _, amount, _) =
+                    lock_staking::unpack_locked_delegation(delegation);
                 let denom = coin::metadata_to_denom(metadata);
                 let voting_power_weight = simple_map::borrow(&weight_map, &denom);
                 let voting_power = decimal128::mul_u64(voting_power_weight, amount);
-                let pair_weight = table::borrow_with_default(
-                    &module_store.pair_weights,
-                    metadata,
-                    &decimal128::one()
-                );
-                lock_staking_voting_power = lock_staking_voting_power + decimal128::mul_u64(
-                    pair_weight, voting_power
-                );
-            }
+                let pair_weight =
+                    table::borrow_with_default(
+                        &module_store.pair_weights,
+                        metadata,
+                        &decimal128::one(),
+                    );
+                lock_staking_voting_power = lock_staking_voting_power
+                    + decimal128::mul_u64(pair_weight, voting_power);
+            },
         );
 
         // TODO: add vesting
@@ -516,17 +498,16 @@ module vip::weight_vote {
         let (_, timestamp) = get_block_info();
 
         // cycle not end
-        if (module_store.cycle_end_timestamp >= timestamp) {
-             return
-        };
+        if (module_store.cycle_end_timestamp >= timestamp) { return };
 
         // get the last voted proposal
         // execute proposal not executed
         if (module_store.current_cycle != 0) {
-            let proposal = table::borrow_mut(
-                &mut module_store.proposals,
-                table_key::encode_u64(module_store.current_cycle),
-            );
+            let proposal =
+                table::borrow_mut(
+                    &mut module_store.proposals,
+                    table_key::encode_u64(module_store.current_cycle),
+                );
             if (!proposal.executed && proposal.voting_end_time < timestamp) {
                 execute_proposal_internal(
                     proposal,
@@ -543,16 +524,16 @@ module vip::weight_vote {
         // To handle case that proposal not create more than one cycle period
         // set cycle start time to former cycle end time + skipped cycle count * cycle interval
         if (voting_end_time > module_store.cycle_end_timestamp) {
-            let skipped_cycle_count = (
-                voting_end_time - module_store.cycle_end_timestamp
-            ) / module_store.cycle_interval;
-            module_store.cycle_start_timestamp = module_store.cycle_end_timestamp + skipped_cycle_count
-                * module_store.cycle_interval;
+            let skipped_cycle_count =
+                (voting_end_time - module_store.cycle_end_timestamp)
+                    / module_store.cycle_interval;
+            module_store.cycle_start_timestamp = module_store.cycle_end_timestamp
+                + skipped_cycle_count * module_store.cycle_interval;
         };
 
         // set cycle end time
-        module_store.cycle_end_timestamp = module_store.cycle_start_timestamp + module_store
-            .cycle_interval;
+        module_store.cycle_end_timestamp = module_store.cycle_start_timestamp
+            + module_store.cycle_interval;
 
         // initiate weight vote
         table::add(
@@ -630,14 +611,15 @@ module vip::weight_vote {
         vector::for_each(
             bridge_ids,
             |bridge_id| {
-                let tally = table::borrow_with_default(
-                    &proposal.tally,
-                    table_key::encode_u64(bridge_id),
-                    &0,
-                );
+                let tally =
+                    table::borrow_with_default(
+                        &proposal.tally,
+                        table_key::encode_u64(bridge_id),
+                        &0,
+                    );
                 vector::push_back(
                     &mut tally_responses,
-                    TallyResponse {bridge_id, tally: *tally},
+                    TallyResponse { bridge_id, tally: *tally },
                 )
             },
         );
@@ -674,10 +656,7 @@ module vip::weight_vote {
         let proposal = table::borrow(&module_store.proposals, cycle_key);
         let vote = table::borrow(&proposal.votes, user);
 
-        WeightVoteResponse {
-            voting_power: vote.voting_power,
-            weights: vote.weights,
-        }
+        WeightVoteResponse { voting_power: vote.voting_power, weights: vote.weights, }
     }
 
     #[view]
@@ -685,8 +664,7 @@ module vip::weight_vote {
         calculate_voting_power(user)
     }
 
-    inline fun use_weight(_v: Weight) {
-    }
+    inline fun use_weight(_v: Weight) {}
 
     // #[test_only]
     // use initia_std::block::set_block_info;
