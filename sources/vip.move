@@ -48,7 +48,7 @@ module vip::vip {
     const EINVALID_BATCH_ARGUMENT: u64 = 17;
     const EINVALID_TOTAL_REWARD: u64 = 18;
     const ESNAPSHOT_NOT_EXISTS: u64 = 19;
-    const EINVALID_REGISTERD_BRIDGE: u64 = 20;
+    const EINVALID_REGISTERED_BRIDGE: u64 = 20;
     const EINVALID_WEIGHT: u64 = 21;
     const EINVALID_STAGE_ORDER: u64 = 22;
     const EINVALID_CLAIMABLE_PERIOD: u64 = 23;
@@ -479,6 +479,24 @@ module vip::vip {
         };
     }
 
+    fun check_vm_type_valid(vm_type: u64) {
+        assert!(
+            vm_type == MOVEVM
+            || vm_type == WASMVM
+            || vm_type == EVM,
+            error::unavailable(EINVALID_VM_TYPE),
+        );
+    }
+
+    fun check_bridge_registered(module_store: &ModuleStore, bridge_id: u64): u64 {
+        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
+        assert!(
+            is_registered,
+            error::unavailable(EINVALID_REGISTERED_BRIDGE),
+        );
+        version
+    }
+    
     fun zapping(
         account: &signer,
         bridge_id: u64,
@@ -803,8 +821,9 @@ module vip::vip {
             |key, bridge| {
                 use_bridge(bridge);
                 let (is_registered, _, _) = unpack_bridge_info_key(key);
-                assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
-                total_weight = decimal256::add(&total_weight, &bridge.vip_weight);
+                if (is_registered) {
+                    total_weight = decimal256::add(&total_weight, &bridge.vip_weight);
+                };
                 false
             },
         );
@@ -817,13 +836,6 @@ module vip::vip {
 
     public fun is_registered(bridge_id: u64): bool acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
-        is_registered
-    }
-
-    fun is_registered_internal(
-        module_store: &ModuleStore, bridge_id: u64
-    ): bool {
         let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
         is_registered
     }
@@ -842,11 +854,9 @@ module vip::vip {
             &bridge_ids,
             |i, bridge_id_ref| {
                 let bridge_id_key = table_key::encode_u64(*bridge_id_ref);
-                let (is_registered, version) =
-                    get_last_bridge_version(module_store, *bridge_id_ref);
-                assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
+                let version = check_bridge_registered(module_store, *bridge_id_ref);
                 let key = BridgeInfoKey {
-                    is_registered,
+                    is_registered : true,
                     bridge_id: bridge_id_key,
                     version: table_key::encode_u64(version)
                 };
@@ -882,8 +892,7 @@ module vip::vip {
         let challenge_period = module_store.challenge_period;
         let (_, execution_time) = block::get_block_info();
         //check challenge period
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
+        let version = check_bridge_registered(module_store, bridge_id);
 
         let snapshot = load_snapshot_mut(
             module_store, challenge_stage, bridge_id, version
@@ -956,7 +965,7 @@ module vip::vip {
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(!is_registered, error::unavailable(EINVALID_REGISTERD_BRIDGE));
+        assert!(!is_registered, error::unavailable(EALREADY_REGISTERED));
 
         let new_version = if (version != 0) {
             version + 1
@@ -992,8 +1001,7 @@ module vip::vip {
     public entry fun deregister(chain: &signer, bridge_id: u64,) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::unavailable(EINVALID_REGISTERD_BRIDGE));
+        let version = check_bridge_registered(module_store, bridge_id);
         let bridge_id_vec = table_key::encode_u64(bridge_id);
         let version_vec =  table_key::encode_u64(version);
         let bridge = table::remove(&mut module_store.bridges, BridgeInfoKey { is_registered: true, bridge_id: bridge_id_vec, version: version_vec });
@@ -1135,10 +1143,7 @@ module vip::vip {
     ) acquires ModuleStore {
         check_agent_permission(agent);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        assert!(
-            is_registered_internal(module_store, bridge_id),
-            error::unavailable(EINVALID_REGISTERD_BRIDGE),
-        );
+        let version = check_bridge_registered(module_store, bridge_id);
 
         // submitted snapshot under the current stage
         assert!(
@@ -1152,9 +1157,6 @@ module vip::vip {
             ),
             error::not_found(ESTAGE_DATA_NOT_FOUND),
         );
-
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
         // check previous stage snapshot for preventing skipping stage
         check_previous_stage_snapshot(module_store, bridge_id, version, stage);
         let stage_data = load_stage_data_mut(module_store, stage);
@@ -1201,11 +1203,7 @@ module vip::vip {
     ) acquires ModuleStore {
         check_agent_permission(agent);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(
-            is_registered,
-            error::unavailable(EINVALID_REGISTERD_BRIDGE),
-        );
+        let version = check_bridge_registered(module_store, bridge_id);
         let snapshot = load_snapshot_mut(module_store, stage, bridge_id, version);
         snapshot.merkle_root = merkle_root;
         snapshot.total_l2_score = total_l2_score;
@@ -1440,8 +1438,7 @@ module vip::vip {
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
+        let version = check_bridge_registered(module_store, bridge_id);
         let bridge = load_registered_bridge_mut(module_store, bridge_id, version);
         bridge.vip_weight = weight;
         validate_vip_weights(module_store);
@@ -1539,8 +1536,7 @@ module vip::vip {
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
+        let version = check_bridge_registered(module_store, bridge_id);
         let bridge = load_registered_bridge_mut(module_store, bridge_id, version);
         bridge.vip_l2_score_contract = new_vip_l2_score_contract;
     }
@@ -1551,8 +1547,7 @@ module vip::vip {
         new_operator_addr: address,
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
+        let version = check_bridge_registered(module_store, bridge_id);
         let bridge = load_registered_bridge_mut(module_store, bridge_id, version);
         assert!(
             bridge.operator_addr == signer::address_of(operator),
@@ -1829,26 +1824,14 @@ module vip::vip {
         table::borrow(&module_store.bridges, key)
     }
 
-    fun check_vm_type_valid(vm_type: u64) {
-        assert!(
-            vm_type == MOVEVM
-            || vm_type == WASMVM
-            || vm_type == EVM,
-            error::unavailable(EINVALID_VM_TYPE),
-        );
-    }
-
+    
     //
     // View Functions
     //
     #[view]
     public fun get_snapshot(bridge_id: u64, stage: u64): SnapshotResponse acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(
-            is_registered,
-            error::unavailable(EINVALID_REGISTERD_BRIDGE),
-        );
+        let version = check_bridge_registered(module_store, bridge_id);
         let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
         SnapshotResponse {
             create_time: snapshot.create_time,
@@ -1949,14 +1932,8 @@ module vip::vip {
     #[view]
     public fun get_bridge_info(bridge_id: u64): BridgeResponse acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::invalid_argument(EINVALID_REGISTERD_BRIDGE));
-        let bridge =
-            if (is_registered) {
-                load_registered_bridge_imut(module_store, bridge_id, version)
-            } else {
-                load_deregistered_bridge_imut(module_store, bridge_id, version)
-            };
+        let version = check_bridge_registered(module_store, bridge_id);
+        let bridge = load_registered_bridge_imut(module_store, bridge_id, version);
         BridgeResponse {
             init_stage: bridge.init_stage,
             bridge_id,
@@ -2062,7 +2039,8 @@ module vip::vip {
             |key, snapshot| {
                 use_snapshot(snapshot);
                 let (bridge_id, version) = unpack_snapshot_key(key);
-                if (is_registered_internal(module_store, bridge_id)) {
+                let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
+                if (is_registered) {
                     vector::push_back(
                         &mut total_l2_scores,
                         TotalL2ScoreResponse {

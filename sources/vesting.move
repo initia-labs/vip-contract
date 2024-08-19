@@ -239,8 +239,7 @@ module vip::vesting {
         let total_vested_reward = 0; // net reward vested to user
         let total_penalty_reward = 0;
         let user_vestings = load_user_vestings_mut(module_store, bridge_id, account_addr);
-        // make cache from user vesting without finalized
-        let user_vestings_cache = make_user_vestings_cache(user_vestings);
+        let unfinalized_vestings = get_unfinalized_user_vestings(user_vestings);
         // claim
         vector::for_each_ref<UserVestingClaimInfo>(
             &claim_infos,
@@ -250,7 +249,7 @@ module vip::vesting {
                     batch_claim_previous_user_vestings(
                         account_addr,
                         bridge_id,
-                        &mut user_vestings_cache,
+                        &mut unfinalized_vestings,
                         user_vestings,
                         claim_info,
                     );
@@ -283,7 +282,7 @@ module vip::vesting {
                         account_addr,
                         bridge_id,
                         user_vestings,
-                        &mut user_vestings_cache,
+                        &mut unfinalized_vestings,
                         claim_info,
                         initial_reward_amount,
                     );
@@ -339,32 +338,7 @@ module vip::vesting {
 
         // update or insert from user vestings cache to vesting data of module store
         vector::for_each(
-            user_vestings_cache,
-            |vesting| {
-                use_user_vesting(vesting);
-                table::upsert(
-                    user_vestings,
-                    table_key::encode_u64(vesting.start_stage),
-                    vesting,
-                );
-                // emit only user vesting happen
-                if (vesting.initial_reward != vesting.remaining_reward) {
-                    event::emit(
-                        UserVestingChangedEvent {
-                            account: account_addr,
-                            bridge_id: bridge_id,
-                            start_stage: vesting.start_stage,
-                            initial_reward: vesting.initial_reward,
-                            remaining_reward: vesting.remaining_reward,
-                            penalty_reward: vesting.penalty_reward
-                        },
-                    );
-                };
-            },
-        );
-
-        vector::for_each(
-            user_vestings_cache,
+            unfinalized_vestings,
             |vesting| {
                 use_user_vesting(vesting);
                 table::upsert(
@@ -402,8 +376,8 @@ module vip::vesting {
         let total_vested_reward = 0;
         let operator_vestings =
             load_operator_vestings_mut(module_store, bridge_id, operator_addr);
-        // make cache from operator vesting without finalized
-        let operator_vestings_cache = make_operator_vestings_cache(operator_vestings);
+        // extract unfinalized operator vesting from operator vestings
+        let unfinalized_vestings = get_unfinalized_operator_vestings(operator_vestings);
 
         vector::for_each_ref<OperatorVestingClaimInfo>(
             &claim_infos,
@@ -414,7 +388,7 @@ module vip::vesting {
                     batch_claim_previous_operator_vestings(
                         operator_addr,
                         bridge_id,
-                        &mut operator_vestings_cache,
+                        &mut unfinalized_vestings,
                         operator_vestings,
                         claim_info,
                     );
@@ -438,7 +412,7 @@ module vip::vesting {
                     operator_addr,
                     bridge_id,
                     operator_vestings,
-                    &mut operator_vestings_cache,
+                    &mut unfinalized_vestings,
                     claim_info,
                     initial_reward,
                 );
@@ -455,7 +429,7 @@ module vip::vesting {
         );
         // update or insert operator_vestings cache to vesting data of vesting store
         vector::for_each(
-            operator_vestings_cache,
+            unfinalized_vestings,
             |vesting| {
                 use_operator_vesting(vesting);
                 table::upsert(
@@ -603,7 +577,7 @@ module vip::vesting {
     fun batch_claim_previous_user_vestings(
         account_addr: address,
         bridge_id: u64,
-        user_vestings_cache: &mut vector<UserVesting>,
+        unfinalized_vestings: &mut vector<UserVesting>,
         user_vestings: &mut Table<vector<u8> /*stage key*/, UserVesting>,
         claim_info: &UserVestingClaimInfo
     ): (u64, u64) {
@@ -611,7 +585,7 @@ module vip::vesting {
         let net_penalty_reward = 0u64;
         let finalized_vestings_idx: vector<u64> = vector[]; // finalized index to delete on vestings cache
         vector::enumerate_mut<UserVesting>(
-            user_vestings_cache,
+            unfinalized_vestings,
             |idx, value| {
                 use_mut_user_vesting(value);
                 let vest_amount =
@@ -666,7 +640,7 @@ module vip::vesting {
             finalized_vestings_idx,
             |index| {
                 // remove vesting position finalized from cache
-                let vesting = vector::remove(user_vestings_cache, index);
+                let vesting = vector::remove(unfinalized_vestings, index);
                 let start_stage = vesting.start_stage;
                 // make user vesting position finalized
                 table::upsert(
@@ -693,7 +667,7 @@ module vip::vesting {
     fun batch_claim_previous_operator_vestings(
         account_addr: address,
         bridge_id: u64,
-        operator_vestings_cache: &mut vector<OperatorVesting>,
+        unfinalized_vestings: &mut vector<OperatorVesting>,
         operator_vestings: &mut Table<vector<u8> /*stage key*/, OperatorVesting>,
         claim_info: &OperatorVestingClaimInfo
     ): u64 {
@@ -701,7 +675,7 @@ module vip::vesting {
         let finalized_vestings_idx: vector<u64> = vector[]; // vector index
         // sum operator vestings
         vector::enumerate_mut(
-            operator_vestings_cache,
+            unfinalized_vestings,
             |idx, value| {
                 use_mut_operator_vesting(value);
                 net_vested_reward = net_vested_reward + value.vest_max_amount;
@@ -729,7 +703,7 @@ module vip::vesting {
             finalized_vestings_idx,
             |index| {
                 // remove vesting position is finalized from cache
-                let vesting = vector::remove(operator_vestings_cache, index);
+                let vesting = vector::remove(unfinalized_vestings, index);
                 // make user vesting position finalized
                 table::upsert(
                     operator_vestings,
@@ -754,7 +728,7 @@ module vip::vesting {
         account_addr: address,
         bridge_id: u64,
         user_vestings: &mut Table<vector<u8>, UserVesting>,
-        user_vestings_cache: &mut vector<UserVesting>,
+        unfinalized_vestings: &mut vector<UserVesting>,
         claim_info: &UserVestingClaimInfo,
         vesting_reward_amount: u64
     ) {
@@ -782,7 +756,7 @@ module vip::vesting {
         );
         // add user vestings on vesting cache
         vector::push_back(
-            user_vestings_cache,
+            unfinalized_vestings,
             UserVesting {
                 finalized: false,
                 initial_reward: vesting_reward_amount,
@@ -814,7 +788,7 @@ module vip::vesting {
         account_addr: address,
         bridge_id: u64,
         operator_vestings: &mut Table<vector<u8>, OperatorVesting>,
-        operator_vestings_cache: &mut vector<OperatorVesting>,
+        unfinalized_vestings: &mut vector<OperatorVesting>,
         claim_info: &OperatorVestingClaimInfo,
         initial_reward: u64,
     ) {
@@ -833,7 +807,7 @@ module vip::vesting {
         );
 
         vector::push_back(
-            operator_vestings_cache,
+            unfinalized_vestings,
             OperatorVesting {
                 finalized: false,
                 initial_reward: initial_reward,
@@ -866,11 +840,10 @@ module vip::vesting {
         key
     }
 
-    // make user vesting cache with non-finalized vesting positions
-    fun make_user_vestings_cache(
+    fun get_unfinalized_user_vestings(
         user_vestings: &mut Table<vector<u8>, UserVesting>
     ): vector<UserVesting> {
-        let user_vestings_cache: vector<UserVesting> = vector[];
+        let unfinalized_vestings: vector<UserVesting> = vector[];
         utils::walk(
             user_vestings,
             option::none(),
@@ -880,21 +853,19 @@ module vip::vesting {
                 use_user_vesting_ref(user_vesting);
                 if (!user_vesting.finalized) {
                     vector::push_back(
-                        &mut user_vestings_cache,
+                        &mut unfinalized_vestings,
                         *user_vesting,
                     );
                 };
                 false
             },
         );
-        user_vestings_cache
+        unfinalized_vestings
     }
-
-    // make operator vesting cache with non-finalized vesting positions
-    fun make_operator_vestings_cache(
+    fun get_unfinalized_operator_vestings(
         operator_vestings: &mut Table<vector<u8>, OperatorVesting>
     ): vector<OperatorVesting> {
-        let operator_vestings_cache: vector<OperatorVesting> = vector[];
+        let unfinalized_vestings: vector<OperatorVesting> = vector[];
         utils::walk(
             operator_vestings,
             option::none(),
@@ -904,14 +875,14 @@ module vip::vesting {
                 use_operator_vesting_ref(operator_vesting);
                 if (!operator_vesting.finalized) {
                     vector::push_back(
-                        &mut operator_vestings_cache,
+                        &mut unfinalized_vestings,
                         *operator_vesting,
                     );
                 };
                 false
             },
         );
-        operator_vestings_cache
+        unfinalized_vestings
     }
 
     fun get_last_key<K: copy + drop, V>(table: &Table<K, V>): K {
