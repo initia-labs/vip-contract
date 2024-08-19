@@ -213,6 +213,9 @@ module vip::test {
         vault::reward_per_stage()
     }
 
+    fun get_vm_type(): u64 {
+        0
+    }
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
         block::set_block_info(height, curr_time + period);
@@ -381,6 +384,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
 
         vip::update_vip_weight(
@@ -564,6 +568,7 @@ module vip::test {
         vip::zapping_script(
             user,
             get_bridge_id(),
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -871,7 +876,7 @@ module vip::test {
             &mut merkle_proofs,
             &mut l2_scores,
         );
-        assert!(vip::get_last_submitted_stage(1) == 1, 2);
+        assert!(vip::get_last_submitted_stage(1, get_version()) == 1, 2);
         // stage 2
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
@@ -902,6 +907,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             1,
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -969,7 +975,7 @@ module vip::test {
             merkle_root,
             1000,
         );
-        assert!(vip::get_last_submitted_stage(1) == 2, 2);
+        assert!(vip::get_last_submitted_stage(1,get_version()) == 2, 2);
 
         let remaining_reward = vesting::get_user_vesting_remaining(
             receiver_addr, get_bridge_id(), 1
@@ -979,6 +985,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             1,
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -1032,7 +1039,7 @@ module vip::test {
             l2_scores,
         );
 
-        assert!(vip::get_last_submitted_stage(1) == 1, 2);
+        assert!(vip::get_last_submitted_stage(1,get_version()) == 1, 2);
         // stage 2
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
@@ -1053,6 +1060,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             1,
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -1100,7 +1108,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun claim_re_registered_bridge_reward(
+    fun e2e_re_registered_bridge_reward(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1110,6 +1118,12 @@ module vip::test {
         let receiver_addr = signer::address_of(receiver);
         let vesting_period = get_vesting_period();
         let vault_balance_before = vault::balance();
+        coin::transfer(
+            chain,
+            receiver_addr,
+            usdc_metadata(),
+            100_000_000,
+        );
         vip::register(
             vip,
             signer::address_of(operator),
@@ -1119,6 +1133,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
@@ -1174,6 +1189,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
 
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 5, 1);
@@ -1236,7 +1252,24 @@ module vip::test {
         assert!(
             vault_balance_after == vault_balance_before - reward::balance(receiver_addr),
             5,
-        )
+        );
+
+        let vesting5_remaining_reward =
+            vesting::get_user_vesting_remaining_reward(receiver_addr, get_bridge_id(), 5);
+
+        // zapping position of stage 5
+        vip::zapping_script(
+            receiver,
+            get_bridge_id(),
+            get_version() + 1,
+            get_lp_metadata(),
+            option::none(),
+            get_validator(),
+            5,
+            vesting5_remaining_reward, // zapping_amount
+            vesting5_remaining_reward - 1, // zapping_amount
+            usdc_metadata(),
+        );
 
     }
 
@@ -1259,6 +1292,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type(),
         );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
@@ -1377,6 +1411,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             get_bridge_id(),
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -1507,6 +1542,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             get_bridge_id(),
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -1629,6 +1665,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             get_bridge_id(),
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -1665,6 +1702,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
 
@@ -1695,6 +1733,7 @@ module vip::test {
         vip::zapping_script(
             receiver,
             get_bridge_id(),
+            get_version(),
             get_lp_metadata(),
             option::none(),
             get_validator(),
@@ -1744,6 +1783,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
         // stage4 distributed
         only_fund_reward(
@@ -1903,6 +1943,7 @@ module vip::test {
         vip::batch_zapping_script(
             receiver,
             get_bridge_id(),
+            get_version(),
             lp_metadatas,
             min_liquidity,
             validators,
@@ -2030,6 +2071,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 1, 1);
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
@@ -2075,6 +2117,7 @@ module vip::test {
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
             decimal256::from_ratio(1, 2),
+            get_vm_type()
         );
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 5, 1);
         // stage4 distributed
