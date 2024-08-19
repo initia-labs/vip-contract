@@ -873,6 +873,9 @@ module vip::vesting {
         let user_vestings_cache: vector<UserVesting> = vector[];
         utils::walk(
             user_vestings,
+            option::none(),
+            option::none(),
+            1,
             |_stage_key, user_vesting| {
                 use_user_vesting_ref(user_vesting);
                 if (!user_vesting.finalized) {
@@ -894,6 +897,9 @@ module vip::vesting {
         let operator_vestings_cache: vector<OperatorVesting> = vector[];
         utils::walk(
             operator_vestings,
+            option::none(),
+            option::none(),
+            1,
             |_stage_key, operator_vesting| {
                 use_operator_vesting_ref(operator_vesting);
                 if (!operator_vesting.finalized) {
@@ -1098,6 +1104,9 @@ module vip::vesting {
         let user_vestings = load_user_vestings_imut(module_store, bridge_id, account_addr);
         utils::walk<vector<u8>, UserVesting>(
             user_vestings,
+            option::none(),
+            option::none(),
+            1,
             |_k, user_vesting| {
                 use_user_vesting_ref(user_vesting);
                 total_unlocked_reward = total_unlocked_reward + user_vesting.initial_reward
@@ -1117,6 +1126,9 @@ module vip::vesting {
         let user_vestings = load_user_vestings_imut(module_store, bridge_id, account_addr);
         utils::walk<vector<u8>, UserVesting>(
             user_vestings,
+            option::none(),
+            option::none(),
+            1,
             |_k, user_vesting| {
                 use_user_vesting_ref(user_vesting);
                 total_locked_reward = total_locked_reward + user_vesting.remaining_reward;
@@ -1142,6 +1154,9 @@ module vip::vesting {
         let user_vestings = load_user_vestings_imut(module_store, bridge_id, account_addr);
         utils::walk(
             user_vestings,
+            option::none(),
+            option::none(),
+            1,
             |stage_key, _v| {
                 vector::push_back(
                     &mut claimed_stages,
@@ -1164,6 +1179,9 @@ module vip::vesting {
             load_operator_vestings_imut(module_store, bridge_id, account_addr);
         utils::walk(
             operator_vestings,
+            option::none(),
+            option::none(),
+            1,
             |_k, operator_vesting| {
                 use_operator_vesting_ref(operator_vesting);
                 total_unlocked_reward = total_unlocked_reward
@@ -1193,6 +1211,9 @@ module vip::vesting {
             load_operator_vestings_imut(module_store, bridge_id, account_addr);
         utils::walk(
             operator_vestings,
+            option::none(),
+            option::none(),
+            1,
             |stage_key, _v| {
                 vector::push_back(
                     &mut claimed_stages,

@@ -4,6 +4,7 @@ module vip::tvl_manager {
     use initia_std::table_key;
     use initia_std::table;
     use initia_std::block;
+    use initia_std::option;
 
     use vip::utils;
     friend vip::vip;
@@ -172,6 +173,9 @@ module vip::tvl_manager {
         let snapshot_responses = vector::empty<TVLSnapshotResponse>();
         utils::walk(
             snapshots_table,
+            option::none(),
+            option::none(),
+            1,
             |time_vec, snapshot_tvl| {
                 vector::push_back(
                     &mut snapshot_responses,

@@ -19,13 +19,16 @@ module vip::utils {
 
     public inline fun walk_mut<K: copy + drop, V>(
         mut_table: &mut Table<K, V>,
+        start: Option<K>,
+        end: Option<K>,
+        order: u8,
         f: |K, &mut V| bool
     ) {
         let iter = table::iter_mut(
             mut_table,
-            option::none(),
-            option::none(),
-            1,
+            start,
+            end,
+            order,
         );
         loop {
             if (!table::prepare_mut<K, V>(iter)) { break };
@@ -36,13 +39,17 @@ module vip::utils {
     }
 
     public inline fun walk<K: copy + drop, V>(
-        mut_table: &Table<K, V>, f: |K, &V| bool
+        table: &Table<K, V>,
+        start: Option<K>,
+        end: Option<K>,
+        order: u8,
+        f: |K, &V| bool
     ) {
         let iter = table::iter(
-            mut_table,
-            option::none(),
-            option::none(),
-            1,
+            table,
+            start,
+            end,
+            order,
         );
         loop {
             if (!table::prepare<K, V>(iter)) { break };

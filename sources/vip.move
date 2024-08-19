@@ -543,6 +543,13 @@ module vip::vip {
         let versions: vector<u64> = vector[];
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, _v| {
                 let (is_registered, bridge_id, version) = unpack_bridge_info_key(key);
                 if (is_registered) {
@@ -623,6 +630,13 @@ module vip::vip {
         let whitelisted_bridge_ids: vector<u64> = vector[];
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, _v| {
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
@@ -660,6 +674,13 @@ module vip::vip {
         let whitelisted_bridge_ids: vector<u64> = vector[];
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, _v| {
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
@@ -736,6 +757,13 @@ module vip::vip {
             simple_map::create<u64, Decimal256>();
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, bridge| {
                 use_bridge(bridge);
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
@@ -765,6 +793,13 @@ module vip::vip {
         let total_weight = decimal256::zero();
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, bridge| {
                 use_bridge(bridge);
                 let (is_registered, _, _) = unpack_bridge_info_key(key);
@@ -1004,6 +1039,13 @@ module vip::vip {
         let current_stage = module_store.stage;
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, bridge| {
                 use_bridge(bridge);
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
@@ -1631,12 +1673,18 @@ module vip::vip {
     fun get_last_bridge_version(
         module_store: &ModuleStore, bridge_id: u64
     ): (bool, u64) {
-
-        let iter = table::iter(&module_store.bridges, option::none(), option::none(), 2);
-        let last_version = 0;
-        let is_registered = false;
-        loop {
-            if (!table::prepare<BridgeInfoKey, Bridge>(iter)) { break };
+        // iter for registered bridge
+        let iter = table::iter(
+            &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(bridge_id),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
+        );
+        if (!table::prepare<BridgeInfoKey, Bridge>(iter)) {
             let (key, _) = table::next<BridgeInfoKey, Bridge>(iter);
             let last_version = table_key::decode_u64(key.version);
             if (bridge_id == table_key::decode_u64(key.bridge_id)) {
@@ -1644,8 +1692,26 @@ module vip::vip {
             };
         };
 
-        (is_registered, last_version)
+        // iter for deregistered bridge 
+        let iter = table::iter(
+            &module_store.bridges,
+            option::none(),
+            option::some(BridgeInfoKey {
+                is_registered: false,
+                bridge_id: table_key::encode_u64(bridge_id + 1),
+                version: table_key::encode_u64(0u64),
+            }), // exclusive
+            2,
+        );
+        if (!table::prepare<BridgeInfoKey, Bridge>(iter)) {
+            let (key, _) = table::next<BridgeInfoKey, Bridge>(iter);
+            let last_version = table_key::decode_u64(key.version);
+            if (bridge_id == table_key::decode_u64(key.bridge_id)) {
+                return (key.is_registered, last_version)
+            };
+        };
 
+        (false, 0)
     }
 
     fun load_stage_data_mut(module_store: &mut ModuleStore, stage: u64): &mut StageData {
@@ -1924,6 +1990,13 @@ module vip::vip {
         let bridge_infos = vector::empty<BridgeResponse>();
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, bridge| {
                 use_bridge(bridge);
                 let (is_registered, bridge_id, version) = unpack_bridge_info_key(key);
@@ -1954,6 +2027,13 @@ module vip::vip {
         let bridge_ids = vector::empty<u64>();
         utils::walk(
             &module_store.bridges,
+            option::some(BridgeInfoKey {
+                is_registered: true,
+                bridge_id: table_key::encode_u64(0),
+                version: table_key::encode_u64(0),
+            }),
+            option::none(),
+            1,
             |key, _v| {
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
@@ -1976,6 +2056,9 @@ module vip::vip {
         let total_l2_scores: vector<TotalL2ScoreResponse> = vector[];
         utils::walk(
             &stage_data.snapshots,
+            option::none(),
+            option::none(),
+            1,
             |key, snapshot| {
                 use_snapshot(snapshot);
                 let (bridge_id, version) = unpack_snapshot_key(key);
