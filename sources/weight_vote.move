@@ -77,6 +77,7 @@ module vip::weight_vote {
     }
 
     struct WeightVote has store {
+        max_voting_power: u64,
         voting_power: u64,
         weights: vector<Weight>
     }
@@ -125,6 +126,7 @@ module vip::weight_vote {
     struct VoteEvent has drop, store {
         account: address,
         cycle: u64,
+        max_voting_power: u64,
         voting_power: u64,
         weights: vector<Weight>,
     }
@@ -258,7 +260,7 @@ module vip::weight_vote {
 
         // remove former vote
         if (table::contains(&proposal.votes, addr)) {
-            let WeightVote { voting_power: _, weights } =
+            let WeightVote { max_voting_power ,voting_power:_ , weights } =
                 table::remove(&mut proposal.votes, addr);
             remove_vote(proposal, max_voting_power, weights);
         };
@@ -286,7 +288,7 @@ module vip::weight_vote {
         table::add(
             &mut proposal.votes,
             addr,
-            WeightVote { voting_power: voting_power_used, weights: weight_vector },
+            WeightVote { max_voting_power, voting_power: voting_power_used, weights: weight_vector },
         );
 
         // emit event
@@ -294,7 +296,8 @@ module vip::weight_vote {
             VoteEvent {
                 account: addr,
                 cycle,
-                voting_power: voting_power_used, //TODO: max voting power
+                max_voting_power,
+                voting_power: voting_power_used,
                 weights: weight_vector,
             },
         )
