@@ -1163,6 +1163,19 @@ module vip::test {
         let vesting5_remaining_reward =
             vesting::get_user_vesting_remaining_reward(receiver_addr, get_bridge_id(), 5);
 
+        // zapping position of stage 1
+        vip::zapping_script(
+            receiver,
+            get_bridge_id(),
+            get_version(),
+            get_lp_metadata(),
+            option::none(),
+            get_validator(),
+            1,
+            vesting5_remaining_reward, // zapping_amount
+            vesting5_remaining_reward, // zapping_amount
+            usdc_metadata(),
+        );
         // zapping position of stage 5
         vip::zapping_script(
             receiver,
@@ -1173,7 +1186,7 @@ module vip::test {
             get_validator(),
             5,
             vesting5_remaining_reward, // zapping_amount
-            vesting5_remaining_reward - 1, // zapping_amount
+            vesting5_remaining_reward, // zapping_amount
             usdc_metadata(),
         );
 

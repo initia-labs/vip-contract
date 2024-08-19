@@ -248,6 +248,7 @@ module vip::vip {
     struct RewardDistributionEvent has drop, store {
         stage: u64,
         bridge_id: u64,
+        version: u64,
         user_reward_amount: u64,
         operator_reward_amount: u64
     }
@@ -273,6 +274,7 @@ module vip::vip {
     struct ExecuteChallengeEvent has drop, store {
         challenge_id: u64,
         bridge_id: u64,
+        version: u64,
         stage: u64,
         title: string::String,
         summary: string::String,
@@ -284,6 +286,7 @@ module vip::vip {
     #[event]
     struct SubmitSnapshotEvent has drop, store {
         bridge_id: u64,
+        version: u64,
         stage: u64,
         total_l2_score: u64,
         merkle_root: vector<u8>,
@@ -535,19 +538,23 @@ module vip::vip {
         let total_user_funded_reward = 0;
         let total_operator_funded_reward = 0;
         let whitelisted_bridge_ids: vector<u64> = vector[];
+        let versions: vector<u64> = vector[];
         utils::walk(
             &module_store.bridges,
             |key, _v| {
-                let (is_registered, _, _) = unpack_bridge_info_key(key);
+                let (is_registered, bridge_id, version) = unpack_bridge_info_key(key);
                 if (is_registered) {
-                    vector::push_back(&mut whitelisted_bridge_ids, key.bridge_id);
+                    vector::push_back(&mut whitelisted_bridge_ids, bridge_id);
+                    vector::push_back(&mut versions, version);
                 };
                 false
             },
         );
-        vector::for_each(
-            whitelisted_bridge_ids,
-            |bridge_id| {
+        vector::enumerate_ref(
+            &whitelisted_bridge_ids,
+            |i, bridge_id_ref| {
+                let version = *vector::borrow(&versions, i);
+                let bridge_id = *bridge_id_ref;
                 // split the reward of balance pool
                 let balance_reward_amount =
                     split_reward_with_share_internal(
@@ -576,6 +583,7 @@ module vip::vip {
                     RewardDistributionEvent {
                         stage,
                         bridge_id,
+                        version,
                         user_reward_amount: total_user_funded_reward,
                         operator_reward_amount: total_operator_funded_reward
                     },
@@ -883,6 +891,7 @@ module vip::vip {
             ExecuteChallengeEvent {
                 challenge_id,
                 bridge_id,
+                version,
                 stage: challenge_stage,
                 title,
                 summary,
@@ -948,8 +957,7 @@ module vip::vip {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
         assert!(is_registered, error::unavailable(EINVALID_REGISTERD_BRIDGE));
-        let key = BridgeInfoKey { is_registered: true, bridge_id, version, };
-        let bridge = table::remove(&mut module_store.bridges, key);
+        let bridge = table::remove(&mut module_store.bridges, BridgeInfoKey { is_registered: true, bridge_id, version, });
         table::add(
             &mut module_store.bridges,
             BridgeInfoKey { is_registered: false, bridge_id, version, },
@@ -1129,6 +1137,7 @@ module vip::vip {
         event::emit(
             SubmitSnapshotEvent {
                 bridge_id: bridge_id,
+                version,
                 stage: stage,
                 total_l2_score: total_l2_score,
                 merkle_root: merkle_root,
@@ -1158,11 +1167,10 @@ module vip::vip {
 
     fun check_claimable(bridge_id: u64, version: u64, stage: u64): bool acquires ModuleStore {
         let (_, curr_time) = block::get_block_info();
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let snapshot = load_snapshot_mut(module_store, stage, bridge_id, version);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let challenge_period = module_store.challenge_period;
+        let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
         let snapshot_create_time = snapshot.create_time;
-
-        let challenge_period = borrow_global_mut<ModuleStore>(@vip).challenge_period;
 
         curr_time > snapshot_create_time + challenge_period
     }
@@ -1526,13 +1534,13 @@ module vip::vip {
             error::invalid_state(EALREADY_FINALIZED_OR_ZAPPED),
         );
 
-        // check the last claimed stage !== current stage
+        // check the last claimed stage >= submitted_stage
         // it means there can be claimable reward not to be zapped
         let last_claimed_stage =
             vesting::get_user_last_claimed_stage(account_addr, bridge_id);
         let last_submitted_stage = get_last_submitted_stage(bridge_id, version);
         let can_zap =
-            if (last_claimed_stage == last_submitted_stage) { true }
+            if (last_claimed_stage >= last_submitted_stage) { true }
             else {
                 // check is there any claimable reward
                 let check_stage = last_claimed_stage + 1;
