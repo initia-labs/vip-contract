@@ -76,8 +76,8 @@ module vip::reward {
         );
         table::add(
             &mut module_store.distributed_reward,
-            get_distrubuted_reward_table_key(bridge_id, stage),
-            RewardRecord { user_reward: user_reward, operator_reward: operator_reward },
+            key,
+            RewardRecord { user_reward, operator_reward },
         );
     }
 
@@ -93,16 +93,13 @@ module vip::reward {
     #[view]
     public fun get_user_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
+        let key = get_distrubuted_reward_table_key(bridge_id, stage);
 
-        if (table::contains(
+        if (table::contains(&module_store.distributed_reward, key)) {
+            let reward_data = table::borrow(
                 &module_store.distributed_reward,
-                get_distrubuted_reward_table_key(bridge_id, stage),
-            )) {
-            let reward_data =
-                table::borrow(
-                    &module_store.distributed_reward,
-                    get_distrubuted_reward_table_key(bridge_id, stage),
-                );
+                key,
+            );
             return reward_data.user_reward
         };
 
@@ -112,16 +109,13 @@ module vip::reward {
     #[view]
     public fun get_operator_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
+        let key = get_distrubuted_reward_table_key(bridge_id, stage);
 
-        if (table::contains(
+        if (table::contains(&module_store.distributed_reward, key)) {
+            let reward_data = table::borrow(
                 &module_store.distributed_reward,
-                get_distrubuted_reward_table_key(bridge_id, stage),
-            )) {
-            let reward_data =
-                table::borrow(
-                    &module_store.distributed_reward,
-                    get_distrubuted_reward_table_key(bridge_id, stage),
-                );
+                key,
+            );
             return reward_data.operator_reward
         };
 

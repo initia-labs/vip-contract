@@ -272,7 +272,7 @@ module vip::weight_vote {
             |bridge_id, weight| {
                 vector::push_back(
                     &mut weight_vector,
-                    Weight { bridge_id: bridge_id, weight: weight, },
+                    Weight { bridge_id, weight, },
                 );
             },
         );
@@ -420,7 +420,6 @@ module vip::weight_vote {
             },
         );
         proposal.total_tally = proposal.total_tally - voting_power_removed;
-
     }
 
     fun apply_vote(
@@ -443,7 +442,6 @@ module vip::weight_vote {
             },
         );
         proposal.total_tally = proposal.total_tally + voting_power_used
-
     }
 
     // if submitter submit merkle root after grace period, set voting end time to current timestamp + voting period
@@ -628,7 +626,6 @@ module vip::weight_vote {
         );
 
         return tally_responses
-
     }
 
     #[view]

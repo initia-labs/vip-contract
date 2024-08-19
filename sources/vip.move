@@ -1084,7 +1084,7 @@ module vip::vip {
         // update stage start_time
         module_store.stage_start_time = stage_end_time;
         module_store.stage_end_time = stage_end_time + stage_interval;
-        let initial_reward_amount = vault::get_total_reward_per_stage();
+        let initial_reward_amount = vault::reward_per_stage();
         let (total_operator_funded_reward, total_user_funded_reward) =
             fund_reward(
                 module_store,
@@ -1171,12 +1171,12 @@ module vip::vip {
 
         event::emit(
             SubmitSnapshotEvent {
-                bridge_id: bridge_id,
+                bridge_id,
                 version,
-                stage: stage,
-                total_l2_score: total_l2_score,
-                merkle_root: merkle_root,
-                create_time: create_time,
+                stage,
+                total_l2_score,
+                merkle_root,
+                create_time,
             },
         )
     }
@@ -1299,7 +1299,7 @@ module vip::vip {
                 };
                 vector::push_back(
                     &mut claimInfos,
-                    vesting::build_user_vesting_claim_infos(
+                    vesting::build_user_vesting_claim_info(
                         *stage,
                         *stage + vesting_period,
                         *l2_score,
@@ -1394,7 +1394,7 @@ module vip::vip {
                 );
                 vector::push_back(
                     &mut claimInfos,
-                    vesting::build_operator_vesting_claim_infos(
+                    vesting::build_operator_vesting_claim_info(
                         *s, *s + module_store.vesting_period
                     ),
                 );

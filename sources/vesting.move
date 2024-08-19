@@ -336,7 +336,7 @@ module vip::vesting {
             },
         );
 
-        // update or insert from user vestings cache to vesting data of module store
+        // update or insert from unfinalized vestings to vesting data of module store
         vector::for_each(
             unfinalized_vestings,
             |vesting| {
@@ -351,7 +351,7 @@ module vip::vesting {
                     event::emit(
                         UserVestingChangedEvent {
                             account: account_addr,
-                            bridge_id: bridge_id,
+                            bridge_id,
                             start_stage: vesting.start_stage,
                             initial_reward: vesting.initial_reward,
                             remaining_reward: vesting.remaining_reward,
@@ -364,7 +364,6 @@ module vip::vesting {
 
         // withdraw net reward from vault
         vault::withdraw(total_vested_reward)
-
     }
 
     public(friend) fun batch_claim_operator_reward(
@@ -427,7 +426,7 @@ module vip::vesting {
                 );
             },
         );
-        // update or insert operator_vestings cache to vesting data of vesting store
+        // update or insert unfinalized vestings to vesting data of vesting store
         vector::for_each(
             unfinalized_vestings,
             |vesting| {
@@ -441,7 +440,7 @@ module vip::vesting {
                     event::emit(
                         OperatorVestingChangedEvent {
                             account: operator_addr,
-                            bridge_id: bridge_id,
+                            bridge_id,
                             start_stage: vesting.start_stage,
                             initial_reward: vesting.initial_reward,
                             remaining_reward: vesting.remaining_reward,
@@ -460,7 +459,6 @@ module vip::vesting {
         stage: u64,
         zapping_amount: u64
     ): FungibleAsset acquires ModuleStore {
-
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let user_vestings =
             table::borrow_mut(
@@ -508,7 +506,7 @@ module vip::vesting {
         vault::withdraw(zapping_amount)
     }
 
-    public(friend) fun build_user_vesting_claim_infos(
+    public(friend) fun build_user_vesting_claim_info(
         start_stage: u64,
         end_stage: u64,
         l2_score: u64,
@@ -524,7 +522,7 @@ module vip::vesting {
         }
     }
 
-    public(friend) fun build_operator_vesting_claim_infos(
+    public(friend) fun build_operator_vesting_claim_info(
         start_stage: u64, end_stage: u64
     ): OperatorVestingClaimInfo {
         OperatorVestingClaimInfo { start_stage, end_stage }
@@ -583,7 +581,7 @@ module vip::vesting {
     ): (u64, u64) {
         let net_vested_reward = 0u64;
         let net_penalty_reward = 0u64;
-        let finalized_vestings_idx: vector<u64> = vector[]; // finalized index to delete on vestings cache
+        let finalized_vestings_idx: vector<u64> = vector[]; // to delete from unfinalized vestings
         vector::enumerate_mut<UserVesting>(
             unfinalized_vestings,
             |idx, value| {
@@ -639,7 +637,7 @@ module vip::vesting {
         vector::for_each_reverse(
             finalized_vestings_idx,
             |index| {
-                // remove vesting position finalized from cache
+                // remove finalized vesting position from unfinalized vestings
                 let vesting = vector::remove(unfinalized_vestings, index);
                 let start_stage = vesting.start_stage;
                 // make user vesting position finalized
@@ -698,11 +696,11 @@ module vip::vesting {
                 };
             },
         );
-        // cleanup finalized vestings and remove from user_vestings cache
+        // cleanup finalized vestings and remove from unfinalized vestings
         vector::for_each_reverse(
             finalized_vestings_idx,
             |index| {
-                // remove vesting position is finalized from cache
+                // remove finalized vesting position from unfinalized vestings
                 let vesting = vector::remove(unfinalized_vestings, index);
                 // make user vesting position finalized
                 table::upsert(
@@ -754,7 +752,7 @@ module vip::vesting {
                     / (claim_info.end_stage - claim_info.start_stage)
             },
         );
-        // add user vestings on vesting cache
+        // add user vestings on unfinalized vestings
         vector::push_back(
             unfinalized_vestings,
             UserVesting {

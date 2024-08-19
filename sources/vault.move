@@ -120,13 +120,6 @@ module vip::vault {
     //
 
     #[view]
-    public fun get_total_reward_per_stage(): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        module_store.reward_per_stage
-
-    }
-
-    #[view]
     public fun get_vault_store_address(): address acquires ModuleStore {
         borrow_global<ModuleStore>(@vip).vault_store_addr
     }

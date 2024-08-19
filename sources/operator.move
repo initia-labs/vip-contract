@@ -132,7 +132,7 @@ module vip::operator {
             &mut module_store.operator_infos,
             bridge_id_key,
             OperatorInfo {
-                operator_addr: operator_addr,
+                operator_addr,
                 last_changed_stage: stage,
                 commission_max_rate,
                 commission_max_change_rate,
@@ -197,7 +197,7 @@ module vip::operator {
         event::emit(
             UpdateCommissionEvent {
                 operator: operator_addr,
-                bridge_id: bridge_id,
+                bridge_id,
                 stage: operator_info.last_changed_stage,
                 commission_rate
             },
