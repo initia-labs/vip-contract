@@ -44,12 +44,64 @@ module vip::mstaking_mock {
     }
 
     fun set_redelegations(src_validator_addr: String, dst_validator_addr: String, delegator_addr: String, entries: vector<RedelegationEntryResponse>) {
-        
+        let req = RedelegationsRequest { src_validator_addr, dst_validator_addr, delegator_addr };
+        let res = RedelegationsResponse {
+            redelegation_responses: vector [
+                RedelegationResponse {
+                    redelegation: Redelegation {
+                        delegator_address: delegator_addr,
+                        validator_src_address: src_validator_addr,
+                        validator_dst_address: dst_validator_addr,
+                        entries: option::none(),
+                    },
+                    entries,
+                }
+            ],
+            pagination: option::none()
+        };
+
+        set_query_response(
+            b"/initia.mstaking.v1.Query/Redelegations",
+            marshal(&req),
+            marshal(&res)
+        );
     }
 
-    fun set_delegator_delegations() {}
+    fun set_delegator_delegations(delegator_addr: String, delegation_responses: vector<DelegationResponseInner>) {
+        let req = DelegatorDelegationsRequest {
+            delegator_addr,
+            pagination: option::none(), // impossible to make mock query that support pagination
+        };
 
-    fun set_pool() {}
+        let res = DelegatorDelegationsResponse {
+            delegation_responses,
+            pagination: option::none(), // impossible to make mock query that support pagination
+        };
+
+        set_query_response(
+            b"/initia.mstaking.v1.Query/DelegatorDelegations",
+            marshal(&req),
+            marshal(&res)
+        );
+    }
+
+    fun set_pool(not_bonded_tokens: vector<Coin>, bonded_tokens: vector<Coin>, voting_power_weights: vector<DecCoin>) {
+        let req = PoolRequest {};
+
+        let res = PoolResponse {
+            pool: Pool {
+                not_bonded_tokens,
+                bonded_tokens,
+                voting_power_weights,
+            },
+        };
+
+        set_query_response(
+            b"/initia.mstaking.v1.Query/Pool",
+            marshal(&req),
+            marshal(&res)
+        );
+    }
 
     // query req/res types
     struct DelegatorDelegationsRequest has copy, drop, store {
