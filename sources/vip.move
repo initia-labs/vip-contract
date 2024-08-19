@@ -1813,7 +1813,11 @@ module vip::vip {
         table::borrow(&module_store.bridges, key)
     }
 
-    
+    public fun is_registered(bridge_id: u64): bool acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
+        is_registered
+    }
     //
     // View Functions
     //
