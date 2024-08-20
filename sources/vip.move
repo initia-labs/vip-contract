@@ -3671,8 +3671,8 @@ module vip::vip {
                     &score_map, &5
                 ), *simple_map::borrow(&score_map, &5),],
         );
-
-        let initial_reward_vesting_finalized =
+        
+        let initial_reward_vesting1 =
             vesting::get_user_vesting_initial_reward(
                 signer::address_of(receiver),
                 bridge_id,
