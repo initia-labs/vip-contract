@@ -3695,8 +3695,6 @@ module vip::vip {
             );
 
         let vesting_period = 5;
-        let total_reward_per_stage = DEFAULT_REWARD_PER_STAGE_FOR_TEST;
-        let reward_per_stage = total_reward_per_stage;
 
         update_minimum_score_ratio(
             vip,
