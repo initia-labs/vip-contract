@@ -492,6 +492,7 @@ module vip::vip {
     fun zapping(
         account: &signer,
         bridge_id: u64,
+        version: u64,
         lp_metadata: Object<Metadata>,
         min_liquidity: option::Option<u64>,
         validator: string::String,
@@ -505,6 +506,7 @@ module vip::vip {
             vesting::zapping_vesting(
                 account_addr,
                 bridge_id,
+                version,
                 stage,
                 zapping_amount,
             );
@@ -1246,21 +1248,21 @@ module vip::vip {
         let init_stage = bridge_info.init_stage;
         let is_vesting_store_registered =
             vesting::is_user_vesting_store_registered(
-                signer::address_of(account), bridge_id
+                signer::address_of(account), bridge_id, version,
             );
         // hypothesis: for a claimed vesting position, all its previous stages must also be claimed.
         // so if vesting position of prev stage is claimed, then it will be okay but if it's not, make the error
         if (prev_stage >= init_stage) {
             assert!(
                 !is_vesting_store_registered
-                    || vesting::get_user_last_claimed_stage(account_addr, bridge_id)
+                    || vesting::get_user_last_claimed_stage(account_addr, bridge_id, version)
                         == prev_stage,
                 error::invalid_argument(EINVALID_CLAIMABLE_STAGE),
             );
         };
         // if there is no vesting store, register it
         if (!is_vesting_store_registered) {
-            vesting::register_user_vesting_store(account, bridge_id);
+            vesting::register_user_vesting_store(account, bridge_id, version);
         };
         // make vesting position claim info
         let claimInfos: vector<UserVestingClaimInfo> = vector[];
@@ -1313,7 +1315,7 @@ module vip::vip {
         );
         // call batch claim user reward; return net reward(total vested reward)
         let net_reward =
-            vesting::batch_claim_user_reward(account_addr, bridge_id, claimInfos);
+            vesting::batch_claim_user_reward(account_addr, bridge_id, version, claimInfos);
 
         coin::deposit(signer::address_of(account), net_reward);
     }
@@ -1325,10 +1327,10 @@ module vip::vip {
         stages: vector<u64>,
     ) acquires ModuleStore {
         if (!vesting::is_operator_vesting_store_registered(
-                signer::address_of(operator),
                 bridge_id,
+                version,
             )) {
-            vesting::register_operator_vesting_store(operator, bridge_id);
+            vesting::register_operator_vesting_store(bridge_id, version);
         };
         let account_addr = signer::address_of(operator);
         let len = vector::length(&stages);
@@ -1351,7 +1353,7 @@ module vip::vip {
         // so if vesting position of previous stage is claimed, then it will be okay but if is not, make the error
         if (prev_stage >= init_stage) {
             assert!(
-                vesting::get_operator_last_claimed_stage(account_addr, bridge_id)
+                vesting::get_operator_last_claimed_stage(bridge_id, version)
                     == prev_stage,
                 error::invalid_argument(EINVALID_BATCH_ARGUMENT),
             );
@@ -1369,13 +1371,6 @@ module vip::vip {
                     error::invalid_argument(EINVALID_STAGE_ORDER),
                 );
 
-                // if there is no vesting store, register it
-                if (!vesting::is_user_vesting_store_registered(
-                        signer::address_of(operator),
-                        bridge_id,
-                    )) {
-                    vesting::register_user_vesting_store(operator, bridge_id);
-                };
                 let stage_key = table_key::encode_u64(*s);
                 assert!(
                     table::contains(&module_store.stage_data, stage_key),
@@ -1404,7 +1399,7 @@ module vip::vip {
         );
         // call batch claim user reward; return net reward(total vested reward - total penalty reward)
         let net_reward =
-            vesting::batch_claim_operator_reward(account_addr, bridge_id, claimInfos);
+            vesting::batch_claim_operator_reward(account_addr, bridge_id, version, claimInfos);
         coin::deposit(signer::address_of(operator), net_reward);
     }
 
@@ -1560,14 +1555,14 @@ module vip::vip {
         let account_addr = signer::address_of(account);
         // check if it is already finalized(or zapped), make the error
         assert!(
-            !vesting::is_user_vesting_position_finalized(account_addr, bridge_id, stage),
+            !vesting::is_user_vesting_position_finalized(account_addr, bridge_id, version, stage),
             error::invalid_state(EALREADY_FINALIZED_OR_ZAPPED),
         );
 
         // check the last claimed stage >= submitted_stage
         // it means there can be claimable reward not to be zapped
         let last_claimed_stage =
-            vesting::get_user_last_claimed_stage(account_addr, bridge_id);
+            vesting::get_user_last_claimed_stage(account_addr, bridge_id, version);
         let last_submitted_stage = get_last_submitted_stage(bridge_id, version);
         let can_zap =
             if (last_claimed_stage >= last_submitted_stage) { true }
@@ -1584,6 +1579,7 @@ module vip::vip {
         zapping(
             account,
             bridge_id,
+            version,
             lp_metadata,
             min_liquidity,
             validator,
@@ -2875,6 +2871,7 @@ module vip::vip {
                 signer::address_of(receiver),
                 bridge_id,
                 1,
+                1,
             ) == *simple_map::borrow(&score_map, &1),
             1,
         );
@@ -2882,6 +2879,7 @@ module vip::vip {
             vesting::get_user_vesting_minimum_score(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
                 2,
             ) == *simple_map::borrow(&score_map, &2),
             2,
@@ -2912,6 +2910,7 @@ module vip::vip {
             vesting::get_user_vesting_minimum_score(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
                 3,
             ) == *simple_map::borrow(&score_map, &3),
             3,
@@ -2946,6 +2945,7 @@ module vip::vip {
             vesting::get_user_vesting_minimum_score(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
                 4,
             ) == *simple_map::borrow(&score_map, &4) / 2,
             4,
@@ -3016,6 +3016,7 @@ module vip::vip {
             vesting::get_user_last_claimed_stage(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
             ) == 1,
             1,
         );
@@ -3032,6 +3033,7 @@ module vip::vip {
             vesting::get_user_last_claimed_stage(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
             ) == 2,
             2,
         );
@@ -3048,6 +3050,7 @@ module vip::vip {
             vesting::get_user_last_claimed_stage(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
             ) == 3,
             3,
         );
@@ -3064,6 +3067,7 @@ module vip::vip {
             vesting::get_user_last_claimed_stage(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
             ) == 4,
             4,
         );
@@ -3201,10 +3205,12 @@ module vip::vip {
             signer::address_of(receiver),
             bridge_id,
             1,
+            1,
         );
         vesting::get_user_vesting(
             signer::address_of(receiver),
             bridge_id,
+            1,
             2,
         );
 
@@ -3237,10 +3243,12 @@ module vip::vip {
             signer::address_of(receiver),
             bridge_id,
             1,
+            1,
         );
         vesting::get_user_vesting(
             signer::address_of(receiver),
             bridge_id,
+            1,
             2,
         );
     }
@@ -3668,6 +3676,7 @@ module vip::vip {
             vesting::get_user_vesting_initial_reward(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
                 1,
             );
 
@@ -4415,6 +4424,7 @@ module vip::vip {
             vesting::get_user_vesting_remaining(
                 signer::address_of(receiver),
                 bridge_id,
+                1,
                 stage,
             );
 
