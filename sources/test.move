@@ -1359,33 +1359,19 @@ module vip::test {
             ),
             5,
         );
-
-        // TODO: handle test (calculate penalty reward directly)
-        // let vesting1_penalty_reward =
-        //     vesting::get_user_vesting_penalty_reward(receiver_addr, get_bridge_id(), 1, 1);
-        // let vesting2_penalty_reward =
-        //     vesting::get_user_vesting_penalty_reward(receiver_addr, get_bridge_id(), 1, 2);
-        // assert!(
-        //     vesting::get_user_vesting_remaining_reward(
-        //         receiver_addr, get_bridge_id(), 1, 1
-        //     ) == 0,
-        //     6,
-        // );
-        // let vesting2_remaining_reward =
-        //     vesting::get_user_vesting_remaining_reward(
-        //         receiver_addr, get_bridge_id(), 1, 2
-        //     );
-
-        // assert!(
-        //     vault::balance()
-        //         == vault_balance_before - (
-        //             vesting1_initial_reward - vesting1_penalty_reward
-        //         ) - (
-        //             vesting2_initial_reward - vesting2_remaining_reward
-        //                 - vesting2_penalty_reward
-        //         ),
-        //     7,
-        // )
+        let vesting1_penalty_reward =  vesting1_initial_reward / (2 * get_vesting_period()) - extra; // 50% vesting amount per stage; extra is zapped
+        let vesting2_penalty_reward =  vesting2_initial_reward / (2 * get_vesting_period()); // 50% vesting amount per stage  
+            vesting::get_user_vesting_penalty_reward(receiver_addr, get_bridge_id(), 1, 2);
+        let vesting2_remaining_reward =
+            vesting::get_user_vesting_remaining_reward(
+                receiver_addr, get_bridge_id(), 1, 2
+            );
+        let net_vested1 = vesting1_initial_reward - vesting1_penalty_reward;
+        let net_vested2 = vesting2_initial_reward - vesting2_remaining_reward - vesting2_penalty_reward;
+        assert!(
+               net_vested1 + net_vested2 == vault_balance_before - vault::balance(),
+            7
+        )
 
     }
 
