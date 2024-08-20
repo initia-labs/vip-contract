@@ -13,10 +13,13 @@ module vip::tvl_manager {
 
     struct ModuleStore has key {
         // The average tvl each stage(vip stage) and bridge id
-        snapshots: table::Table<vector<u8> /*stage*/, table::Table<vector<u8> /*bridge id*/, table::Table<vector<u8> /*timestamp*/, u64 /*tvl captured*/>>>,
-        average_tvl: table::Table<vector<u8> /*stage*/, table::Table<vector<u8> /*bridge id*/, u64,>>,
+        snapshots: table::Table<vector<u8> /*stage + bridge_id + timestamp*/, u64 /*tvl captured*/>,
+        summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>,
     }
-
+    struct TvlSummary has drop, store, copy{
+        count: u64, // snapshot count 
+        tvl: u64,
+    }
     struct TVLSnapshotResponse has drop, store {
         time: u64,
         tvl: u64,
@@ -26,11 +29,28 @@ module vip::tvl_manager {
         move_to(
             chain,
             ModuleStore {
-                snapshots: table::new<vector<u8> /*stage*/, table::Table<vector<u8> /*bridge id*/, table::Table<vector<u8> /*time*/, u64 /*tvl captured*/>>>(),
-                average_tvl: table::new<vector<u8> /*stage*/, table::Table<vector<u8> /*bridge id*/, u64,>>(),
+                snapshots: table::new<vector<u8> /*stage + bridge_id + timestamp*/, u64 /*tvl captured*/>(),
+                summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>(),
             },
         );
 
+    }
+    fun get_table_key(stage: u64, bridge_id: u64, timestamp: u64): vector<u8>{
+        let key = table_key::encode_u64(stage);
+        vector::append(&mut key, table_key::encode_u64(bridge_id));
+        vector::append(&mut key, table_key::encode_u64(timestamp));
+        key
+    }
+
+    fun extract_timestamp(key: vector<u8>) : u64 {
+        let time_vec: vector<u8> = vector[];
+        // timestamp_vec = key[16:23]
+        let i = 16;
+        while (i < 24) {
+            vector::push_back(&mut time_vec , *vector::borrow(&key, i));
+            i = i + 1;
+        };
+        table_key::decode_u64(time_vec)
     }
 
     // add the snapshot of the tvl on the bridge at the stage
@@ -39,147 +59,69 @@ module vip::tvl_manager {
     ) acquires ModuleStore {
         let (_, block_time) = block::get_block_info();
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-
-        // create the average tvl table for the stage(vip stage) if not exist
-        if (!table::contains(
-                &module_store.snapshots,
-                table_key::encode_u64(stage),
-            )) {
-            table::add(
-                &mut module_store.snapshots,
-                table_key::encode_u64(stage),
-                table::new<vector<u8> /*bridge id*/, table::Table<vector<u8> /*timestamp*/, u64>>(),
-            );
-            table::add(
-                &mut module_store.average_tvl,
-                table_key::encode_u64(stage),
-                table::new<vector<u8> /*bridge id*/, u64>(),
-            );
-
-        };
-        let tvl_snapshots =
-            table::borrow_mut(
-                &mut module_store.snapshots,
-                table_key::encode_u64(stage),
-            );
-
-        let average_tvl_table =
-            table::borrow_mut(
-                &mut module_store.average_tvl,
-                table_key::encode_u64(stage),
-            );
-        if (!table::contains(
-                tvl_snapshots,
-                table_key::encode_u64(bridge_id),
-            )) {
-            table::add(
-                tvl_snapshots,
-                table_key::encode_u64(bridge_id),
-                table::new<vector<u8> /*block time*/, u64>(),
-            );
-
-            table::add(
-                average_tvl_table,
-                table_key::encode_u64(bridge_id),
-                0,
-            )
-        };
+        let snapshot_table_key = get_table_key(stage, bridge_id, block_time);
+        let summary_table_key = get_table_key(stage, bridge_id, 0);
         // add the snapshot of the tvl and block time
-        let snapshots_table =
-            table::borrow_mut(
-                tvl_snapshots,
-                table_key::encode_u64(bridge_id),
-            );
-        let snapshot_count = table::length(snapshots_table);
-
         table::upsert(
-            snapshots_table,
-            table_key::encode_u64(block_time),
+            &mut module_store.snapshots,
+            snapshot_table_key,
             balance,
         );
 
         // update the average tvl of the bridge at the stage
-        let average_tvl =
-            table::borrow(
-                average_tvl_table,
-                table_key::encode_u64(bridge_id),
+        let summary =
+            table::borrow_mut_with_default(
+                &mut module_store.summary,
+                summary_table_key,
+                TvlSummary {
+                    count: 0,
+                    tvl: 0,
+                }
             );
         // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
         let new_average_tvl =
             (
-                ((snapshot_count as u128) * (*average_tvl as u128) + (balance as u128))
-                    / ((snapshot_count + 1) as u128)
+                ((summary.count as u128) * (summary.tvl as u128) + (balance as u128))
+                    / ((summary.count + 1) as u128)
             );
-
+        let new_count = summary.count + 1;
         table::upsert(
-            average_tvl_table,
-            table_key::encode_u64(bridge_id),
-            (new_average_tvl as u64),
+            &mut module_store.summary,
+            summary_table_key,
+            TvlSummary {
+                count: new_count,
+                tvl: (new_average_tvl as u64),
+            },
         )
     }
 
     // get the average tvl of the bridge at the stage from accumulated snapshots
     #[view]
     public fun get_average_tvl(stage: u64, bridge_id: u64): u64 acquires ModuleStore {
-        let stage_key = table_key::encode_u64(stage);
-        let bridge_id_key = table_key::encode_u64(bridge_id);
         let module_store = borrow_global<ModuleStore>(@vip);
+        let average_table_key = get_table_key(stage,bridge_id,0);
         assert!(
-            table::contains(
-                &module_store.average_tvl,
-                stage_key,
-            ),
-            error::not_found(EINVALID_STAGE),
-        );
-        let average_tvl_by_stage = table::borrow(&module_store.average_tvl, stage_key);
-        assert!(
-            table::contains(average_tvl_by_stage, bridge_id_key),
+            table::contains(&module_store.summary, average_table_key),
             error::not_found(EINVALID_BRIDGE_ID),
         );
-
-        let average_tvl = table::borrow(average_tvl_by_stage, bridge_id_key);
-
-        *average_tvl
+        table::borrow(&module_store.summary, average_table_key).tvl
     }
 
     #[view]
     public fun get_snapshots(stage: u64, bridge_id: u64): vector<TVLSnapshotResponse> acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        assert!(
-            table::contains(
-                &module_store.snapshots,
-                table_key::encode_u64(stage),
-            ),
-            error::not_found(EINVALID_STAGE),
-        );
-        let average_tvl_stage =
-            table::borrow_mut(
-                &mut module_store.snapshots,
-                table_key::encode_u64(stage),
-            );
-        assert!(
-            table::contains(
-                average_tvl_stage,
-                table_key::encode_u64(bridge_id),
-            ),
-            error::not_found(EINVALID_BRIDGE_ID),
-        );
-        let snapshots_table =
-            table::borrow_mut(
-                average_tvl_stage,
-                table_key::encode_u64(bridge_id),
-            );
         let snapshot_responses = vector::empty<TVLSnapshotResponse>();
         utils::walk(
-            snapshots_table,
-            option::none(),
+            &module_store.snapshots,
+            option::some(get_table_key(stage,bridge_id,0)),
             option::none(),
             1,
-            |time_vec, snapshot_tvl| {
+            |key, snapshot_tvl| {
+                let time = extract_timestamp(key);
                 vector::push_back(
                     &mut snapshot_responses,
                     TVLSnapshotResponse {
-                        time: table_key::decode_u64(time_vec),
+                        time,
                         tvl: *snapshot_tvl,
                     },
                 );
@@ -256,4 +198,5 @@ module vip::tvl_manager {
             );
         assert!(average_tvl == 2_000_000_000_000, 0);
     }
+
 }
