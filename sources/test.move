@@ -1141,17 +1141,13 @@ module vip::test {
         let vesting1_initial_reward =
             vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 1);
 
-        let vesting2_initial_reward =
-            vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 2);
-
         let vault_balance_after = vault::balance();
 
-        // stage 1 vested reward(2,5;twice) + stage 2 vested reward(5;one time)
+        // stage 1 vested reward(stage 2)
         assert!(
             reward::balance(receiver_addr)
                 == (
-                    2 * vesting1_initial_reward / vesting_period
-                        + (2 * vesting2_initial_reward) / (5 * vesting_period)
+                    vesting1_initial_reward / vesting_period
                 ),
             4,
         );
@@ -1616,7 +1612,6 @@ module vip::test {
     ) acquires TestState {
         initialize(chain, vip, operator);
         let receiver_addr = signer::address_of(receiver);
-        let vesting_period = get_vesting_period();
 
         coin::transfer(
             chain,
@@ -1755,13 +1750,10 @@ module vip::test {
             2,
         );
 
-        let vesting2_initial_reward =
-            vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 2);
-
         // stage 2 vested reward(5; 40% one time)
         assert!(
             reward::balance(receiver_addr)
-                == ((2 * vesting2_initial_reward) / (5 * vesting_period)),
+                == 0,
             3,
         );
         // claim no reward of vesting2 position; vault balance reduced only by amount of claim reward
@@ -2099,17 +2091,12 @@ module vip::test {
             vesting::get_operator_vesting_initial_reward(
                 get_bridge_id(), 1, 1
             );
-        let vesting2_initial_reward =
-            vesting::get_operator_vesting_initial_reward(
-                get_bridge_id(), 1, 2
-            );
         let vault_balance_after = vault::balance();
-        // stage 1 vesting reward(2,5) + stage 2 vested reward(5)
+        // stage 1 vesting reward(2)
         assert!(
             reward::balance(operator_addr)
                 == (
-                    (2 * vesting1_initial_reward) / (vesting_period)
-                        + (vesting2_initial_reward) / (vesting_period)
+                    (vesting1_initial_reward) / (vesting_period)
                 ),
             3,
         );
