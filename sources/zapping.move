@@ -41,24 +41,6 @@ module vip::zapping {
     }
 
     //
-    // Events
-    //
-
-    #[event]
-    struct ZappingEvent has drop, store {
-        zid: u64,
-        account: address,
-        bridge_id: u64,
-        stage: u64,
-        lp_metadata: Object<Metadata>,
-        validator: String,
-        zapping_amount: u64,
-        stakelisted_amount: u64,
-        stakelisted_metadata: Object<Metadata>,
-        release_time: u64,
-    }
-
-    //
     // Helper Functions
     //
 
