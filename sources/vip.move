@@ -3695,7 +3695,7 @@ module vip::vip {
             );
 
         let vesting_period = 5;
-
+        let total_reward = DEFAULT_REWARD_PER_STAGE_FOR_TEST;
         update_minimum_score_ratio(
             vip,
             decimal256::from_string(&string::utf8(b"0.3")),
@@ -3711,42 +3711,48 @@ module vip::vip {
             receiver,
             bridge_id,
             1,
-            vector[1, 2, 3, 4, 5, 6],
+            vector[1, 2, 3],
             vector[
                 *simple_map::borrow(&merkle_proof_map, &1), *simple_map::borrow(
                     &merkle_proof_map, &2
-                ), *simple_map::borrow(&merkle_proof_map, &3), *simple_map::borrow(
+                ), *simple_map::borrow(&merkle_proof_map, &3)
+                ],
+            vector[
+                *simple_map::borrow(&score_map, &1), *simple_map::borrow(&score_map, &2), *simple_map::borrow(
+                    &score_map, &3
+                )],
+        );
+        // TODO: handle test (calculate initial_reward_vesting_finalized)
+        let initial_reward_vesting1 =
+            vesting::get_user_vesting_initial_reward(
+                signer::address_of(receiver),
+                bridge_id,
+                1,
+                1,
+            );
+
+        batch_claim_user_reward_script(
+            receiver,
+            bridge_id,
+            1,
+            vector[4, 5, 6],
+            vector[
+                *simple_map::borrow(
                     &merkle_proof_map, &4
                 ), *simple_map::borrow(&merkle_proof_map, &5), *simple_map::borrow(
                     &merkle_proof_map, &6
                 ),],
             vector[
-                *simple_map::borrow(&score_map, &1), *simple_map::borrow(&score_map, &2), *simple_map::borrow(
-                    &score_map, &3
-                ), *simple_map::borrow(&score_map, &4), *simple_map::borrow(
+                *simple_map::borrow(&score_map, &4), *simple_map::borrow(
                     &score_map, &5
-                ), *simple_map::borrow(&score_map, &5),],
+                ), *simple_map::borrow(&score_map, &6),],
         );
-
-        // TODO: handle test (calculate initial_reward_vesting_finalized)
-        // let initial_reward_vesting_finalized =
-        //     vesting::get_user_vesting_initial_reward(
-        //         signer::address_of(receiver),
-        //         bridge_id,
-        //         1,
-        //         1,
-        //     );
-
-        // let reward_by_5_stage = initial_reward_vesting_finalized;
-        // let max_reward_per_claim = reward_per_stage / vesting_period;
-
-        // // score_ratio = l2_score > minimum_score ? 1 : l2_score / minimum_score
-        // assert!(
-        //     reward_by_5_stage
-        //         == max_reward_per_claim + (max_reward_per_claim + max_reward_per_claim)
-        //             + (max_reward_per_claim + max_reward_per_claim),
-        //     1,
-        // );
+        // full vested
+        assert!(
+            initial_reward_vesting1
+                == total_reward,
+            1,
+        );
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
