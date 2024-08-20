@@ -153,7 +153,7 @@ module vip::vault {
     use initia_std::option;
 
     #[test_only]
-    fun initialize_coin(account: &signer, symbol: string::String,)
+    fun initialize_coin(account: &signer, symbol: string::String)
         : (
         coin::BurnCapability, coin::FreezeCapability, coin::MintCapability,
     ) {

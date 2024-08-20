@@ -3,7 +3,7 @@ module vip::reward {
     use std::vector;
     use std::error;
     use initia_std::object::{Object};
-    use initia_std::fungible_asset::{Metadata,};
+    use initia_std::fungible_asset::{Metadata};
     use initia_std::primary_fungible_store;
     use initia_std::table;
     use initia_std::table_key;
@@ -48,7 +48,9 @@ module vip::reward {
         );
     }
 
-    fun get_distrubuted_reward_table_key(bridge_id: u64, version: u64, stage: u64): vector<u8> {
+    fun get_distrubuted_reward_table_key(
+        bridge_id: u64, version: u64, stage: u64
+    ): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
         vector::append(&mut key, table_key::encode_u64(version));
         vector::append(&mut key, table_key::encode_u64(stage));
@@ -93,7 +95,9 @@ module vip::reward {
     }
 
     #[view]
-    public fun get_user_distrubuted_reward(bridge_id: u64, version: u64, stage: u64): u64 acquires ModuleStore {
+    public fun get_user_distrubuted_reward(
+        bridge_id: u64, version: u64, stage: u64
+    ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let key = get_distrubuted_reward_table_key(bridge_id, version, stage);
 
@@ -109,7 +113,9 @@ module vip::reward {
     }
 
     #[view]
-    public fun get_operator_distrubuted_reward(bridge_id: u64, version: u64, stage: u64): u64 acquires ModuleStore {
+    public fun get_operator_distrubuted_reward(
+        bridge_id: u64, version: u64, stage: u64
+    ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let key = get_distrubuted_reward_table_key(bridge_id, version, stage);
 

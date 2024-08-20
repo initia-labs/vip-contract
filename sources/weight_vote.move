@@ -260,7 +260,7 @@ module vip::weight_vote {
 
         // remove former vote
         if (table::contains(&proposal.votes, addr)) {
-            let WeightVote { max_voting_power ,voting_power:_ , weights } =
+            let WeightVote { max_voting_power, voting_power: _, weights } =
                 table::remove(&mut proposal.votes, addr);
             remove_vote(proposal, max_voting_power, weights);
         };
@@ -288,7 +288,11 @@ module vip::weight_vote {
         table::add(
             &mut proposal.votes,
             addr,
-            WeightVote { max_voting_power, voting_power: voting_power_used, weights: weight_vector },
+            WeightVote {
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector
+            },
         );
 
         // emit event
