@@ -2,6 +2,7 @@ module vip::operator {
     use std::error;
     use std::signer;
     use std::event;
+    use std::vector;
 
     use initia_std::decimal256::{Self, Decimal256};
     use initia_std::table::{Self, Table};
@@ -31,7 +32,7 @@ module vip::operator {
     // Resources
     //
     struct ModuleStore has key {
-        operator_infos: Table<vector<u8> /*bridge id key*/, OperatorInfo>
+        operator_infos: Table<vector<u8> /*bridge id + version*/, OperatorInfo>
     }
 
     struct OperatorInfo has store {
@@ -62,6 +63,7 @@ module vip::operator {
     struct UpdateCommissionEvent has drop, store {
         operator: address,
         bridge_id: u64,
+        version: u64,
         stage: u64,
         commission_rate: Decimal256,
     }
@@ -98,6 +100,12 @@ module vip::operator {
         );
     }
 
+    fun generate_key(bridge_id: u64, version: u64): vector<u8> {
+        let key = table_key::encode_u64(bridge_id);
+        vector::append(&mut key, table_key::encode_u64(version));
+        key
+    }
+
     //
     // Friend Functions
     //
@@ -106,6 +114,7 @@ module vip::operator {
         chain: &signer,
         operator_addr: address,
         bridge_id: u64,
+        version: u64,
         stage: u64,
         commission_max_rate: Decimal256,
         commission_max_change_rate: Decimal256,
@@ -113,11 +122,11 @@ module vip::operator {
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let bridge_id_key = table_key::encode_u64(bridge_id);
+        let key = generate_key(bridge_id, version);
         assert!(
             !table::contains(
                 &module_store.operator_infos,
-                bridge_id_key,
+                key,
             ),
             error::already_exists(EOPERATOR_STORE_ALREADY_EXISTS),
         );
@@ -130,7 +139,7 @@ module vip::operator {
 
         table::add<vector<u8>, OperatorInfo>(
             &mut module_store.operator_infos,
-            bridge_id_key,
+            key,
             OperatorInfo {
                 operator_addr,
                 last_changed_stage: stage,
@@ -145,18 +154,17 @@ module vip::operator {
     public(friend) fun update_operator_commission(
         operator: &signer,
         bridge_id: u64,
+        version: u64,
         stage: u64,
         commission_rate: Decimal256
     ) acquires ModuleStore {
         let operator_addr = signer::address_of(operator);
-        let bridge_id_key = table_key::encode_u64(bridge_id);
+        let key = generate_key(bridge_id, version);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
 
-        let operator_info =
-            table::borrow_mut(
-                &mut module_store.operator_infos,
-                bridge_id_key,
-            );
+        let operator_info = table::borrow_mut(
+            &mut module_store.operator_infos, key
+        );
         assert!(
             operator_addr == operator_info.operator_addr,
             error::permission_denied(EUNAUTHORIZED),
@@ -198,24 +206,24 @@ module vip::operator {
             UpdateCommissionEvent {
                 operator: operator_addr,
                 bridge_id,
+                version,
                 stage: operator_info.last_changed_stage,
                 commission_rate
             },
         );
     }
 
-    public entry fun update_operator_addr(
+    public(friend) fun update_operator_addr(
         old_operator: &signer,
         bridge_id: u64,
+        version: u64,
         new_operator_addr: address,
     ) acquires ModuleStore {
-        let bridge_id_key = table_key::encode_u64(bridge_id);
+        let key = generate_key(bridge_id, version);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let operator_info =
-            table::borrow_mut(
-                &mut module_store.operator_infos,
-                bridge_id_key,
-            );
+        let operator_info = table::borrow_mut(
+            &mut module_store.operator_infos, key
+        );
         assert!(
             operator_info.operator_addr == signer::address_of(old_operator),
             error::permission_denied(EUNAUTHORIZED),
@@ -224,51 +232,66 @@ module vip::operator {
         operator_info.operator_addr = new_operator_addr;
     }
 
+    public fun check_operator_permission(
+        operator: &signer, bridge_id: u64, version: u64
+    ) acquires ModuleStore {
+        let key = generate_key(bridge_id, version);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let operator_info = table::borrow_mut(
+            &mut module_store.operator_infos, key
+        );
+
+        assert!(
+            operator_info.operator_addr == signer::address_of(operator),
+            error::permission_denied(EUNAUTHORIZED),
+        );
+    }
+
     //
     // View Functions
     //
 
     #[view]
-    public fun is_bridge_registered(bridge_id: u64): bool acquires ModuleStore {
+    public fun is_bridge_registered(bridge_id: u64, version: u64): bool acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_infos,
-            table_key::encode_u64(bridge_id),
+            generate_key(bridge_id, version),
         )
     }
 
     #[view]
-    public fun get_operator_commission(bridge_id: u64): Decimal256 acquires ModuleStore {
+    public fun get_operator_commission(bridge_id: u64, version: u64): Decimal256 acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
-                table_key::encode_u64(bridge_id),
+                generate_key(bridge_id, version),
             ),
             error::not_found(EOPERATOR_STORE_NOT_FOUND),
         );
         let operator_info =
             table::borrow(
                 &module_store.operator_infos,
-                table_key::encode_u64(bridge_id),
+                generate_key(bridge_id, version),
             );
         operator_info.commission_rate
     }
 
     #[view]
-    public fun get_operator_info(bridge_id: u64): OperatorInfoResponse acquires ModuleStore {
+    public fun get_operator_info(bridge_id: u64, version: u64): OperatorInfoResponse acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
-                table_key::encode_u64(bridge_id),
+                generate_key(bridge_id, version),
             ),
             error::not_found(EOPERATOR_STORE_NOT_FOUND),
         );
         let operator_info =
             table::borrow(
                 &module_store.operator_infos,
-                table_key::encode_u64(bridge_id),
+                generate_key(bridge_id, version),
             );
 
         OperatorInfoResponse {
@@ -301,6 +324,7 @@ module vip::operator {
             vip,
             operator_addr,
             bridge_id,
+            1,
             10,
             decimal256::from_string(&string::utf8(b"0.2")),
             decimal256::from_string(&string::utf8(b"0.2")),
@@ -308,7 +332,7 @@ module vip::operator {
         );
 
         assert!(
-            get_operator_info(bridge_id)
+            get_operator_info(bridge_id, 1)
                 == OperatorInfoResponse {
                     operator_addr: operator_addr,
                     last_changed_stage: 10,
@@ -324,12 +348,13 @@ module vip::operator {
         update_operator_commission(
             operator,
             bridge_id,
+            1,
             11,
             decimal256::from_string(&string::utf8(b"0.2")),
         );
 
         assert!(
-            get_operator_info(bridge_id)
+            get_operator_info(bridge_id, 1)
                 == OperatorInfoResponse {
                     operator_addr: operator_addr,
                     last_changed_stage: 11,
@@ -345,12 +370,13 @@ module vip::operator {
         update_operator_commission(
             operator,
             bridge_id,
+            1,
             12,
             decimal256::from_string(&string::utf8(b"0.1")),
         );
 
         assert!(
-            get_operator_info(bridge_id)
+            get_operator_info(bridge_id, 1)
                 == OperatorInfoResponse {
                     operator_addr: operator_addr,
                     last_changed_stage: 12,
@@ -375,6 +401,7 @@ module vip::operator {
             vip,
             operator_addr,
             bridge_id,
+            1,
             10,
             decimal256::from_string(&string::utf8(b"0.2")),
             decimal256::from_string(&string::utf8(b"0.1")),
@@ -384,6 +411,7 @@ module vip::operator {
         update_operator_commission(
             operator,
             bridge_id,
+            1,
             11,
             decimal256::from_string(&string::utf8(b"0.2")),
         );
@@ -400,6 +428,7 @@ module vip::operator {
             vip,
             operator_addr,
             bridge_id,
+            1,
             10,
             decimal256::from_string(&string::utf8(b"0.2")),
             decimal256::from_string(&string::utf8(b"0.2")),
@@ -409,6 +438,7 @@ module vip::operator {
         update_operator_commission(
             operator,
             bridge_id,
+            1,
             11,
             decimal256::from_string(&string::utf8(b"0.3")),
         );
@@ -425,6 +455,7 @@ module vip::operator {
             vip,
             operator_addr,
             bridge_id,
+            1,
             10,
             decimal256::from_string(&string::utf8(b"0.2")),
             decimal256::from_string(&string::utf8(b"0.2")),
@@ -434,6 +465,7 @@ module vip::operator {
         update_operator_commission(
             operator,
             bridge_id,
+            1,
             10,
             decimal256::from_string(&string::utf8(b"0")),
         );
@@ -450,6 +482,7 @@ module vip::operator {
             vip,
             operator_addr,
             bridge_id,
+            1,
             10,
             decimal256::from_string(&string::utf8(b"0.2")),
             decimal256::from_string(&string::utf8(b"0.2")),
