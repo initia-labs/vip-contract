@@ -20,15 +20,11 @@ module vip::vesting {
     //
 
     const EVESTING_STORE_ALREADY_EXISTS: u64 = 1;
-    const EVESTING_STORE_NOT_FOUND: u64 = 2;
-    const EVESTING_ALREADY_CLAIMED: u64 = 3;
-    const EVESTING_NOT_FOUND: u64 = 4;
-    const EVESTING_NOT_CLAIMED: u64 = 5;
-    const ESTAGE_ALREADY_CLAIMED: u64 = 6;
-    const EREWARD_NOT_ENOUGH: u64 = 7;
-    const EINVALID_VESTING_TYPE: u64 = 8;
-    const EINVALID_BRIDGE: u64 = 9;
-    const EINVALID_STAGE: u64 = 10;
+    const EVESTING_ALREADY_CLAIMED: u64 = 2;
+    const EVESTING_NOT_FOUND: u64 = 3;
+    const EREWARD_NOT_ENOUGH: u64 = 4;
+    const EINVALID_VESTING_TYPE: u64 = 5;
+    const EINVALID_STAGE: u64 = 6;
 
     const ENOT_FOUND: u64 = 101;
     //

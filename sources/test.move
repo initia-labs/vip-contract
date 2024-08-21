@@ -893,7 +893,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xC001f, location = vip)]
+    #[expected_failure(abort_code = 0xC001d, location = vip)]
     fun fail_zapping_vesting_position_without_claim(
         chain: &signer,
         vip: &signer,
@@ -971,7 +971,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xD0014, location = vip)]
+    #[expected_failure(abort_code = 0xD0007, location = vip)]
     fun fail_submit_snapshot_and_fund_reward_with_deregistered_bridge(
         chain: &signer,
         vip: &signer,
@@ -1175,7 +1175,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x60013, location = vip)]
+    #[expected_failure(abort_code = 0x60006, location = vip)]
     fun fail_calim_deregistered_bridge_reward(
         chain: &signer,
         vip: &signer,
@@ -2155,8 +2155,6 @@ module vip::test {
             vesting::get_operator_vesting_remaining_reward(get_bridge_id(), 1, 2);
         let vesting3_initial_reward =
             vesting::get_operator_vesting_initial_reward(get_bridge_id(), 1, 3);
-        let vesting3_remaining_reward =
-            vesting::get_operator_vesting_remaining_reward(get_bridge_id(), 1, 3);
 
         assert!(
             vesting1_remaining_reward

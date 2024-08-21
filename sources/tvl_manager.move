@@ -8,8 +8,7 @@ module vip::tvl_manager {
 
     use vip::utils;
     friend vip::vip;
-    const EINVALID_STAGE: u64 = 1;
-    const EINVALID_BRIDGE_ID: u64 = 2;
+    const EINVALID_BRIDGE_ID: u64 = 1;
 
     struct ModuleStore has key {
         // The average tvl each stage(vip stage) and bridge id

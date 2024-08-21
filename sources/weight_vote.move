@@ -22,25 +22,18 @@ module vip::weight_vote {
     //
     // Errors
     //
-
     const EMODULE_STORE_ALREADY_EXISTS: u64 = 1;
-    const EINVALID_MERKLE_PROOFS: u64 = 2;
-    const EINVALID_PROOF_LENGTH: u64 = 3;
-    const ECYCLE_NOT_FOUND: u64 = 4;
-    const EVECTOR_LENGTH: u64 = 5;
-    const EVOTING_END: u64 = 6;
-    const ECYCLE_NOT_END: u64 = 7;
-    const EUNAUTHORIZED: u64 = 8;
-    const ECANNOT_CREATE_CHALLENGE_PROPOSAL: u64 = 9;
-    const EVOTE_NOT_FOUND: u64 = 10;
-    const EPROPOSAL_IN_PROGRESS: u64 = 11;
-    const EPROPOSAL_ALREADY_EXECUTED: u64 = 12;
-    const EBRIDGE_NOT_FOUND: u64 = 13;
-    const ECHALLENGE_NOT_FOUND: u64 = 14;
-    const ECHALLENGE_IN_PROGRESS: u64 = 15;
-    const ECHALLENGE_ALREADY_EXECUTED: u64 = 16;
-    const EINVALID_PARAMETER: u64 = 17;
-    const EINVALID_BRIDGE: u64 = 18;
+    const EUNAUTHORIZED: u64 = 2;
+    // VOTE ERROR
+    const EVOTING_END: u64 = 3;
+    // PROPOSAL ERROR
+    const EPROPOSAL_IN_PROGRESS: u64 = 4;
+    const EPROPOSAL_ALREADY_EXECUTED: u64 = 5;
+    // EINVALID ERROR
+    const EINVALID_PARAMETER: u64 = 6;
+    const EINVALID_BRIDGE: u64 = 7;
+    // NOT FOUND ERROR 
+    const ECYCLE_NOT_FOUND: u64 = 8;
     const ENOT_FOUND: u64 = 101;
     //
     //  Constants
@@ -335,7 +328,7 @@ module vip::weight_vote {
         proposal: &mut Proposal, current_cycle: u64
     ) {
         // update vip weights
-        let bridge_ids = vip::get_whitelisted_bridge_ids();
+        let (bridge_ids,_) = vip::get_whitelisted_bridge_ids();
 
         let index = 0;
         let len = vector::length(&bridge_ids);
@@ -611,7 +604,7 @@ module vip::weight_vote {
 
         let tally_responses: vector<TallyResponse> = vector[];
 
-        let bridge_ids = vip::get_whitelisted_bridge_ids();
+        let (bridge_ids,_) = vip::get_whitelisted_bridge_ids();
 
         vector::for_each(
             bridge_ids,
@@ -643,6 +636,7 @@ module vip::weight_vote {
         let proposal = table::borrow(&module_store.proposals, cycle_key);
 
         ProposalResponse {
+
             total_tally: proposal.total_tally,
             voting_end_time: proposal.voting_end_time,
             executed: proposal.executed,

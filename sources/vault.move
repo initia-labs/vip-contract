@@ -16,9 +16,7 @@ module vip::vault {
     //
 
     const EINVALID_AMOUNT: u64 = 1;
-    const EINVALID_STAGE: u64 = 2;
-    const EUNAUTHORIZED: u64 = 3;
-    const EINVALID_REWARD_PER_STAGE: u64 = 4;
+    const EINVALID_REWARD_PER_STAGE: u64 = 2;
 
     //
     // Constants

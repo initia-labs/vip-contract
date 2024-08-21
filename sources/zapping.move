@@ -15,15 +15,7 @@ module vip::zapping {
     //
     // Errors
     //
-
-    const ELOCK_STAKING_END: u64 = 1;
-    const ELOCK_STAKING_IN_PROGRESS: u64 = 2;
-    const ELS_STORE_NOT_FOUND: u64 = 3;
-    const ELS_STORE_ALREADY_EXISTS: u64 = 4;
-    const EUNAUTHORIZED: u64 = 5;
-    const EZAPPING_NOT_EXIST: u64 = 6;
-    const EZAPPING_ALREADY_EXIST: u64 = 7;
-    const EINVALID_ZAPPING_AMOUNT: u64 = 8;
+    const EINVALID_ZAPPING_AMOUNT: u64 = 1;
 
     //
     // Constants

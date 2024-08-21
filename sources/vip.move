@@ -30,40 +30,45 @@ module vip::vip {
     //
     // Errors
     //
-    const ESTAGE_DATA_NOT_FOUND: u64 = 1;
-    const EINVALID_MERKLE_PROOFS: u64 = 2;
-    const EINVALID_PROOF_LENGTH: u64 = 3;
-    const EINVALID_VEST_PERIOD: u64 = 4;
-    const EUNAUTHORIZED: u64 = 5;
-    const EINVALID_MIN_ELIGIBLE_TVL: u64 = 6;
-    const EINVALID_MAX_TVL: u64 = 7;
-    const EINVALID_RATIO: u64 = 8;
-    const EINVALID_TOTAL_SHARE: u64 = 9;
-    const EINITIAILIZE: u64 = 10;
-    const EINVALID_CLAIMABLE_STAGE: u64 = 11;
-    const EZAPPING_STAKELISTED_NOT_ENOUGH: u64 = 12;
-    const EBRIDGE_ALREADY_REGISTERED: u64 = 13;
-    const EBRIDGE_NOT_FOUND: u64 = 14;
-    const EVESTING_IN_PROGRESS: u64 = 15;
-    const ESNAPSHOT_ALREADY_EXISTS: u64 = 16;
-    const EINVALID_BATCH_ARGUMENT: u64 = 17;
-    const EINVALID_TOTAL_REWARD: u64 = 18;
-    const ESNAPSHOT_NOT_EXISTS: u64 = 19;
-    const EBRIDGE_NOT_REGISTERED: u64 = 20;
-    const EINVALID_WEIGHT: u64 = 21;
-    const EINVALID_STAGE_ORDER: u64 = 22;
-    const EINVALID_CLAIMABLE_PERIOD: u64 = 23;
-    const EINVALID_CHALLENGE_PERIOD: u64 = 24;
-    const EINVALID_CHALLENGE_STAGE: u64 = 25;
-    const EPREV_STAGE_SNAPSHOT_NOT_FOUND: u64 = 26;
+    // PERMISSION ERROR
+    const EUNAUTHORIZED: u64 = 1;
+    // ALREADY EXISTS ERROR
+    const EBRIDGE_ALREADY_REGISTERED: u64 = 2;
+    const ESNAPSHOT_ALREADY_EXISTS: u64 = 3;
+    // NOT FOUND ERROR
+    const ESTAGE_DATA_NOT_FOUND: u64 = 4;
+    const EBRIDGE_NOT_FOUND: u64 = 5;
+    const ESNAPSHOT_NOT_EXISTS: u64 = 6;
+    const EBRIDGE_NOT_REGISTERED: u64 = 7;
+    const EPREV_STAGE_SNAPSHOT_NOT_FOUND: u64 = 8;
+    const ENOT_FOUND: u64 = 101; // TABLE NOT FOUND
+    // EINVLAID ERROR
+    const EINVALID_MERKLE_PROOFS: u64 = 9;
+    const EINVALID_PROOF_LENGTH: u64 = 10;
+    const EINVALID_VEST_PERIOD: u64 = 11;
+    const EINVALID_MAX_TVL: u64 = 12;
+    const EINVALID_RATIO: u64 = 13;
+    const EINVALID_TOTAL_SHARE: u64 = 14;
+    const EINVALID_CLAIMABLE_STAGE: u64 = 15;
+    const EINVALID_BATCH_ARGUMENT: u64 = 16;
+    const EINVALID_TOTAL_REWARD: u64 = 17;
+    const EINVALID_WEIGHT: u64 = 18;
+    const EINVALID_STAGE_ORDER: u64 = 19;
+    const EINVALID_CLAIMABLE_PERIOD: u64 = 20;
+    const EINVALID_CHALLENGE_PERIOD: u64 = 21;
+    const EINVALID_CHALLENGE_STAGE: u64 = 22;
+    const EINVALID_STAGE_INTERVAL: u64 = 23;
+    const EINVALID_STAGE_SNAPSHOT: u64 = 34;
+    const EINVALID_VM_TYPE: u64 = 25;
+
+    // FUND
+    const ETOO_EARLY_FUND: u64 = 26;
+    // ZAPPING
     const EALREADY_FINALIZED_OR_ZAPPED: u64 = 27;
-    const ETOO_EARLY_FUND: u64 = 28;
-    const EINVALID_STAGE_INTERVAL: u64 = 29;
-    const EINVALID_STAGE_SNAPSHOT: u64 = 30;
-    const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 31;
-    const EINVALID_VERSION: u64 = 32;
-    const EINVALID_VM_TYPE: u64 = 33;
-    const ENOT_FOUND: u64 = 101;
+    const EZAPPING_STAKELISTED_NOT_ENOUGH: u64 = 28;
+    // CLAIM
+    const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 29;
+    
 
     //
     //  Constants
@@ -547,47 +552,25 @@ module vip::vip {
     }
 
     fun split_reward(
-        module_store: &mut ModuleStore,
         stage: u64,
         balance_shares: &SimpleMap<u64, Decimal256>,
         weight_shares: &SimpleMap<u64, Decimal256>,
         initial_balance_pool_reward_amount: u64,
         initial_weight_pool_reward_amount: u64,
+        bridge_ids: vector<u64>,
+        versions: vector<u64>,        
     ): (u64, u64) {
         let total_user_funded_reward = 0;
         let total_operator_funded_reward = 0;
-        let whitelisted_bridge_ids: vector<u64> = vector[];
-        let versions: vector<u64> = vector[];
-        utils::walk(
-            &module_store.bridges,
-            option::some(
-                BridgeInfoKey {
-                    is_registered: true,
-                    bridge_id: table_key::encode_u64(0),
-                    version: table_key::encode_u64(0),
-                },
-            ),
-            option::none(),
-            1,
-            |key, _v| {
-                let (is_registered, bridge_id, version) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    vector::push_back(&mut whitelisted_bridge_ids, bridge_id);
-                    vector::push_back(&mut versions, version);
-                };
-                false
-            },
-        );
         vector::enumerate_ref(
-            &whitelisted_bridge_ids,
-            |i, bridge_id_ref| {
+            &bridge_ids,
+            |i, bridge_id| {
                 let version = *vector::borrow(&versions, i);
-                let bridge_id = *bridge_id_ref;
                 // split the reward of balance pool
                 let balance_reward_amount =
                     split_reward_with_share_internal(
                         balance_shares,
-                        bridge_id,
+                        *bridge_id,
                         initial_balance_pool_reward_amount,
                     );
 
@@ -595,13 +578,14 @@ module vip::vip {
                 let weight_reward_amount =
                     split_reward_with_share_internal(
                         weight_shares,
-                        bridge_id,
+                        *bridge_id,
                         initial_weight_pool_reward_amount,
                     );
+
                 // (weight + balance) reward splited to operator and user reward
                 let (operator_funded_reward, user_funded_reward) =
                     calc_operator_and_user_reward_amount(
-                        bridge_id,
+                        *bridge_id,
                         version,
                         balance_reward_amount + weight_reward_amount,
                     );
@@ -611,7 +595,7 @@ module vip::vip {
                 event::emit(
                     RewardDistributionEvent {
                         stage,
-                        bridge_id,
+                        bridge_id: *bridge_id,
                         version,
                         user_reward_amount: total_user_funded_reward,
                         operator_reward_amount: total_operator_funded_reward
@@ -619,7 +603,7 @@ module vip::vip {
                 );
                 // record the distributed reward
                 reward::record_distributed_reward(
-                    bridge_id,
+                    *bridge_id,
                     version,
                     stage,
                     total_user_funded_reward,
@@ -648,28 +632,9 @@ module vip::vip {
     fun fund_reward(
         module_store: &mut ModuleStore, stage: u64, initial_reward_amount: u64
     ): (u64, u64) {
-        let whitelisted_bridge_ids: vector<u64> = vector[];
-        utils::walk(
-            &module_store.bridges,
-            option::some(
-                BridgeInfoKey {
-                    is_registered: true,
-                    bridge_id: table_key::encode_u64(0),
-                    version: table_key::encode_u64(0),
-                },
-            ),
-            option::none(),
-            1,
-            |key, _v| {
-                let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    vector::push_back(&mut whitelisted_bridge_ids, bridge_id);
-                };
-                false
-            },
-        );
+        let (bridge_ids, versions) = get_whitelisted_bridge_ids_internal(module_store);
         // fill the balance shares of bridges
-        let balance_shares = calculate_balance_share(module_store);
+        let balance_shares = calculate_balance_share(module_store,bridge_ids);
         let weight_shares = calculate_weight_share(module_store);
 
         // fill the weight shares of bridges
@@ -681,57 +646,38 @@ module vip::vip {
         let weight_pool_reward_amount = initial_reward_amount - balance_pool_reward_amount;
         let (total_operator_funded_reward, total_user_funded_reward) =
             split_reward(
-                module_store,
                 stage,
                 &balance_shares,
                 &weight_shares,
                 balance_pool_reward_amount,
                 weight_pool_reward_amount,
+                bridge_ids,
+                versions
             );
 
         (total_operator_funded_reward, total_user_funded_reward)
     }
 
     // calculate balance share
-    fun calculate_balance_share(module_store: &ModuleStore): SimpleMap<u64, Decimal256> {
-        let whitelisted_bridge_ids: vector<u64> = vector[];
-        utils::walk(
-            &module_store.bridges,
-            option::some(
-                BridgeInfoKey {
-                    is_registered: true,
-                    bridge_id: table_key::encode_u64(0),
-                    version: table_key::encode_u64(0),
-                },
-            ),
-            option::none(),
-            1,
-            |key, _v| {
-                let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    vector::push_back(&mut whitelisted_bridge_ids, bridge_id);
-                };
-                false
-            },
-        );
+    fun calculate_balance_share(module_store: &ModuleStore, bridge_ids: vector<u64>): SimpleMap<u64, Decimal256> {
         let bridge_balances: SimpleMap<u64, u64> = simple_map::create();
         let balance_shares = simple_map::create<u64, Decimal256>();
         let total_balance = 0;
         // sum total balance for calculating shares
-        vector::for_each(
-            whitelisted_bridge_ids,
+        vector::for_each_ref(
+            &bridge_ids,
             |bridge_id| {
                 // bridge balance from tvl manager
                 let bridge_balance =
                     tvl_manager::get_average_tvl(
                         module_store.stage,
-                        bridge_id,
+                        *bridge_id
                     );
                 total_balance = total_balance + bridge_balance;
                 simple_map::add(
                     &mut bridge_balances,
-                    bridge_id,
-                    bridge_balance,
+                    *bridge_id,
+                    bridge_balance
                 );
             },
         );
@@ -745,14 +691,13 @@ module vip::vip {
                 total_balance,
             );
         // calculate balance share by total balance
-        vector::for_each(
-            whitelisted_bridge_ids,
+        vector::for_each_ref(
+            &bridge_ids,
             |bridge_id| {
                 let bridge_balance = simple_map::borrow(
                     &bridge_balances,
-                    &bridge_id,
+                    bridge_id,
                 );
-
                 let effective_bridge_balance =
                     if (*bridge_balance > max_effective_balance) {
                         max_effective_balance
@@ -768,7 +713,7 @@ module vip::vip {
                     );
                 simple_map::add(
                     &mut balance_shares,
-                    bridge_id,
+                    *bridge_id,
                     share,
                 );
             },
@@ -829,10 +774,7 @@ module vip::vip {
             1,
             |key, bridge| {
                 use_bridge(bridge);
-                let (is_registered, _, _) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    total_weight = decimal256::add(&total_weight, &bridge.vip_weight);
-                };
+                total_weight = decimal256::add(&total_weight, &bridge.vip_weight);
                 false
             },
         );
@@ -841,6 +783,39 @@ module vip::vip {
             decimal256::val(&total_weight) <= decimal256::val(&decimal256::one()),
             error::invalid_argument(EINVALID_WEIGHT),
         );
+    }
+
+     fun get_whitelisted_bridge_ids_internal(module_store: &ModuleStore): (vector<u64>, vector<u64>) {
+        let bridge_ids = vector::empty<u64>();
+        let versions = vector::empty<u64>();
+        utils::walk(
+            &module_store.bridges,
+            option::some(
+                BridgeInfoKey {
+                    is_registered: true,
+                    bridge_id: table_key::encode_u64(0),
+                    version: table_key::encode_u64(0),
+                },
+            ),
+            option::none(),
+            1,
+            |key, _v| {
+                let (_, bridge_id, version) = unpack_bridge_info_key(key);
+                vector::push_back(
+                    &mut bridge_ids,
+                    bridge_id
+                );
+
+                vector::push_back(
+                    &mut versions,
+                    version
+                );
+
+                
+                false
+            },
+        );
+        (bridge_ids, versions)
     }
 
     public(friend) fun update_vip_weights_for_friend(
@@ -1082,19 +1057,18 @@ module vip::vip {
             1,
             |key, bridge| {
                 use_bridge(bridge);
-                let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    let bridge_balance =
-                        primary_fungible_store::balance(
-                            bridge.bridge_addr,
-                            reward::reward_metadata(),
-                        );
-                    tvl_manager::add_snapshot(
-                        current_stage,
-                        bridge_id,
-                        bridge_balance,
+                let (_, bridge_id, _) = unpack_bridge_info_key(key);
+                let bridge_balance =
+                    primary_fungible_store::balance(
+                        bridge.bridge_addr,
+                        reward::reward_metadata(),
                     );
-                };
+                tvl_manager::add_snapshot(
+                    current_stage,
+                    bridge_id,
+                    bridge_balance,
+                );
+                
                 false
             },
         );
@@ -1905,8 +1879,8 @@ module vip::vip {
         bridge_id: u64, fund_reward_amount: u64
     ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-
-        let balance_shares = calculate_balance_share(module_store);
+        let (bridge_ids, _) = get_whitelisted_bridge_ids_internal(module_store);
+        let balance_shares = calculate_balance_share(module_store,bridge_ids);
         let weight_shares = calculate_weight_share(module_store);
         assert!(
             fund_reward_amount > 0,
@@ -2039,63 +2013,40 @@ module vip::vip {
             1,
             |key, bridge| {
                 use_bridge(bridge);
-                let (is_registered, bridge_id, version) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    vector::push_back(
-                        &mut bridge_infos,
-                        BridgeResponse {
-                            init_stage: bridge.init_stage,
-                            bridge_id,
-                            version,
-                            bridge_addr: bridge.bridge_addr,
-                            operator_addr: bridge.operator_addr,
-                            vip_l2_score_contract: bridge.vip_l2_score_contract,
-                            vip_weight: bridge.vip_weight,
-                            vm_type: bridge.vm_type
-                        },
-                    );
-                };
+                let (_, bridge_id, version) = unpack_bridge_info_key(key);
+                vector::push_back(
+                    &mut bridge_infos,
+                    BridgeResponse {
+                        init_stage: bridge.init_stage,
+                        bridge_id,
+                        version,
+                        bridge_addr: bridge.bridge_addr,
+                        operator_addr: bridge.operator_addr,
+                        vip_l2_score_contract: bridge.vip_l2_score_contract,
+                        vip_weight: bridge.vip_weight,
+                        vm_type: bridge.vm_type
+                    },
+                );
+                
                 false
             },
         );
         bridge_infos
     }
 
+    public fun get_whitelisted_bridge_ids(): (vector<u64>, vector<u64>) acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        get_whitelisted_bridge_ids_internal(module_store)
+    }
+    
+   
     #[view]
     public fun is_registered(bridge_id: u64): bool acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
         is_registered
     }
-    
-    #[view]
-    public fun get_whitelisted_bridge_ids(): vector<u64> acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let bridge_ids = vector::empty<u64>();
-        utils::walk(
-            &module_store.bridges,
-            option::some(
-                BridgeInfoKey {
-                    is_registered: true,
-                    bridge_id: table_key::encode_u64(0),
-                    version: table_key::encode_u64(0),
-                },
-            ),
-            option::none(),
-            1,
-            |key, _v| {
-                let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
-                if (is_registered) {
-                    vector::push_back(
-                        &mut bridge_ids,
-                        bridge_id,
-                    );
-                };
-                false
-            },
-        );
-        bridge_ids
-    }
+
 
     #[view]
     public fun get_total_l2_scores(stage: u64): vector<TotalL2ScoreResponse> acquires ModuleStore {
@@ -2154,6 +2105,10 @@ module vip::vip {
 
     inline fun use_snapshot(_snapshot: &Snapshot) {}
 
+    inline fun use_bridge_respose(_response: &BridgeResponse){}
+    //
+    // unpack
+    //
     fun unpack_bridge_info_key(bridge_info_key: BridgeInfoKey): (bool, u64, u64) {
         (
             bridge_info_key.is_registered,
@@ -3381,7 +3336,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x80003, location = vesting)]
+    #[expected_failure(abort_code = 0x80002, location = vesting)]
     fun failed_claim_already_claimed(
         chain: &signer,
         vip: &signer,
@@ -3424,7 +3379,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x50017, location = Self)]
+    #[expected_failure(abort_code = 0x50014, location = Self)]
     fun failed_user_claim_invalid_period(
         chain: &signer,
         vip: &signer,
@@ -3512,7 +3467,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, new_agent = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x50018, location = Self)]
+    #[expected_failure(abort_code = 0x50015, location = Self)]
     fun failed_execute_challenge(
         chain: &signer,
         vip: &signer,
@@ -3673,7 +3628,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x10016, location = Self)]
+    #[expected_failure(abort_code = 0x10013, location = Self)]
     fun failed_claim_jump_stage(
         chain: &signer,
         vip: &signer,
@@ -3721,12 +3676,6 @@ module vip::vip {
             ) == (reward_per_stage / (vesting_period * 2)),
             1,
         );
-    }
-
-    #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
-    fun test_submit_snapshot() {
-        // submit_snapshot() TODO:
-        // assert( last_submitted_stage ...)
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
@@ -3803,8 +3752,6 @@ module vip::vip {
             MOVEVM,
         );
 
-        let whitelisted_bridge_ids = get_whitelisted_bridge_ids();
-        assert!(whitelisted_bridge_ids == vector[1, 2, 3], 0);
         update_pool_split_ratio(
             vip,
             decimal256::from_string(&string::utf8(b"0.7")),
@@ -3937,6 +3884,9 @@ module vip::vip {
             decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
             MOVEVM,
         );
+
+        let (whitelisted_bridge_ids, _ ) = get_whitelisted_bridge_ids();
+        assert!(whitelisted_bridge_ids == vector[1, 2], 0);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, version) = get_last_bridge_version(module_store, bridge_id1);
         let init_stage =
@@ -4096,7 +4046,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
-    #[expected_failure(abort_code = 0x10015, location = Self)]
+    #[expected_failure(abort_code = 0x10012, location = Self)]
     fun failed_update_vip_weights(
         chain: &signer, vip: &signer, operator: &signer
     ) acquires ModuleStore {
@@ -4159,7 +4109,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
-    #[expected_failure(abort_code = 0x10015, location = Self)]
+    #[expected_failure(abort_code = 0x10012, location = Self)]
     fun failed_update_vip_weight(
         chain: &signer, vip: &signer, operator: &signer
     ) acquires ModuleStore {
