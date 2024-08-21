@@ -1,18 +1,17 @@
 module vip::tvl_manager {
     use std::error;
+    use std::event;
+
     use initia_std::vector;
     use initia_std::table_key;
     use initia_std::table;
     use initia_std::block;
-    use initia_std::option;
 
-    use vip::utils;
     friend vip::vip;
     const EINVALID_BRIDGE_ID: u64 = 1;
 
     struct ModuleStore has key {
         // The average tvl each stage(vip stage) and bridge id
-        snapshots: table::Table<vector<u8> /*stage + bridge_id + timestamp*/, u64 /*tvl captured*/>,
         summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>,
     }
 
@@ -26,21 +25,25 @@ module vip::tvl_manager {
         tvl: u64,
     }
 
+    #[event]
+    struct TVLSnapshotEvent has drop {
+        stage: u64,
+        bridge_id: u64,
+        timestamp: u64,
+        tvl: u64,
+    }
+
     fun init_module(chain: &signer) {
         move_to(
             chain,
             ModuleStore {
-                snapshots: table::new<vector<u8> /*stage + bridge_id + timestamp*/, u64 /*tvl captured*/>(),
                 summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>(),
             },
         );
-
     }
-
-    fun generate_key(stage: u64, bridge_id: u64, timestamp: u64): vector<u8> {
+    fun generate_key(stage: u64, bridge_id: u64): vector<u8> {
         let key = table_key::encode_u64(stage);
         vector::append(&mut key, table_key::encode_u64(bridge_id));
-        vector::append(&mut key, table_key::encode_u64(timestamp));
         key
     }
 
@@ -52,19 +55,12 @@ module vip::tvl_manager {
 
     // add the snapshot of the tvl on the bridge at the stage
     public(friend) fun add_snapshot(
-        stage: u64, bridge_id: u64, balance: u64
+        stage: u64, bridge_id: u64, tvl: u64
     ) acquires ModuleStore {
-        let (_, block_time) = block::get_block_info();
+        let (_, timestamp) = block::get_block_info();
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let snapshot_table_key = generate_key(stage, bridge_id, block_time);
-        let summary_table_key = generate_key(stage, bridge_id, 0);
-        // add the snapshot of the tvl and block time
-        table::upsert(
-            &mut module_store.snapshots,
-            snapshot_table_key,
-            balance,
-        );
-
+        let summary_table_key = generate_key(stage, bridge_id);
+        
         // update the average tvl of the bridge at the stage
         let summary =
             table::borrow_mut_with_default(
@@ -75,7 +71,7 @@ module vip::tvl_manager {
         // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
         let new_average_tvl =
             (
-                ((summary.count as u128) * (summary.tvl as u128) + (balance as u128))
+                ((summary.count as u128) * (summary.tvl as u128) + (tvl as u128))
                     / ((summary.count + 1) as u128)
             );
         let new_count = summary.count + 1;
@@ -83,40 +79,27 @@ module vip::tvl_manager {
             &mut module_store.summary,
             summary_table_key,
             TvlSummary { count: new_count, tvl: (new_average_tvl as u64), },
-        )
+        );
+        event::emit(
+            TVLSnapshotEvent{
+                stage,
+                bridge_id,
+                timestamp,
+                tvl,
+            }
+        );
     }
 
-    // get the average tvl of the bridge at the stage from accumulated snapshots
+    // get the average tvl of the bridge from accumulated snapshots of the stage
     #[view]
     public fun get_average_tvl(stage: u64, bridge_id: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let summary_table_key = generate_key(stage, bridge_id, 0);
+        let summary_table_key = generate_key(stage, bridge_id);
         assert!(
             table::contains(&module_store.summary, summary_table_key),
             error::not_found(EINVALID_BRIDGE_ID),
         );
         table::borrow(&module_store.summary, summary_table_key).tvl
-    }
-
-    #[view]
-    public fun get_snapshots(stage: u64, bridge_id: u64): vector<TVLSnapshotResponse> acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let snapshot_responses = vector::empty<TVLSnapshotResponse>();
-        utils::walk(
-            &module_store.snapshots,
-            option::some(generate_key(stage, bridge_id, 0)),
-            option::some(generate_key(stage, bridge_id + 1, 0)),
-            1,
-            |key, snapshot_tvl| {
-                let time = extract_timestamp(key);
-                vector::push_back(
-                    &mut snapshot_responses,
-                    TVLSnapshotResponse { time, tvl: *snapshot_tvl, },
-                );
-                false
-            },
-        );
-        snapshot_responses
     }
 
     #[test_only]
