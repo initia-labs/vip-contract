@@ -7,10 +7,13 @@ module vip::tvl_manager {
     use initia_std::table;
     use initia_std::block;
 
+    use vip::utils;
     friend vip::vip;
     const EINVALID_BRIDGE_ID: u64 = 1;
 
     struct ModuleStore has key {
+        last_snapshot_time: u64,
+        snapshot_min_interval: u64,
         // The average tvl each stage(vip stage) and bridge id
         summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>,
     }
@@ -32,14 +35,29 @@ module vip::tvl_manager {
         move_to(
             chain,
             ModuleStore {
+                last_snapshot_time: 0,
+                snapshot_min_interval: 0,
                 summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>(),
             },
         );
     }
+
     fun generate_key(stage: u64, bridge_id: u64): vector<u8> {
         let key = table_key::encode_u64(stage);
         vector::append(&mut key, table_key::encode_u64(bridge_id));
         key
+    }
+
+    public entry fun update_snapshot_min_interval(chain: &signer, new_snapshot_min_interval:u64) acquires ModuleStore {
+        utils::check_chain_permission(chain);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        module_store.snapshot_min_interval = new_snapshot_min_interval;
+    }
+
+    public fun is_snapshot_addable(): bool acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let (_, curr_time) = block::get_block_info();
+        curr_time >=  module_store.snapshot_min_interval + module_store.last_snapshot_time
     }
 
     // add the snapshot of the tvl on the bridge at the stage
@@ -48,9 +66,10 @@ module vip::tvl_manager {
     ) acquires ModuleStore {
         let (_, curr_time) = block::get_block_info();
         let module_store = borrow_global_mut<ModuleStore>(@vip);
+        if ( curr_time < module_store.snapshot_min_interval + module_store.last_snapshot_time) { return };
+        module_store.last_snapshot_time = curr_time;
+
         let summary_table_key = generate_key(stage, bridge_id);
-        
-        // update the average tvl of the bridge at the stage
         let summary =
             table::borrow_mut_with_default(
                 &mut module_store.summary,
@@ -58,12 +77,12 @@ module vip::tvl_manager {
                 TvlSummary { count: 0, tvl: 0, },
             );
         // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
+        let new_count = summary.count + 1;
         let new_average_tvl =
             (
                 ((summary.count as u128) * (summary.tvl as u128) + (tvl as u128))
-                    / ((summary.count + 1) as u128)
+                    / (new_count as u128)
             );
-        let new_count = summary.count + 1;
         table::upsert(
             &mut module_store.summary,
             summary_table_key,

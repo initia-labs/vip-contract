@@ -46,7 +46,7 @@ module vip::reward {
         );
     }
 
-    fun get_distrubuted_reward_table_key(
+    fun generate_key(
         bridge_id: u64, version: u64, stage: u64
     ): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
@@ -71,7 +71,7 @@ module vip::reward {
         operator_reward: u64
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let key = get_distrubuted_reward_table_key(bridge_id, version, stage);
+        let key = generate_key(bridge_id, version, stage);
         assert!(
             !table::contains(&module_store.distributed_reward, key),
             error::unavailable(EREWARD_STORE_ALREADY_EXISTS),
@@ -97,7 +97,7 @@ module vip::reward {
         bridge_id: u64, version: u64, stage: u64
     ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let key = get_distrubuted_reward_table_key(bridge_id, version, stage);
+        let key = generate_key(bridge_id, version, stage);
 
         if (table::contains(&module_store.distributed_reward, key)) {
             let reward_data = table::borrow(
@@ -115,7 +115,7 @@ module vip::reward {
         bridge_id: u64, version: u64, stage: u64
     ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let key = get_distrubuted_reward_table_key(bridge_id, version, stage);
+        let key = generate_key(bridge_id, version, stage);
 
         if (table::contains(&module_store.distributed_reward, key)) {
             let reward_data = table::borrow(
