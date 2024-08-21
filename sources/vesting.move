@@ -136,24 +136,6 @@ module vip::vesting {
     }
 
     #[event]
-    struct UserVestingClaimEvent has drop, store {
-        account: address,
-        bridge_id: u64,
-        stage: u64,
-        vesting_reward_amount: u64,
-        vested_reward_amount: u64,
-    }
-
-    #[event]
-    struct OperatorVestingClaimEvent has drop, store {
-        account: address,
-        bridge_id: u64,
-        stage: u64,
-        vesting_reward_amount: u64,
-        vested_reward_amount: u64,
-    }
-
-    #[event]
     struct UserVestingChangedEvent has drop, store {
         account: address,
         bridge_id: u64,
@@ -314,16 +296,6 @@ module vip::vesting {
                     );
                 };
 
-                event::emit(
-                    UserVestingClaimEvent {
-                        account: account_addr,
-                        bridge_id,
-                        stage: claim_info.start_stage,
-                        vesting_reward_amount: initial_reward_amount,
-                        vested_reward_amount: vested_reward,
-                    },
-                );
-
                 last_claimed_stage = claim_info.start_stage;
             },
         );
@@ -444,17 +416,6 @@ module vip::vesting {
                             - reward_amount;
                         reward_amount
                     };
-
-                // TODO: check event
-                event::emit(
-                    OperatorVestingClaimEvent {
-                        account: operator_addr,
-                        bridge_id,
-                        stage: operator_vesting.start_stage,
-                        vesting_reward_amount: operator_vesting.initial_reward,
-                        vested_reward_amount: reward_amount,
-                    },
-                );
 
                 event::emit(
                     OperatorVestingChangedEvent {
