@@ -50,10 +50,10 @@ module vip::weight_vote {
         current_cycle: u64,
         // cycle interval
         cycle_interval: u64,
-        // current cycle start timestamp
-        cycle_start_timestamp: u64,
-        // current cycle end timestamp
-        cycle_end_timestamp: u64,
+        // current cycle start time
+        cycle_start_time: u64,
+        // current cycle end time
+        cycle_end_time: u64,
         // change bridge weights proposals
         proposals: Table<vector<u8> /* cycle */, Proposal>,
         // voting period
@@ -92,8 +92,8 @@ module vip::weight_vote {
 
     struct ModuleResponse has drop {
         current_cycle: u64,
-        cycle_start_timestamp: u64,
-        cycle_end_timestamp: u64,
+        cycle_start_time: u64,
+        cycle_end_time: u64,
         cycle_interval: u64,
         voting_period: u64,
     }
@@ -137,7 +137,7 @@ module vip::weight_vote {
 
     public entry fun initialize(
         chain: &signer,
-        cycle_start_timestamp: u64,
+        cycle_start_time: u64,
         cycle_interval: u64,
         voting_period: u64,
     ) {
@@ -155,8 +155,8 @@ module vip::weight_vote {
             ModuleStore {
                 current_cycle: 0,
                 cycle_interval,
-                cycle_start_timestamp,
-                cycle_end_timestamp: cycle_start_timestamp,
+                cycle_start_time,
+                cycle_end_time: cycle_start_time,
                 proposals: table::new(),
                 voting_period,
                 pair_weights: table::new(),
@@ -219,7 +219,7 @@ module vip::weight_vote {
         assert!(max_voting_power !=0 ,error::unavailable(EINVALID_VOTING_POWER));
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (_, timestamp) = get_block_info();
+        let (_, time) = get_block_info();
 
         // check bridge valid
         vector::for_each(
@@ -251,7 +251,7 @@ module vip::weight_vote {
         );
         let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
         assert!(
-            timestamp < proposal.voting_end_time,
+            time < proposal.voting_end_time,
             error::invalid_state(EVOTING_END),
         );
 
@@ -307,7 +307,7 @@ module vip::weight_vote {
     // it will be executed by agent; but there is no permission to execute proposal
     public entry fun execute_proposal() acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (_, timestamp) = get_block_info();
+        let (_, time) = get_block_info();
 
         // get the last voting proposal
         // check vote state
@@ -317,7 +317,7 @@ module vip::weight_vote {
                 table_key::encode_u64(module_store.current_cycle),
             );
         assert!(
-            proposal.voting_end_time < timestamp,
+            proposal.voting_end_time < time,
             error::invalid_state(EPROPOSAL_IN_PROGRESS),
         );
         assert!(
@@ -371,7 +371,7 @@ module vip::weight_vote {
 
     // helper functions
     fun last_finalized_proposal(
-        module_store: &ModuleStore, timestamp: u64
+        module_store: &ModuleStore, time: u64
     ): (u64, &Proposal) {
         let iter = table::iter(
             &module_store.proposals,
@@ -386,7 +386,7 @@ module vip::weight_vote {
         let (cycle_key, proposal) = table::next<vector<u8>, Proposal>(iter);
 
         // if last proposal is in progress, use former proposal
-        if (proposal.voting_end_time > timestamp) {
+        if (proposal.voting_end_time > time) {
             assert!(
                 table::prepare<vector<u8>, Proposal>(iter),
                 error::not_found(ECYCLE_NOT_FOUND),
@@ -445,10 +445,10 @@ module vip::weight_vote {
         proposal.total_tally = proposal.total_tally + voting_power_used
     }
 
-    // if submitter submit merkle root after grace period, set voting end time to current timestamp + voting period
+    // if submitter submit merkle root after grace period, set voting end time to current time + voting period
     // else set it to former cycle end time + grace period + voting period
     fun calculate_voting_end_time(module_store: &ModuleStore): u64 {
-        module_store.cycle_end_timestamp + module_store.voting_period
+        module_store.cycle_end_time + module_store.voting_period
     }
 
     fun calculate_voting_power(addr: address): u64 acquires ModuleStore {
@@ -497,10 +497,10 @@ module vip::weight_vote {
 
     public entry fun create_proposal() acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (_, timestamp) = get_block_info();
+        let (_, time) = get_block_info();
 
         // cycle not end
-        if (module_store.cycle_end_timestamp >= timestamp) { return };
+        if (module_store.cycle_end_time >= time) { return };
 
         // get the last voted proposal
         // execute proposal not executed
@@ -510,7 +510,7 @@ module vip::weight_vote {
                     &mut module_store.proposals,
                     table_key::encode_u64(module_store.current_cycle),
                 );
-            if (!proposal.executed && proposal.voting_end_time < timestamp) {
+            if (!proposal.executed && proposal.voting_end_time < time) {
                 execute_proposal_internal(
                     proposal,
                     module_store.current_cycle,
@@ -525,16 +525,16 @@ module vip::weight_vote {
 
         // To handle case that proposal not create more than one cycle period
         // set cycle start time to former cycle end time + skipped cycle count * cycle interval
-        if (voting_end_time > module_store.cycle_end_timestamp) {
+        if (voting_end_time > module_store.cycle_end_time) {
             let skipped_cycle_count =
-                (voting_end_time - module_store.cycle_end_timestamp)
+                (voting_end_time - module_store.cycle_end_time)
                     / module_store.cycle_interval;
-            module_store.cycle_start_timestamp = module_store.cycle_end_timestamp
+            module_store.cycle_start_time = module_store.cycle_end_time
                 + skipped_cycle_count * module_store.cycle_interval;
         };
 
         // set cycle end time
-        module_store.cycle_end_timestamp = module_store.cycle_start_timestamp
+        module_store.cycle_end_time = module_store.cycle_start_time
             + module_store.cycle_interval;
 
         // initiate weight vote
@@ -561,8 +561,8 @@ module vip::weight_vote {
 
         ModuleResponse {
             current_cycle: module_store.current_cycle,
-            cycle_start_timestamp: module_store.cycle_start_timestamp,
-            cycle_end_timestamp: module_store.cycle_end_timestamp,
+            cycle_start_time: module_store.cycle_start_time,
+            cycle_end_time: module_store.cycle_end_time,
             cycle_interval: module_store.cycle_interval,
             voting_period: module_store.voting_period,
         }

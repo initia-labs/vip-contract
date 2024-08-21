@@ -74,9 +74,9 @@ module vip::zapping {
         );
 
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
-        let (_height, timestamp) = block::get_block_info();
+        let (_height, curr_time) = block::get_block_info();
         let module_store = borrow_global<ModuleStore>(@vip);
-        let release_time = timestamp + module_store.lock_period;
+        let release_time = curr_time + module_store.lock_period;
         let esinit_metadata = fungible_asset::asset_metadata(&esinit);
 
         let (coin_a_metadata, _) = dex::pool_metadata(pair);

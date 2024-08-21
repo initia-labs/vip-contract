@@ -20,16 +20,11 @@ module vip::tvl_manager {
         tvl: u64,
     }
 
-    struct TVLSnapshotResponse has drop, store {
-        time: u64,
-        tvl: u64,
-    }
-
     #[event]
     struct TVLSnapshotEvent has drop {
         stage: u64,
         bridge_id: u64,
-        timestamp: u64,
+        time: u64,
         tvl: u64,
     }
 
@@ -47,17 +42,11 @@ module vip::tvl_manager {
         key
     }
 
-    fun extract_timestamp(key: vector<u8>): u64 {
-        // timestamp_vec = key[16:23]
-        let time_vec: vector<u8> = vector::slice(&key, 16, 24);
-        table_key::decode_u64(time_vec)
-    }
-
     // add the snapshot of the tvl on the bridge at the stage
     public(friend) fun add_snapshot(
         stage: u64, bridge_id: u64, tvl: u64
     ) acquires ModuleStore {
-        let (_, timestamp) = block::get_block_info();
+        let (_, curr_time) = block::get_block_info();
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let summary_table_key = generate_key(stage, bridge_id);
         
@@ -84,7 +73,7 @@ module vip::tvl_manager {
             TVLSnapshotEvent{
                 stage,
                 bridge_id,
-                timestamp,
+                time:curr_time,
                 tvl,
             }
         );
