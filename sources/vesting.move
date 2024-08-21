@@ -869,23 +869,6 @@ module vip::vesting {
         &user_vesting_store.vestings
     }
 
-    fun load_user_vesting_mut(
-        module_store: &mut ModuleStore,
-        bridge_id: u64,
-        version: u64,
-        account_addr: address,
-        stage: u64
-    ): &mut UserVesting {
-        let user_vestings =
-            load_user_vestings_mut(module_store, bridge_id, version, account_addr);
-        let stage_key = table_key::encode_u64(stage);
-        assert!(
-            table::contains(user_vestings, stage_key),
-            error::not_found(EINVALID_STAGE),
-        );
-        table::borrow_mut(user_vestings, stage_key)
-    }
-
     fun load_user_vesting_imut(
         module_store: &ModuleStore,
         bridge_id: u64,
@@ -962,22 +945,6 @@ module vip::vesting {
                 vesting_table_key,
             );
         &operator_vesting_store.vestings
-    }
-
-    fun load_operator_vesting_mut(
-        module_store: &mut ModuleStore,
-        bridge_id: u64,
-        version: u64,
-        stage: u64
-    ): &mut OperatorVesting {
-        let operator_vestings =
-            load_operator_vestings_mut(module_store, bridge_id, version);
-        let stage_key = table_key::encode_u64(stage);
-        assert!(
-            table::contains(operator_vestings, stage_key),
-            error::not_found(EINVALID_STAGE),
-        );
-        table::borrow_mut(operator_vestings, stage_key)
     }
 
     fun load_operator_vesting_imut(
