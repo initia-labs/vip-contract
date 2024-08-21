@@ -32,8 +32,9 @@ module vip::weight_vote {
     // EINVALID ERROR
     const EINVALID_PARAMETER: u64 = 6;
     const EINVALID_BRIDGE: u64 = 7;
+    const EINVALID_VOTING_POWER: u64 = 8;
     // NOT FOUND ERROR 
-    const ECYCLE_NOT_FOUND: u64 = 8;
+    const ECYCLE_NOT_FOUND: u64 = 9;
     const ENOT_FOUND: u64 = 101;
     //
     //  Constants
@@ -104,6 +105,7 @@ module vip::weight_vote {
     }
 
     struct WeightVoteResponse has drop {
+        max_voting_power: u64,
         voting_power: u64,
         weights: vector<Weight>,
     }
@@ -211,9 +213,10 @@ module vip::weight_vote {
         bridge_ids: vector<u64>,
         weights: vector<Decimal128>,
     ) acquires ModuleStore {
-        create_proposal();
         let addr = signer::address_of(account);
         let max_voting_power = calculate_voting_power(addr);
+        assert!(max_voting_power !=0 ,error::unavailable(EINVALID_VOTING_POWER));
+
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, timestamp) = get_block_info();
 
@@ -491,7 +494,7 @@ module vip::weight_vote {
         cosmos_voting_power + lock_staking_voting_power
     }
 
-    fun create_proposal() acquires ModuleStore {
+    public entry fun create_proposal() acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, timestamp) = get_block_info();
 
@@ -652,9 +655,9 @@ module vip::weight_vote {
             error::not_found(ECYCLE_NOT_FOUND),
         );
         let proposal = table::borrow(&module_store.proposals, cycle_key);
-        let vote = table::borrow(&proposal.votes, user);
+        let WeightVote{ max_voting_power, voting_power, weights} = table::borrow(&proposal.votes, user);
 
-        WeightVoteResponse { voting_power: vote.voting_power, weights: vote.weights, }
+        WeightVoteResponse { max_voting_power: *max_voting_power , voting_power: *voting_power, weights: *weights }
     }
 
     #[view]
