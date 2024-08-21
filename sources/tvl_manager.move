@@ -48,16 +48,16 @@ module vip::tvl_manager {
         key
     }
 
-    public entry fun update_snapshot_min_interval(chain: &signer, new_snapshot_min_interval:u64) acquires ModuleStore {
+    public entry fun update_snapshot_interval(chain: &signer, new_snapshot_interval:u64) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        module_store.snapshot_interval = new_snapshot_min_interval;
+        module_store.snapshot_interval = new_snapshot_interval;
     }
 
     public fun is_snapshot_addable(): bool acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, curr_time) = block::get_block_info();
-        curr_time >=  module_store.snapshot_interval + module_store.last_snapshot_time
+        curr_time >= module_store.snapshot_interval + module_store.last_snapshot_time
     }
 
     // add the snapshot of the tvl on the bridge at the stage
@@ -66,7 +66,7 @@ module vip::tvl_manager {
     ) acquires ModuleStore {
         let (_, curr_time) = block::get_block_info();
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        if ( curr_time < module_store.snapshot_interval + module_store.last_snapshot_time) { return };
+        if (curr_time < module_store.last_snapshot_time + module_store.snapshot_interval) { return };
         module_store.last_snapshot_time = curr_time;
 
         let summary_table_key = generate_key(stage, bridge_id);
