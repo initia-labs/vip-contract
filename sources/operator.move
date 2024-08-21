@@ -86,7 +86,7 @@ module vip::operator {
         );
     }
 
-    fun is_valid_commission_rates(
+    fun check_valid_commission_rates(
         commission_max_rate: &Decimal256,
         commission_max_change_rate: &Decimal256,
         commission_rate: &Decimal256
@@ -131,7 +131,7 @@ module vip::operator {
             error::already_exists(EOPERATOR_STORE_ALREADY_EXISTS),
         );
 
-        is_valid_commission_rates(
+        check_valid_commission_rates(
             &commission_max_rate,
             &commission_max_change_rate,
             &commission_rate,
