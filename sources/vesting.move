@@ -104,6 +104,7 @@ module vip::vesting {
     struct UserVestingCreateEvent has drop, store {
         account: address,
         bridge_id: u64,
+        version: u64,
         start_stage: u64,
         end_stage: u64,
         l2_score: u64,
@@ -115,6 +116,7 @@ module vip::vesting {
     struct OperatorVestingCreateEvent has drop, store {
         account: address,
         bridge_id: u64,
+        version: u64,
         start_stage: u64,
         end_stage: u64,
         initial_reward: u64,
@@ -124,6 +126,7 @@ module vip::vesting {
     struct UserVestingFinalizedEvent has drop, store {
         account: address,
         bridge_id: u64,
+        version: u64,
         start_stage: u64,
         penalty_reward: u64,
     }
@@ -132,6 +135,7 @@ module vip::vesting {
     struct OperatorVestingFinalizedEvent has drop, store {
         account: address,
         bridge_id: u64,
+        version:u64,
         start_stage: u64,
     }
 
@@ -139,6 +143,7 @@ module vip::vesting {
     struct UserVestingChangedEvent has drop, store {
         account: address,
         bridge_id: u64,
+        version: u64,
         start_stage: u64,
         initial_reward: u64,
         remaining_reward: u64,
@@ -149,6 +154,7 @@ module vip::vesting {
     struct OperatorVestingChangedEvent has drop, store {
         account: address,
         bridge_id: u64,
+        version: u64,
         start_stage: u64,
         initial_reward: u64,
         remaining_reward: u64,
@@ -225,7 +231,8 @@ module vip::vesting {
         let total_penalty_reward = 0;
         let user_vestings =
             load_user_vestings_mut(module_store, bridge_id, version, account_addr);
-        let vestings = get_user_vestings(user_vestings);
+        // use a user_vestings vector instead of a table to avoid high-cost operations.
+        let vestings_vec = extract_user_vestings_vector(user_vestings);
         let last_claimed_stage = 0;
         // claim
         vector::for_each_ref<UserVestingClaimInfo>(
@@ -236,7 +243,8 @@ module vip::vesting {
                     batch_claim_previous_user_vestings(
                         account_addr,
                         bridge_id,
-                        &mut vestings,
+                        version,
+                        &mut vestings_vec,
                         user_vestings,
                         claim_info,
                     );
@@ -268,8 +276,9 @@ module vip::vesting {
                     batch_create_user_vesting(
                         account_addr,
                         bridge_id,
+                        version,
                         user_vestings,
-                        &mut vestings,
+                        &mut vestings_vec,
                         claim_info,
                         initial_reward_amount,
                     );
@@ -279,6 +288,7 @@ module vip::vesting {
                         UserVestingCreateEvent {
                             account: account_addr,
                             bridge_id,
+                            version,
                             start_stage: claim_info.start_stage,
                             end_stage: claim_info.end_stage,
                             l2_score: claim_info.l2_score,
@@ -290,6 +300,7 @@ module vip::vesting {
                         UserVestingFinalizedEvent {
                             account: account_addr,
                             bridge_id,
+                            version,
                             start_stage: claim_info.start_stage,
                             penalty_reward: 0,
                         },
@@ -302,7 +313,7 @@ module vip::vesting {
 
         // update or insert from unfinalized vestings to vesting data of module store
         vector::for_each(
-            vestings,
+            vestings_vec,
             |vesting| {
                 use_user_vesting(vesting);
                 table::upsert(
@@ -316,6 +327,7 @@ module vip::vesting {
                         UserVestingChangedEvent {
                             account: account_addr,
                             bridge_id,
+                            version,
                             start_stage: vesting.start_stage,
                             initial_reward: vesting.initial_reward,
                             remaining_reward: vesting.remaining_reward,
@@ -379,6 +391,7 @@ module vip::vesting {
                 batch_create_operator_vesting(
                     operator_addr,
                     bridge_id,
+                    version,
                     operator_vestings,
                     claim_info,
                     initial_reward,
@@ -421,6 +434,7 @@ module vip::vesting {
                     OperatorVestingChangedEvent {
                         account: operator_addr,
                         bridge_id,
+                        version,
                         start_stage: operator_vesting.start_stage,
                         initial_reward: operator_vesting.initial_reward,
                         remaining_reward: operator_vesting.remaining_reward,
@@ -485,6 +499,7 @@ module vip::vesting {
             UserVestingChangedEvent {
                 account: account_addr,
                 bridge_id,
+                version,
                 start_stage: user_vesting.start_stage,
                 initial_reward: user_vesting.initial_reward,
                 remaining_reward: user_vesting.remaining_reward,
@@ -501,6 +516,7 @@ module vip::vesting {
                 UserVestingFinalizedEvent {
                     account: account_addr,
                     bridge_id,
+                    version,
                     start_stage,
                     penalty_reward,
                 },
@@ -586,6 +602,7 @@ module vip::vesting {
     fun batch_claim_previous_user_vestings(
         account_addr: address,
         bridge_id: u64,
+        version: u64,
         vestings: &mut vector<UserVesting>,
         user_vestings: &mut Table<vector<u8> /*stage key*/, UserVesting>,
         claim_info: &UserVestingClaimInfo
@@ -631,6 +648,7 @@ module vip::vesting {
                         UserVestingFinalizedEvent {
                             account: account_addr,
                             bridge_id,
+                            version,
                             start_stage: value.start_stage,
                             penalty_reward: value.penalty_reward,
                         },
@@ -667,6 +685,7 @@ module vip::vesting {
     fun batch_create_user_vesting(
         account_addr: address,
         bridge_id: u64,
+        version: u64,
         user_vestings: &mut Table<vector<u8>, UserVesting>,
         vestings: &mut vector<UserVesting>,
         claim_info: &UserVestingClaimInfo,
@@ -713,6 +732,7 @@ module vip::vesting {
             UserVestingCreateEvent {
                 account: account_addr,
                 bridge_id,
+                version,
                 start_stage: claim_info.start_stage,
                 end_stage: claim_info.end_stage,
                 l2_score: claim_info.l2_score,
@@ -725,6 +745,7 @@ module vip::vesting {
     fun batch_create_operator_vesting(
         account_addr: address,
         bridge_id: u64,
+        version: u64,
         operator_vestings: &mut Table<vector<u8>, OperatorVesting>,
         claim_info: &OperatorVestingClaimInfo,
         initial_reward: u64,
@@ -744,6 +765,7 @@ module vip::vesting {
             OperatorVestingCreateEvent {
                 account: account_addr,
                 bridge_id,
+                version,
                 start_stage: claim_info.start_stage,
                 end_stage: claim_info.end_stage,
                 initial_reward: initial_reward,
@@ -764,7 +786,7 @@ module vip::vesting {
         key
     }
 
-    fun get_user_vestings(
+    fun extract_user_vestings_vector(
         user_vestings: &mut Table<vector<u8>, UserVesting>
     ): vector<UserVesting> {
         let unfinalized_vestings: vector<UserVesting> = vector[];
@@ -778,27 +800,6 @@ module vip::vesting {
                 vector::push_back(
                     &mut unfinalized_vestings,
                     *user_vesting,
-                );
-                false
-            },
-        );
-        unfinalized_vestings
-    }
-
-    fun get_operator_vestings(
-        operator_vestings: &mut Table<vector<u8>, OperatorVesting>
-    ): vector<OperatorVesting> {
-        let unfinalized_vestings: vector<OperatorVesting> = vector[];
-        utils::walk(
-            operator_vestings,
-            option::none(),
-            option::none(),
-            1,
-            |_stage_key, operator_vesting| {
-                use_operator_vesting_ref(operator_vesting);
-                vector::push_back(
-                    &mut unfinalized_vestings,
-                    *operator_vesting,
                 );
                 false
             },
