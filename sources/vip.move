@@ -814,7 +814,7 @@ module vip::vip {
 
         // check claimable on final stage by challenge period
         assert!(
-            check_challenge_period(module_store, bridge_id, version, end_stage),
+            is_after_challenge_period(module_store, bridge_id, version, end_stage),
             error::permission_denied(EINVALID_CLAIMABLE_PERIOD),
         );
         let (is_registered, last_version) =
@@ -874,7 +874,7 @@ module vip::vip {
             else {
                 // check is there any claimable reward not on challenge period
                 let check_stage = last_claimed_stage + 1;
-                !check_challenge_period(module_store, bridge_id, version, check_stage)
+                !is_after_challenge_period(module_store, bridge_id, version, check_stage)
             };
         assert!(
             can_zap,
@@ -1281,7 +1281,7 @@ module vip::vip {
         snapshot.total_l2_score = total_l2_score;
     }
 
-    fun check_challenge_period(module_store: &ModuleStore, bridge_id: u64, version: u64, stage: u64): bool {
+    fun is_after_challenge_period(module_store: &ModuleStore, bridge_id: u64, version: u64, stage: u64): bool {
         let (_, curr_time) = block::get_block_info();
         let challenge_period = module_store.challenge_period;
         let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
