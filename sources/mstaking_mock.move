@@ -1,10 +1,36 @@
 #[test_only] 
 module vip::mstaking_mock {
-    use initia_std::json::marshal;
+    use std::vector;
+    use initia_std::json::{marshal, unmarshal};
     use initia_std::decimal128::Decimal128;
     use initia_std::option::{Self, Option};
     use initia_std::string::{Self, String};
     use initia_std::query::set_query_response;
+    use initia_std::query::query_stargate;
+    use initia_std::table::Table;
+
+    struct TestState {
+        delegations: Table<DelegationRequest, bool> //
+    }
+
+    public fun init_module(vip: &signer) {
+        set_pool(vector[], vector[], vector[]);
+    }
+
+    public fun update_voting_power_weights(denoms: vector<String>, weights: vector<Decimal128>) {
+        assert!(vector::length(&denoms) == vector::length(&weights), 1);
+        let voting_power_weights = vector[];
+        let i = 0;
+        let length = vector::length(&denoms);
+        while (i < length) {
+            let denom = *vector::borrow(&denoms, i);
+            let amount = *vector::borrow(&weights, i);
+            vector::push_back(&mut voting_power_weights, DecCoin { denom, amount });
+            i = i + 1;
+        };
+        let pool = get_pool().pool;
+        set_pool(pool.not_bonded_tokens, pool.bonded_tokens, voting_power_weights); 
+    }
 
     fun set_delegation(validator_addr: String, delegator_addr: String, shares: vector<DecCoin>, balance: vector<Coin>) {
         let req = DelegationRequest { validator_addr, delegator_addr };
@@ -101,6 +127,14 @@ module vip::mstaking_mock {
             marshal(&req),
             marshal(&res)
         );
+    }
+
+    fun get_pool(): PoolResponse {
+        let path = b"/initia.mstaking.v1.Query/Pool";
+        let response = query_stargate(path, b"{}");
+        unmarshal<PoolResponse>(response)
+        // TODO: use below when json marshal fixed
+        // query<PoolRequest, PoolResponse>(path, PoolRequest {}) 
     }
 
     // query req/res types
