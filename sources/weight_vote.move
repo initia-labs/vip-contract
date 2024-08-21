@@ -213,6 +213,7 @@ module vip::weight_vote {
         bridge_ids: vector<u64>,
         weights: vector<Decimal128>,
     ) acquires ModuleStore {
+        create_proposal();
         let addr = signer::address_of(account);
         let max_voting_power = calculate_voting_power(addr);
         assert!(max_voting_power !=0 ,error::unavailable(EINVALID_VOTING_POWER));
