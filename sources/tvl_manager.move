@@ -16,6 +16,7 @@ module vip::tvl_manager {
 
     struct ModuleStore has key {
         last_snapshot_time: u64,
+        last_snapshot_stage: u64,
         snapshot_interval: u64,
         // The average tvl each stage(vip stage) and bridge id
         summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>,
@@ -39,6 +40,7 @@ module vip::tvl_manager {
             chain,
             ModuleStore {
                 last_snapshot_time: 0,
+                last_snapshot_stage: 0,
                 snapshot_interval: DEFAULT_SNAPSHOT_INTERVAL,
                 summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>(),
             },
@@ -57,10 +59,10 @@ module vip::tvl_manager {
         module_store.snapshot_interval = new_snapshot_interval;
     }
 
-    public fun is_snapshot_addable(): bool acquires ModuleStore {
+    public fun is_snapshot_addable(stage: u64): bool acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, curr_time) = block::get_block_info();
-        curr_time >= module_store.snapshot_interval + module_store.last_snapshot_time
+        stage > module_store.last_snapshot_stage || curr_time >= module_store.snapshot_interval + module_store.last_snapshot_time
     }
 
     // add the snapshot of the tvl on the bridge at the stage
@@ -68,8 +70,8 @@ module vip::tvl_manager {
         stage: u64, bridge_id: u64, tvl: u64
     ) acquires ModuleStore {
         let (_, curr_time) = block::get_block_info();
+        if (!is_snapshot_addable(stage)) { return };
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        if (curr_time < module_store.last_snapshot_time + module_store.snapshot_interval) { return };
         module_store.last_snapshot_time = curr_time;
 
         let summary_table_key = generate_key(stage, bridge_id);

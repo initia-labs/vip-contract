@@ -855,7 +855,7 @@ module vip::vip {
         };
     }
 
-    fun check_zappable(account_addr: address, bridge_id: u64, version: u64, stage: u64) {
+    fun check_zappable(account_addr: address, bridge_id: u64, version: u64, stage: u64) acquires ModuleStore {
         // check if it is already finalized(or zapped), make the error
         assert!(
             vesting::is_user_vesting_position_exists(
@@ -1113,8 +1113,8 @@ module vip::vip {
 
     fun add_tvl_snapshot_internal(module_store: &ModuleStore) {
         // check addable to reduce gas cost
-        if(!tvl_manager::is_snapshot_addable()) { return };
         let current_stage = module_store.stage;
+        if(!tvl_manager::is_snapshot_addable(current_stage)) { return };
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -1150,6 +1150,7 @@ module vip::vip {
         let (_, fund_time) = block::get_block_info();
         check_agent_permission(agent);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
+        add_tvl_snapshot_internal(module_store);
         // update stage
         module_store.stage = module_store.stage + 1;
         add_tvl_snapshot_internal(module_store);
@@ -3769,7 +3770,7 @@ module vip::vip {
             vip,
             decimal256::from_string(&string::utf8(b"0.7")),
         );
-        add_tvl_snapshot(vip);
+        add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
         assert!(
@@ -3794,7 +3795,7 @@ module vip::vip {
             0,
         ); // 0.7 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * (1/4) + 0.3 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * 0
 
-        add_tvl_snapshot(vip);
+        add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
 
@@ -3810,7 +3811,7 @@ module vip::vip {
             1,
             decimal256::from_string(&string::utf8(b"0.5")),
         );
-        add_tvl_snapshot(vip);
+        add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
 
