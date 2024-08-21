@@ -2033,7 +2033,8 @@ module vip::vip {
         );
         bridge_infos
     }
-
+    
+    #[view]
     public fun get_whitelisted_bridge_ids(): (vector<u64>, vector<u64>) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         get_whitelisted_bridge_ids_internal(module_store)
