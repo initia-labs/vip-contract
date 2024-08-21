@@ -9,7 +9,10 @@ module vip::tvl_manager {
 
     use vip::utils;
     friend vip::vip;
+
     const EINVALID_BRIDGE_ID: u64 = 1;
+
+    const DEFAULT_STAGE_INTERVAL: u64 = 60 * 60 * 4; 
 
     struct ModuleStore has key {
         last_snapshot_time: u64,
@@ -36,7 +39,7 @@ module vip::tvl_manager {
             chain,
             ModuleStore {
                 last_snapshot_time: 0,
-                snapshot_interval: 0,
+                snapshot_interval: DEFAULT_STAGE_INTERVAL,
                 summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>(),
             },
         );
