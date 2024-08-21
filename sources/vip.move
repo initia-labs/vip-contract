@@ -490,15 +490,6 @@ module vip::vip {
         };
     }
 
-    fun check_vm_type_valid(vm_type: u64) {
-        assert!(
-            vm_type == MOVEVM
-            || vm_type == WASMVM
-            || vm_type == EVM,
-            error::unavailable(EINVALID_VM_TYPE),
-        );
-    }
-
     fun zapping(
         account: &signer,
         bridge_id: u64,
@@ -964,7 +955,13 @@ module vip::vip {
                 operator_commission_rate,
             );
         };
-        check_vm_type_valid(vm_type);
+        // check vm type valid
+        assert!(
+            vm_type == MOVEVM
+            || vm_type == WASMVM
+            || vm_type == EVM,
+            error::unavailable(EINVALID_VM_TYPE),
+        );
         // bridge info
         table::add(
             &mut module_store.bridges,
@@ -2033,7 +2030,7 @@ module vip::vip {
         );
         bridge_infos
     }
-    
+
     #[view]
     public fun get_whitelisted_bridge_ids(): (vector<u64>, vector<u64>) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);

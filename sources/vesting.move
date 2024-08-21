@@ -180,7 +180,7 @@ module vip::vesting {
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let account_addr = signer::address_of(account);
-        let table_key = get_vesting_table_key(bridge_id, version, account_addr);
+        let table_key = generate_key(bridge_id, version, account_addr);
         assert!(
             !table::contains(
                 &mut module_store.user_vestings,
@@ -202,7 +202,7 @@ module vip::vesting {
         bridge_id: u64, version: u64,
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let table_key = get_vesting_table_key(bridge_id, version, @0x0);
+        let table_key = generate_key(bridge_id, version, @0x0);
         assert!(
             !table::contains(
                 &mut module_store.operator_vestings,
@@ -479,7 +479,7 @@ module vip::vesting {
         let user_vesting_store =
             table::borrow_mut(
                 &mut module_store.user_vestings,
-                get_vesting_table_key(bridge_id, version, account_addr),
+                generate_key(bridge_id, version, account_addr),
             );
         let stage_key = table_key::encode_u64(stage);
         // force claim_vesting
@@ -557,7 +557,7 @@ module vip::vesting {
         let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.user_vestings,
-            get_vesting_table_key(bridge_id, version, account_addr),
+            generate_key(bridge_id, version, account_addr),
         )
     }
 
@@ -567,7 +567,7 @@ module vip::vesting {
         let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_vestings,
-            get_vesting_table_key(bridge_id, version, @0x0),
+            generate_key(bridge_id, version, @0x0),
         )
     }
 
@@ -582,18 +582,6 @@ module vip::vesting {
             load_user_vestings_imut(module_store, bridge_id, version, account_addr);
         let stage_key = table_key::encode_u64(stage);
         table::contains(user_vestings, stage_key)
-    }
-
-    public fun is_operator_vesting_position_exists(
-        bridge_id: u64,
-        version: u64,
-        stage: u64,
-    ): bool acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let operator_vestings =
-            load_operator_vestings_imut(module_store, bridge_id, version);
-        let stage_key = table_key::encode_u64(stage);
-        table::contains(operator_vestings, stage_key)
     }
 
     // calculate user vesting til current stage
@@ -777,7 +765,7 @@ module vip::vesting {
     // Helper function
     //
     // get table key by bridge_id, version, account address
-    fun get_vesting_table_key(
+    fun generate_key(
         bridge_id: u64, version: u64, account_addr: address
     ): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
@@ -811,7 +799,7 @@ module vip::vesting {
         account_addr: address, bridge_id: u64, version: u64,
     ): u64 acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let table_key = get_vesting_table_key(bridge_id, version, account_addr);
+        let table_key = generate_key(bridge_id, version, account_addr);
         if (type_info::type_name<Vesting>() == type_info::type_name<OperatorVesting>()) {
             let operator_vesting_store =
                 table::borrow_mut(
@@ -834,7 +822,7 @@ module vip::vesting {
     fun load_user_vestings_mut(
         module_store: &mut ModuleStore, bridge_id: u64, version: u64, account_addr: address
     ): &mut Table<vector<u8>, UserVesting> {
-        let vesting_table_key = get_vesting_table_key(bridge_id, version, account_addr);
+        let vesting_table_key = generate_key(bridge_id, version, account_addr);
         assert!(
             table::contains(
                 &mut module_store.user_vestings,
@@ -853,7 +841,7 @@ module vip::vesting {
     fun load_user_vestings_imut(
         module_store: &ModuleStore, bridge_id: u64, version: u64, account_addr: address
     ): &Table<vector<u8>, UserVesting> {
-        let vesting_table_key = get_vesting_table_key(bridge_id, version, account_addr);
+        let vesting_table_key = generate_key(bridge_id, version, account_addr);
         assert!(
             table::contains(
                 &module_store.user_vestings,
@@ -893,7 +881,7 @@ module vip::vesting {
         account_addr: address,
         last_claimed_stage: u64
     ) {
-        let vesting_table_key = get_vesting_table_key(bridge_id, version, account_addr);
+        let vesting_table_key = generate_key(bridge_id, version, account_addr);
         assert!(
             table::contains(
                 &mut module_store.user_vestings,
@@ -912,7 +900,7 @@ module vip::vesting {
     fun load_operator_vestings_mut(
         module_store: &mut ModuleStore, bridge_id: u64, version: u64
     ): &mut Table<vector<u8>, OperatorVesting> {
-        let vesting_table_key = get_vesting_table_key(bridge_id, version, @0x0);
+        let vesting_table_key = generate_key(bridge_id, version, @0x0);
         assert!(
             table::contains(
                 &mut module_store.operator_vestings,
@@ -931,7 +919,7 @@ module vip::vesting {
     fun load_operator_vestings_imut(
         module_store: &ModuleStore, bridge_id: u64, version: u64,
     ): &Table<vector<u8>, OperatorVesting> {
-        let vesting_table_key = get_vesting_table_key(bridge_id, version, @0x0);
+        let vesting_table_key = generate_key(bridge_id, version, @0x0);
         assert!(
             table::contains(
                 &module_store.operator_vestings,
@@ -969,7 +957,7 @@ module vip::vesting {
         version: u64,
         last_claimed_stage: u64
     ) {
-        let vesting_table_key = get_vesting_table_key(bridge_id, version, @0x0);
+        let vesting_table_key = generate_key(bridge_id, version, @0x0);
         assert!(
             table::contains(
                 &mut module_store.operator_vestings,
