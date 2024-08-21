@@ -214,6 +214,7 @@ module vip::weight_vote {
         weights: vector<Decimal128>,
     ) acquires ModuleStore {
         create_proposal();
+        vip::add_tvl_snapshot();
         let addr = signer::address_of(account);
         let max_voting_power = calculate_voting_power(addr);
         assert!(max_voting_power !=0 ,error::unavailable(EINVALID_VOTING_POWER));

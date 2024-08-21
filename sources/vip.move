@@ -811,7 +811,7 @@ module vip::vip {
 
     fun check_user_reward_claimable(module_store: &mut ModuleStore, account: &signer, bridge_id: u64, version: u64, start_stage: u64, end_stage: u64) {
         let account_addr = signer::address_of(account);
-        
+
         // check claimable on final stage by challenge period
         assert!(
             check_challenge_period(module_store, bridge_id, version, end_stage),
@@ -1106,8 +1106,7 @@ module vip::vip {
     }
 
     // add tvl snapshot of all bridges on this stage
-    public entry fun add_tvl_snapshot(agent: &signer) acquires ModuleStore {
-        check_agent_permission(agent);
+    public entry fun add_tvl_snapshot() acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         add_tvl_snapshot_internal(module_store);
     }
