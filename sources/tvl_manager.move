@@ -64,6 +64,7 @@ module vip::tvl_manager {
     public fun is_snapshot_addable(stage: u64): bool acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, curr_time) = block::get_block_info();
+        // the current stage is beyond the last snapshot stage or past the snapshot interval since the last snapshot
         stage > module_store.last_snapshot_stage
             || curr_time >= module_store.snapshot_interval
                 + module_store.last_snapshot_time
