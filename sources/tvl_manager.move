@@ -67,45 +67,54 @@ module vip::tvl_manager {
 
     // add the snapshot of the tvl on the bridge at the stage
     public(friend) fun add_snapshot(
-        stage: u64, bridge_id: u64, tvl: u64
+        stage: u64, bridge_ids: vector<u64>, tvls: vector<u64>
     ) acquires ModuleStore {
         let (_, curr_time) = block::get_block_info();
         if (!is_snapshot_addable(stage)) { return };
+
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         module_store.last_snapshot_time = curr_time;
-
-        let summary_table_key = generate_key(stage, bridge_id);
-        let summary =
-            table::borrow_mut_with_default(
-                &mut module_store.summary,
-                summary_table_key,
-                TvlSummary { count: 0, tvl: 0, },
-            );
-        // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
-        let new_count = summary.count + 1;
-        let new_average_tvl =
-            (
-                ((summary.count as u128) * (summary.tvl as u128) + (tvl as u128))
-                    / (new_count as u128)
-            );
-        table::upsert(
-            &mut module_store.summary,
-            summary_table_key,
-            TvlSummary { count: new_count, tvl: (new_average_tvl as u64), },
-        );
-        event::emit(
-            TVLSnapshotEvent{
-                stage,
-                bridge_id,
-                time:curr_time,
-                tvl,
+        module_store.last_snapshot_stage = stage;
+        vector::enumerate_ref(
+            &bridge_ids,
+            |i, bridge_id| {
+                let tvl = vector::borrow(&tvls, i);
+                let summary_table_key = generate_key(stage, *bridge_id);
+                let summary =
+                    table::borrow_mut_with_default(
+                        &mut module_store.summary,
+                        summary_table_key,
+                        TvlSummary { count: 0, tvl: 0, },
+                    );
+                // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
+                let new_count = summary.count + 1;
+                let new_average_tvl =
+                    (
+                        ((summary.count as u128) * (summary.tvl as u128) + (*tvl as u128))
+                            / (new_count as u128)
+                    );
+                table::upsert(
+                    &mut module_store.summary,
+                    summary_table_key,
+                    TvlSummary { count: new_count, tvl: (new_average_tvl as u64), },
+                );
+                event::emit(
+                    TVLSnapshotEvent{
+                        stage,
+                        bridge_id: *bridge_id,
+                        time:curr_time,
+                        tvl: *tvl,
+                    }
+                );
             }
         );
+        
     }
 
     // get the average tvl of the bridge from accumulated snapshots of the stage
     #[view]
     public fun get_average_tvl(stage: u64, bridge_id: u64): u64 acquires ModuleStore {
+
         let module_store = borrow_global<ModuleStore>(@vip);
         let summary_table_key = generate_key(stage, bridge_id);
         assert!(
@@ -140,8 +149,8 @@ module vip::tvl_manager {
         let balance = 1_000_000_000_000;
         add_snapshot(
             DEFAULT_EPOCH_FOR_TEST,
-            DEFAULT_BRIDE_ID_FOR_TEST,
-            balance,
+            vector[DEFAULT_BRIDE_ID_FOR_TEST],
+            vector[balance],
         );
 
         let average_tvl =
@@ -160,20 +169,20 @@ module vip::tvl_manager {
         let balance3 = 3_000_000_000_000;
         add_snapshot(
             DEFAULT_EPOCH_FOR_TEST,
-            DEFAULT_BRIDE_ID_FOR_TEST,
-            balance1,
+            vector[DEFAULT_BRIDE_ID_FOR_TEST],
+            vector[balance1],
         );
-        skip_period(DEFAULT_SKIP_FOR_TEST);
+        skip_period(DEFAULT_SNAPSHOT_INTERVAL);
         add_snapshot(
             DEFAULT_EPOCH_FOR_TEST,
-            DEFAULT_BRIDE_ID_FOR_TEST,
-            balance2,
+            vector[DEFAULT_BRIDE_ID_FOR_TEST],
+            vector[balance2],
         );
-        skip_period(DEFAULT_SKIP_FOR_TEST);
+        skip_period(DEFAULT_SNAPSHOT_INTERVAL);
         add_snapshot(
             DEFAULT_EPOCH_FOR_TEST,
-            DEFAULT_BRIDE_ID_FOR_TEST,
-            balance3,
+            vector[DEFAULT_BRIDE_ID_FOR_TEST],
+            vector[balance3],
         );
         let average_tvl =
             get_average_tvl(

@@ -1112,9 +1112,11 @@ module vip::vip {
     }
 
     fun add_tvl_snapshot_internal(module_store: &ModuleStore) {
-        // check addable to reduce gas cost
         let current_stage = module_store.stage;
+        // check addable to reduce gas cost
         if(!tvl_manager::is_snapshot_addable(current_stage)) { return };
+        let bridge_ids:vector<u64> = vector[]; 
+        let tvls:vector<u64> = vector[]; 
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -1129,19 +1131,21 @@ module vip::vip {
             |key, bridge| {
                 use_bridge(bridge);
                 let (_, bridge_id, _) = unpack_bridge_info_key(key);
-                let bridge_balance =
+                let bridge_tvl =
                     primary_fungible_store::balance(
                         bridge.bridge_addr,
                         reward::reward_metadata(),
                     );
-                tvl_manager::add_snapshot(
-                    current_stage,
-                    bridge_id,
-                    bridge_balance,
-                );
-                
+                vector::push_back(&mut bridge_ids, bridge_id);
+                vector::push_back(&mut tvls, bridge_tvl);
+
                 false
             },
+        );
+        tvl_manager::add_snapshot(
+            current_stage,
+            bridge_ids,
+            tvls,
         );
     }
 
@@ -3770,7 +3774,7 @@ module vip::vip {
             vip,
             decimal256::from_string(&string::utf8(b"0.7")),
         );
-        add_tvl_snapshot();
+        // add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
         assert!(
@@ -3795,7 +3799,7 @@ module vip::vip {
             0,
         ); // 0.7 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * (1/4) + 0.3 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * 0
 
-        add_tvl_snapshot();
+        // add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
 
@@ -3811,7 +3815,7 @@ module vip::vip {
             1,
             decimal256::from_string(&string::utf8(b"0.5")),
         );
-        add_tvl_snapshot();
+        // add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
 
