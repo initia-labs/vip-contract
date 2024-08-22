@@ -74,7 +74,7 @@ module vip::reward {
         let key = generate_key(bridge_id, version, stage);
         assert!(
             !table::contains(&module_store.distributed_reward, key),
-            error::unavailable(EREWARD_STORE_ALREADY_EXISTS),
+            error::already_exists(EREWARD_STORE_ALREADY_EXISTS),
         );
         table::add(
             &mut module_store.distributed_reward,
