@@ -215,7 +215,7 @@ module vip::lock_staking {
     ) acquires StakingAccount {
         let staking_account_signer = register(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
-        let (_, timestamp) = block::get_block_info();
+        let (_, curr_time) = block::get_block_info();
         let delegation =
             get_locked_delegation(
                 staking_account_addr,
@@ -225,7 +225,7 @@ module vip::lock_staking {
             );
 
         assert!(
-            timestamp > release_time,
+            curr_time > release_time,
             error::invalid_state(ENOT_RELEASE),
         );
         let share = floor(&delegation.share);
@@ -294,9 +294,9 @@ module vip::lock_staking {
         release_time: u64,
         validator_address: String
     ) acquires StakingAccount {
-        let (_, timestamp) = block::get_block_info();
+        let (_, curr_time) = block::get_block_info();
         assert!(
-            release_time > timestamp,
+            release_time > curr_time,
             error::invalid_argument(ESMALL_RLEASE_TIME),
         );
 
@@ -688,7 +688,7 @@ module vip::lock_staking {
             );
 
         let res = vector[];
-        let (_, timestamp) = block::get_block_info();
+        let (_, curr_time) = block::get_block_info();
 
         loop {
             if (!table::prepare<DelegationKey, LockedDelegation>(iter)) { break };
@@ -704,8 +704,8 @@ module vip::lock_staking {
                     share,
                 );
             let remain_lock_preiod =
-                if (release_time > timestamp) {
-                    release_time - timestamp
+                if (release_time > curr_time) {
+                    release_time - curr_time
                 } else { 0 };
 
             vector::push_back(
@@ -1055,7 +1055,7 @@ module vip::lock_staking {
                 },
             );
 
-        let (height, timestamp) = block::get_block_info();
+        let (height, curr_time) = block::get_block_info();
         let delegation =
             get_locked_delegation(
                 staking_account_addr,
@@ -1077,7 +1077,7 @@ module vip::lock_staking {
             redelegation_entry: RedelegationEntry {
                 creation_height: (height as u32),
                 completion_time: initia_std::string_utils::to_string(
-                    &(timestamp + state.unbonding_period)
+                    &(curr_time + state.unbonding_period)
                 ),
                 initial_balance: vector[Coin { denom, amount }],
                 shares_dst: vector[DecCoin {
@@ -1187,7 +1187,7 @@ module vip::lock_staking {
                 },
             );
 
-        let (height, timestamp) = block::get_block_info();
+        let (height, curr_time) = block::get_block_info();
         let delegation =
             get_locked_delegation(
                 staking_account_addr,
@@ -1208,7 +1208,7 @@ module vip::lock_staking {
         let new_entry = UnbondingDelegationEntry {
             creation_height: height,
             completion_time: initia_std::string_utils::to_string(
-                &(timestamp + state.unbonding_period)
+                &(curr_time + state.unbonding_period)
             ),
             initial_balance: vector[Coin { denom, amount }],
             balance: vector[Coin { denom, amount }],

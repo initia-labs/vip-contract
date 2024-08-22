@@ -3,7 +3,7 @@ module vip::reward {
     use std::vector;
     use std::error;
     use initia_std::object::{Object};
-    use initia_std::fungible_asset::{Metadata,};
+    use initia_std::fungible_asset::{Metadata};
     use initia_std::primary_fungible_store;
     use initia_std::table;
     use initia_std::table_key;
@@ -19,8 +19,6 @@ module vip::reward {
     //
 
     const EREWARD_STORE_ALREADY_EXISTS: u64 = 1;
-    const EREWARD_STORE_NOT_FOUND: u64 = 2;
-    const EPENALTY_AMOUNT: u64 = 3;
 
     //
     //  Constants
@@ -33,7 +31,7 @@ module vip::reward {
 
     struct ModuleStore has key {
         // sort by bridge id then. sort by stage
-        distributed_reward: table::Table<vector<u8> /*bridge id + stage key*/, RewardRecord>,
+        distributed_reward: table::Table<vector<u8> /*bridge id + version + stage key*/, RewardRecord>,
     }
 
     struct RewardRecord has store {
@@ -48,8 +46,9 @@ module vip::reward {
         );
     }
 
-    fun get_distrubuted_reward_table_key(bridge_id: u64, stage: u64): vector<u8> {
+    fun generate_key(bridge_id: u64, version: u64, stage: u64): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
+        vector::append(&mut key, table_key::encode_u64(version));
         vector::append(&mut key, table_key::encode_u64(stage));
         key
     }
@@ -64,15 +63,16 @@ module vip::reward {
 
     public(friend) fun record_distributed_reward(
         bridge_id: u64,
+        version: u64,
         stage: u64,
         user_reward: u64,
         operator_reward: u64
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let key = get_distrubuted_reward_table_key(bridge_id, stage);
+        let key = generate_key(bridge_id, version, stage);
         assert!(
             !table::contains(&module_store.distributed_reward, key),
-            error::unavailable(EREWARD_STORE_ALREADY_EXISTS),
+            error::already_exists(EREWARD_STORE_ALREADY_EXISTS),
         );
         table::add(
             &mut module_store.distributed_reward,
@@ -86,14 +86,11 @@ module vip::reward {
     //
 
     #[view]
-    public fun balance(addr: address): u64 {
-        primary_fungible_store::balance(addr, reward_metadata())
-    }
-
-    #[view]
-    public fun get_user_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
+    public fun get_user_distrubuted_reward(
+        bridge_id: u64, version: u64, stage: u64
+    ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let key = get_distrubuted_reward_table_key(bridge_id, stage);
+        let key = generate_key(bridge_id, version, stage);
 
         if (table::contains(&module_store.distributed_reward, key)) {
             let reward_data = table::borrow(
@@ -107,9 +104,11 @@ module vip::reward {
     }
 
     #[view]
-    public fun get_operator_distrubuted_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
+    public fun get_operator_distrubuted_reward(
+        bridge_id: u64, version: u64, stage: u64
+    ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let key = get_distrubuted_reward_table_key(bridge_id, stage);
+        let key = generate_key(bridge_id, version, stage);
 
         if (table::contains(&module_store.distributed_reward, key)) {
             let reward_data = table::borrow(
@@ -125,5 +124,10 @@ module vip::reward {
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
+    }
+
+    #[test_only]
+    public fun balance(addr: address): u64 {
+        primary_fungible_store::balance(addr, reward_metadata())
     }
 }

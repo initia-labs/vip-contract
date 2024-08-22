@@ -15,15 +15,7 @@ module vip::zapping {
     //
     // Errors
     //
-
-    const ELOCK_STAKING_END: u64 = 1;
-    const ELOCK_STAKING_IN_PROGRESS: u64 = 2;
-    const ELS_STORE_NOT_FOUND: u64 = 3;
-    const ELS_STORE_ALREADY_EXISTS: u64 = 4;
-    const EUNAUTHORIZED: u64 = 5;
-    const EZAPPING_NOT_EXIST: u64 = 6;
-    const EZAPPING_ALREADY_EXIST: u64 = 7;
-    const EINVALID_ZAPPING_AMOUNT: u64 = 8;
+    const EINVALID_ZAPPING_AMOUNT: u64 = 1;
 
     //
     // Constants
@@ -38,24 +30,6 @@ module vip::zapping {
     struct ModuleStore has key {
         // lock period for zapping (in seconds)
         lock_period: u64,
-    }
-
-    //
-    // Events
-    //
-
-    #[event]
-    struct ZappingEvent has drop, store {
-        zid: u64,
-        account: address,
-        bridge_id: u64,
-        stage: u64,
-        lp_metadata: Object<Metadata>,
-        validator: String,
-        zapping_amount: u64,
-        stakelisted_amount: u64,
-        stakelisted_metadata: Object<Metadata>,
-        release_time: u64,
     }
 
     //
@@ -100,9 +74,9 @@ module vip::zapping {
         );
 
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
-        let (_height, timestamp) = block::get_block_info();
+        let (_, curr_time) = block::get_block_info();
         let module_store = borrow_global<ModuleStore>(@vip);
-        let release_time = timestamp + module_store.lock_period;
+        let release_time = curr_time + module_store.lock_period;
         let esinit_metadata = fungible_asset::asset_metadata(&esinit);
 
         let (coin_a_metadata, _) = dex::pool_metadata(pair);
