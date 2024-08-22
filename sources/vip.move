@@ -446,7 +446,7 @@ module vip::vip {
         );
     }
 
-    // check previous stage snapshot is exist for preventing skipping stage
+    // check if the previous stage snapshot exists to prevent skipping stage
     fun check_previous_stage_snapshot(
         imut_module_store: &ModuleStore,
         bridge_id: u64,
@@ -2852,8 +2852,8 @@ module vip::vip {
             ) == *simple_map::borrow(&score_map, &2),
             2,
         );
-
         // stage 4
+        skip_period(DEFAULT_STAGE_INTERVAL);
         fund_reward_script(vip);
         submit_snapshot(
             vip,
@@ -2889,6 +2889,7 @@ module vip::vip {
             decimal256::from_string(&string::utf8(b"0.5")),
         );
 
+        skip_period(DEFAULT_STAGE_INTERVAL);
         fund_reward_script(vip);
         submit_snapshot(
             vip,
