@@ -1964,7 +1964,12 @@ module vip::vip {
                             version: table_key::encode_u64(version)
                         },
                     ),
-                    option::none(),
+                    option::some(
+                        SnapshotKey {
+                            bridge_id: table_key::encode_u64(bridge_id + 1),
+                            version: table_key::encode_u64(0)
+                        },
+                    ),
                     2,
                 );
             loop {
