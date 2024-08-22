@@ -76,7 +76,7 @@ module vip::vip {
     const REWARD_SYMBOL: vector<u8> = b"uinit";
     const DEFAULT_POOL_SPLIT_RATIO: vector<u8> = b"0.4";
     const DEFAULT_MIN_SCORE_RATIO: vector<u8> = b"0.5";
-    const DEFAULT_VESTING_PERIOD: u64 = 52; // 52 stages
+    const DEFAULT_VESTING_PERIOD: u64 = 26; // 26 stages
     const DEFAULT_STAGE_INTERVAL: u64 = 60 * 60 * 24 * 7; // 1week
     const DEFAULT_MINIMUM_ELIGIBLE_TVL: u64 = 0;
     const DEFAULT_MAXIMUM_TVL_RATIO: vector<u8> = b"1";
