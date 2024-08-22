@@ -33,7 +33,7 @@ module vip::weight_vote {
     const EINVALID_PARAMETER: u64 = 6;
     const EINVALID_BRIDGE: u64 = 7;
     const EINVALID_VOTING_POWER: u64 = 8;
-    // NOT FOUND ERROR 
+    // NOT FOUND ERROR
     const ECYCLE_NOT_FOUND: u64 = 9;
     const ENOT_FOUND: u64 = 101;
     //
@@ -217,7 +217,7 @@ module vip::weight_vote {
         vip::add_tvl_snapshot();
         let addr = signer::address_of(account);
         let max_voting_power = calculate_voting_power(addr);
-        assert!(max_voting_power !=0 ,error::unavailable(EINVALID_VOTING_POWER));
+        assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, time) = get_block_info();
@@ -333,7 +333,7 @@ module vip::weight_vote {
         proposal: &mut Proposal, current_cycle: u64
     ) {
         // update vip weights
-        let (bridge_ids,_) = vip::get_whitelisted_bridge_ids();
+        let (bridge_ids, _) = vip::get_whitelisted_bridge_ids();
 
         let index = 0;
         let len = vector::length(&bridge_ids);
@@ -371,9 +371,7 @@ module vip::weight_vote {
     }
 
     // helper functions
-    fun last_finalized_proposal(
-        module_store: &ModuleStore, time: u64
-    ): (u64, &Proposal) {
+    fun last_finalized_proposal(module_store: &ModuleStore, time: u64): (u64, &Proposal) {
         let iter = table::iter(
             &module_store.proposals,
             option::none(),
@@ -450,8 +448,10 @@ module vip::weight_vote {
     // set cycle start time to former cycle end time + skipped cycle count * cycle interval
     fun calculate_cycle_start_time(module_store: &ModuleStore): u64 {
         let (_, time) = get_block_info();
-        let skiped_cycle = (time - module_store.cycle_end_time) / module_store.cycle_interval;
-        let voting_start_time = module_store.cycle_end_time + skiped_cycle * module_store.cycle_interval;
+        let skiped_cycle = (time - module_store.cycle_end_time)
+            / module_store.cycle_interval;
+        let voting_start_time =
+            module_store.cycle_end_time + skiped_cycle * module_store.cycle_interval;
         voting_start_time
     }
 
@@ -601,7 +601,7 @@ module vip::weight_vote {
 
         let tally_responses: vector<TallyResponse> = vector[];
 
-        let (bridge_ids,_) = vip::get_whitelisted_bridge_ids();
+        let (bridge_ids, _) = vip::get_whitelisted_bridge_ids();
 
         vector::for_each(
             bridge_ids,
@@ -633,7 +633,6 @@ module vip::weight_vote {
         let proposal = table::borrow(&module_store.proposals, cycle_key);
 
         ProposalResponse {
-
             total_tally: proposal.total_tally,
             voting_end_time: proposal.voting_end_time,
             executed: proposal.executed,
@@ -649,9 +648,14 @@ module vip::weight_vote {
             error::not_found(ECYCLE_NOT_FOUND),
         );
         let proposal = table::borrow(&module_store.proposals, cycle_key);
-        let WeightVote{ max_voting_power, voting_power, weights} = table::borrow(&proposal.votes, user);
+        let WeightVote { max_voting_power, voting_power, weights } =
+            table::borrow(&proposal.votes, user);
 
-        WeightVoteResponse { max_voting_power: *max_voting_power , voting_power: *voting_power, weights: *weights }
+        WeightVoteResponse {
+            max_voting_power: *max_voting_power,
+            voting_power: *voting_power,
+            weights: *weights
+        }
     }
 
     #[view]

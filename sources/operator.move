@@ -162,9 +162,7 @@ module vip::operator {
         let key = generate_key(bridge_id, version);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
 
-        let operator_info = table::borrow_mut(
-            &mut module_store.operator_infos, key
-        );
+        let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
         assert!(
             operator_addr == operator_info.operator_addr,
             error::permission_denied(EUNAUTHORIZED),
@@ -221,9 +219,7 @@ module vip::operator {
     ) acquires ModuleStore {
         let key = generate_key(bridge_id, version);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let operator_info = table::borrow_mut(
-            &mut module_store.operator_infos, key
-        );
+        let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
         assert!(
             operator_info.operator_addr == signer::address_of(old_operator),
             error::permission_denied(EUNAUTHORIZED),
@@ -237,9 +233,7 @@ module vip::operator {
     ) acquires ModuleStore {
         let key = generate_key(bridge_id, version);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let operator_info = table::borrow_mut(
-            &mut module_store.operator_infos, key
-        );
+        let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
 
         assert!(
             operator_info.operator_addr == signer::address_of(operator),

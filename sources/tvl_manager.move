@@ -12,7 +12,7 @@ module vip::tvl_manager {
 
     const EINVALID_BRIDGE_ID: u64 = 1;
 
-    const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60 * 60 * 4; 
+    const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60 * 60 * 4;
 
     struct ModuleStore has key {
         last_snapshot_time: u64,
@@ -53,7 +53,9 @@ module vip::tvl_manager {
         key
     }
 
-    public entry fun update_snapshot_interval(chain: &signer, new_snapshot_interval:u64) acquires ModuleStore {
+    public entry fun update_snapshot_interval(
+        chain: &signer, new_snapshot_interval: u64
+    ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         module_store.snapshot_interval = new_snapshot_interval;
@@ -62,7 +64,9 @@ module vip::tvl_manager {
     public fun is_snapshot_addable(stage: u64): bool acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, curr_time) = block::get_block_info();
-        stage > module_store.last_snapshot_stage || curr_time >= module_store.snapshot_interval + module_store.last_snapshot_time
+        stage > module_store.last_snapshot_stage
+            || curr_time >= module_store.snapshot_interval
+                + module_store.last_snapshot_time
     }
 
     // add the snapshot of the tvl on the bridge at the stage
@@ -91,7 +95,7 @@ module vip::tvl_manager {
                 let new_average_tvl =
                     (
                         ((summary.count as u128) * (summary.tvl as u128) + (*tvl as u128))
-                            / (new_count as u128)
+                        / (new_count as u128)
                     );
                 table::upsert(
                     &mut module_store.summary,
@@ -99,16 +103,16 @@ module vip::tvl_manager {
                     TvlSummary { count: new_count, tvl: (new_average_tvl as u64), },
                 );
                 event::emit(
-                    TVLSnapshotEvent{
+                    TVLSnapshotEvent {
                         stage,
                         bridge_id: *bridge_id,
-                        time:curr_time,
+                        time: curr_time,
                         tvl: *tvl,
-                    }
+                    },
                 );
-            }
+            },
         );
-        
+
     }
 
     // get the average tvl of the bridge from accumulated snapshots of the stage

@@ -135,7 +135,7 @@ module vip::vesting {
     struct OperatorVestingFinalizedEvent has drop, store {
         account: address,
         bridge_id: u64,
-        version:u64,
+        version: u64,
         start_stage: u64,
     }
 

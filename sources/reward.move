@@ -46,9 +46,7 @@ module vip::reward {
         );
     }
 
-    fun generate_key(
-        bridge_id: u64, version: u64, stage: u64
-    ): vector<u8> {
+    fun generate_key(bridge_id: u64, version: u64, stage: u64): vector<u8> {
         let key = table_key::encode_u64(bridge_id);
         vector::append(&mut key, table_key::encode_u64(version));
         vector::append(&mut key, table_key::encode_u64(stage));
