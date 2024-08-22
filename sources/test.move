@@ -564,7 +564,6 @@ module vip::test {
                     + (vesting3_initial_reward / vesting_period), /* stage 3 reward vested one time with 100% vesting */
             3,
         );
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -648,7 +647,6 @@ module vip::test {
             vault_balance_after == vault_balance_before - reward::balance(receiver_addr),
             9,
         )
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -734,7 +732,6 @@ module vip::test {
             vault_balance_after == vault_balance_before - reward::balance(receiver_addr),
             7,
         );
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -809,7 +806,6 @@ module vip::test {
             ),
             5,
         );
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -889,7 +885,6 @@ module vip::test {
             ),
             5,
         );
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -967,7 +962,6 @@ module vip::test {
             vault::balance() == vault_balance_before - remaining_reward,
             5,
         )
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -1171,7 +1165,6 @@ module vip::test {
             usdc_metadata(),
             vesting5_remaining_reward, // zapping_amount
         );
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -1374,7 +1367,6 @@ module vip::test {
             net_vested1 + net_vested2 == vault_balance_before - vault::balance(),
             7,
         )
-
     }
 
     // after zapping, remaining reward >= vesting reward per stage
@@ -1812,7 +1804,6 @@ module vip::test {
         let lp_metadatas = vector::empty<Object<Metadata>>();
         let stakelist_metadatas = vector::empty<Object<Metadata>>();
         while (stage < 5) {
-
             let remaining =
                 vesting::get_user_vesting_remaining(
                     receiver_addr,
@@ -1942,7 +1933,6 @@ module vip::test {
                     + 2 * vesting1_initial_reward / get_vesting_period(),
             3,
         );
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -2064,7 +2054,6 @@ module vip::test {
             vault_balance_after == vault_balance_before - reward::balance(operator_addr),
             4,
         )
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, new_operator = @0x5, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -2181,6 +2170,5 @@ module vip::test {
                     + vesting3_initial_reward / get_vesting_period(),
             3,
         );
-
     }
 }

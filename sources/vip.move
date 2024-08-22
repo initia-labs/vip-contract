@@ -1620,7 +1620,6 @@ module vip::vip {
         stakelisted_metadata: Object<Metadata>,
         stakelisted_amount: u64,
     ) acquires ModuleStore {
-
         let account_addr = signer::address_of(account);
         check_zappable(account_addr, bridge_id, version, stage);
         zapping(
@@ -2391,7 +2390,6 @@ module vip::vip {
         SimpleMap<u64, u64>,
         SimpleMap<u64, u64>
     ) {
-
         let root_map = simple_map::create<u64, vector<u8>>();
         let proofs_map = simple_map::create<u64, vector<vector<u8>>>();
         let score_map = simple_map::create<u64, u64>();
@@ -2671,7 +2669,6 @@ module vip::vip {
 
     #[test_only]
     public fun test_setup_scene1(agent: &signer, bridge_id: u64) acquires ModuleStore {
-
         let idx = 1;
         let (merkle_root_map, _, _, total_score_map) = merkle_root_and_proof_scene1();
 
@@ -3473,7 +3470,6 @@ module vip::vip {
         test_setup_scene1(vip, bridge_id);
         skip_period(DEFAULT_SKIPPED_CHALLENGE_PERIOD_FOR_TEST);
         batch_claim_operator_reward_script(operator, bridge_id, 1 /*version*/);
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, new_agent = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -3807,7 +3803,6 @@ module vip::vip {
         // add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
-
     }
 
     #[test(chain = @0x1, vip = @vip, agent = @0x2, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
@@ -4001,7 +3996,6 @@ module vip::vip {
             get_module_store().challenge_period == DEFAULT_NEW_CHALLENGE_PERIOD,
             0,
         )
-
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x111)]

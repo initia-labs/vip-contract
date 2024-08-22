@@ -114,13 +114,11 @@ module vip::tvl_manager {
                 );
             },
         );
-
     }
 
     // get the average tvl of the bridge from accumulated snapshots of the stage
     #[view]
     public fun get_average_tvl(stage: u64, bridge_id: u64): u64 acquires ModuleStore {
-
         let module_store = borrow_global<ModuleStore>(@vip);
         let summary_table_key = generate_key(stage, bridge_id);
         assert!(

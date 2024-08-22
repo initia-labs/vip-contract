@@ -602,7 +602,9 @@ module vip::vesting {
                         value.vest_max_amount
                     } else {
                         utils::mul_div_u64(
-                            value.vest_max_amount, claim_info.l2_score, value.minimum_score
+                            value.vest_max_amount,
+                            claim_info.l2_score,
+                            value.minimum_score,
                         )
                     };
                 if (value.remaining_reward >= value.vest_max_amount) {

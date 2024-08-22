@@ -142,7 +142,6 @@ module vip::operator {
                 commission_rate,
             },
         );
-
     }
 
     public(friend) fun update_operator_commission(
