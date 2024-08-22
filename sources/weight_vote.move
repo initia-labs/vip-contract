@@ -446,10 +446,13 @@ module vip::weight_vote {
         proposal.total_tally = proposal.total_tally + voting_power_used
     }
 
-    // if submitter submit merkle root after grace period, set voting end time to current time + voting period
-    // else set it to former cycle end time + grace period + voting period
-    fun calculate_voting_end_time(module_store: &ModuleStore): u64 {
-        module_store.cycle_end_time + module_store.voting_period
+    // To handle case that proposal not create more than one cycle period
+    // set cycle start time to former cycle end time + skipped cycle count * cycle interval
+    fun calculate_cycle_start_time(module_store: &ModuleStore): u64 {
+        let (_, time) = get_block_info();
+        let skiped_cycle = (time - module_store.cycle_end_time) / module_store.cycle_interval;
+        let voting_start_time = module_store.cycle_end_time + skiped_cycle * module_store.cycle_interval;
+        voting_start_time
     }
 
     fun calculate_voting_power(addr: address): u64 acquires ModuleStore {
@@ -518,21 +521,10 @@ module vip::weight_vote {
                 );
             };
         };
-
-        let voting_end_time = calculate_voting_end_time(module_store);
-
         // update cycle
         module_store.current_cycle = module_store.current_cycle + 1;
-
-        // To handle case that proposal not create more than one cycle period
-        // set cycle start time to former cycle end time + skipped cycle count * cycle interval
-        if (voting_end_time > module_store.cycle_end_time) {
-            let skipped_cycle_count =
-                (voting_end_time - module_store.cycle_end_time)
-                    / module_store.cycle_interval;
-            module_store.cycle_start_time = module_store.cycle_end_time
-                + skipped_cycle_count * module_store.cycle_interval;
-        };
+        module_store.cycle_start_time = calculate_cycle_start_time(module_store);
+        let voting_end_time = module_store.cycle_start_time + module_store.voting_period;
 
         // set cycle end time
         module_store.cycle_end_time = module_store.cycle_start_time
