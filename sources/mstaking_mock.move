@@ -3,12 +3,12 @@ module vip::mstaking_mock {
     use std::signer;
     use std::vector;
 
-    use initia_std::address::to_sdk;
+    use initia_std::address::{to_sdk, from_sdk};
     use initia_std::block;
     use initia_std::coin;
     use initia_std::json::{marshal, unmarshal};
     use initia_std::decimal128::{Self, Decimal128};
-    use initia_std::fungible_asset::{Self, Metadata};
+    use initia_std::fungible_asset::Metadata;
     use initia_std::object::{Self, Object, ExtendRef};
     use initia_std::option::{Self, Option};
     use initia_std::string::{Self, String};
@@ -139,28 +139,104 @@ module vip::mstaking_mock {
         set_redelegations(&redelegations_req, &redelegations);
     }
 
-    // public fun clear_completed_entries() acquires TestState {
-    //     let test_state = borrow_global_mut<TestState>(@vip);
-    //     let (_, timestamp) = block::get_block_info();
-    //     let end_key = CompletionTimeKey {
-    //         completion_time: encode_u64(timestamp + 1),
-    //         unbonding_id: encode_u64(0),
-    //     };
+    public fun clear_completed_entries() acquires TestState {
+        let test_state = borrow_global_mut<TestState>(@vip);
+        let test_signer = object::generate_signer_for_extending(&test_state.extend_ref);
+        let (_, timestamp) = block::get_block_info();
+        let end_key = CompletionTimeKey {
+            completion_time: encode_u64(timestamp + 1),
+            unbonding_id: encode_u64(0),
+        };
 
-    //     // handle unbonding
-    //     let iter = table::iter_mut(
-    //         &mut test_state.completion_time_to_unbonding,
-    //         option::none(),
-    //         option::some(end_key),
-    //         2
-    //     );
-    //     loop {
-    //         if (!table::prepare_mut(iter)) { break };
-    //         let (key, _) = table::next_mut(iter);
-    //         let unbonding_delegation = table::borrow_mut(&mut test_state.completion_time_to_unbonding, key);
-    //     }
+        // handle unbonding
+        let key_to_delete = vector[];
+        let iter = table::iter_mut(
+            &mut test_state.completion_time_to_unbonding,
+            option::none(),
+            option::some(end_key),
+            2
+        );
+        loop {
+            if (!table::prepare_mut(iter)) { break };
+            let (key, unbonding_delegation_req) = table::next_mut(iter);
+            let unbonding_delegation = get_unbonding_delegation(*unbonding_delegation_req);
+            let unbonding_id = decode_u64(key.unbonding_id);
+            let (found, entry_index) = vector::find(
+                &unbonding_delegation.unbond.entries,
+                |entry| {
+                    let entry: UnbondingDelegationEntry = *entry;
+                    entry.unbonding_id == unbonding_id
+                },
+            );
+            assert!(found, 1);
 
-    // }
+            let entry = vector::remove(&mut unbonding_delegation.unbond.entries, entry_index);
+
+            // release token
+            let balance = vector::borrow(&entry.balance, 0);
+            let metadata = coin::denom_to_metadata(balance.denom);
+            let addr = from_sdk(unbonding_delegation.unbond.delegator_address);
+            coin::transfer(&test_signer, addr, metadata, balance.amount);
+
+            // set query
+            set_unbonding_delegation(unbonding_delegation_req, &unbonding_delegation);
+
+            // if no entry remove
+            if (vector::length(&unbonding_delegation.unbond.entries) == 0) {
+                vector::push_back(&mut key_to_delete, key);
+            };
+        };
+
+        vector::for_each_ref(
+            &key_to_delete,
+            |key| {
+                let req = table::remove(&mut test_state.completion_time_to_unbonding, *key);
+                unset_unbonding_delegation(&req);
+            }
+        );
+
+        // handle redelegate
+        let key_to_delete = vector[];
+        let iter = table::iter_mut(
+            &mut test_state.completion_time_to_redelegations,
+            option::none(),
+            option::some(end_key),
+            2
+        );
+        loop {
+            if (!table::prepare_mut(iter)) { break };
+            let (key, redelegations_req) = table::next_mut(iter);
+            let redelegations = get_redelegations(*redelegations_req);
+            let unbonding_id = decode_u64(key.unbonding_id);
+            let redelegation = vector::borrow_mut(&mut redelegations.redelegation_responses, 0);
+            let (found, entry_index) = vector::find(
+                &redelegation.entries,
+                |entry| {
+                    let entry: RedelegationEntryResponse = *entry;
+                    entry.redelegation_entry.unbonding_id == (unbonding_id as u32)
+                },
+            );
+            assert!(found, 1);
+
+            vector::remove(&mut redelegation.entries, entry_index);
+
+            // if no entry remove
+            if (vector::length(&redelegation.entries) == 0) {
+                vector::push_back(&mut key_to_delete, key);
+            };
+
+            // set query
+            set_redelegations(redelegations_req, &redelegations);
+        };
+
+        vector::for_each_ref(
+            &key_to_delete,
+            |key| {
+                let req = table::remove(&mut test_state.completion_time_to_redelegations, *key);
+                unset_redelegations(&req);
+            }
+        );
+    }
 
     public fun update_voting_power_weights(denoms: vector<String>, weights: vector<Decimal128>) {
         assert!(vector::length(&denoms) == vector::length(&weights), 1);
