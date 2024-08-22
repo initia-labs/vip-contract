@@ -1,4 +1,4 @@
-#[test_only] 
+#[test_only]
 module vip::mstaking_mock {
     use std::signer;
     use std::vector;
@@ -43,24 +43,31 @@ module vip::mstaking_mock {
         set_pool(vector[], vector[], vector[]);
         let constructor_ref = object::create_object(@0x1, false);
         let extend_ref = object::generate_extend_ref(&constructor_ref);
-        move_to(vip, TestState {
-            extend_ref,
-            unbonding_period,
-            unbonding_id: 0,
-            delegation: table::new(),
-            delegator_delegations: table::new(),
-            unbonding_delegation: table::new(),
-            redelegations: table::new(),
-            completion_time_to_unbonding: table::new(),
-            completion_time_to_redelegations: table::new(),
-        })
+        move_to(
+            vip,
+            TestState {
+                extend_ref,
+                unbonding_period,
+                unbonding_id: 0,
+                delegation: table::new(),
+                delegator_delegations: table::new(),
+                unbonding_delegation: table::new(),
+                redelegations: table::new(),
+                completion_time_to_unbonding: table::new(),
+                completion_time_to_redelegations: table::new(),
+            },
+        )
     }
 
-    public fun delegate(account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64) acquires TestState {
+    public fun delegate(
+        account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64
+    ) acquires TestState {
         delegate_internal(account, validator_addr, metadata, amount, true);
     }
 
-    public fun undelegate(account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64) acquires TestState {
+    public fun undelegate(
+        account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64
+    ) acquires TestState {
         undelegate_internal(account, validator_addr, metadata, amount, true);
     }
 
@@ -79,25 +86,32 @@ module vip::mstaking_mock {
         let denom = coin::metadata_to_denom(metadata);
 
         // create redelegate
-        let redelegations_req = RedelegationsRequest { delegator_addr, src_validator_addr, dst_validator_addr };
-        let redelegations = if (table::contains(&test_state.redelegations, redelegations_req)) {
-            get_redelegations(redelegations_req)
-        } else {
-            table::add(&mut test_state.redelegations, redelegations_req, true);
-            RedelegationsResponse {
-                redelegation_responses: vector[],
-                pagination: option::none()
-            }
+        let redelegations_req = RedelegationsRequest {
+            delegator_addr,
+            src_validator_addr,
+            dst_validator_addr
         };
+        let redelegations =
+            if (table::contains(&test_state.redelegations, redelegations_req)) {
+                get_redelegations(redelegations_req)
+            } else {
+                table::add(&mut test_state.redelegations, redelegations_req, true);
+                RedelegationsResponse {
+                    redelegation_responses: vector[],
+                    pagination: option::none()
+                }
+            };
 
         // update balance
         let (found, redelegation_index) = vector::find(
             &redelegations.redelegation_responses,
             |redelegation_response| {
-                let redelegation_response_: RedelegationResponse = *redelegation_response; 
-                redelegation_response_.redelegation.delegator_address == delegator_addr &&
-                redelegation_response_.redelegation.validator_src_address == src_validator_addr &&
-                redelegation_response_.redelegation.validator_dst_address == dst_validator_addr
+                let redelegation_response_: RedelegationResponse = *redelegation_response;
+                redelegation_response_.redelegation.delegator_address == delegator_addr
+                    && redelegation_response_.redelegation.validator_src_address
+                        == src_validator_addr
+                    && redelegation_response_.redelegation.validator_dst_address
+                        == dst_validator_addr
             },
         );
 
@@ -121,15 +135,24 @@ module vip::mstaking_mock {
         test_state.unbonding_id = test_state.unbonding_id + 1;
         let completion_time = timestamp + test_state.unbonding_period;
 
-        table::add(&mut test_state.completion_time_to_redelegations, gen_key(completion_time, test_state.unbonding_id), redelegations_req);
+        table::add(
+            &mut test_state.completion_time_to_redelegations,
+            gen_key(completion_time, test_state.unbonding_id),
+            redelegations_req,
+        );
 
-        let redelegation_response = vector::borrow_mut(&mut redelegations.redelegation_responses, redelegation_index);
+        let redelegation_response = vector::borrow_mut(
+            &mut redelegations.redelegation_responses, redelegation_index
+        );
         let new_entry = RedelegationEntryResponse {
             redelegation_entry: RedelegationEntry {
                 creation_height: (height as u32),
                 completion_time: string::utf8(b""),
                 initial_balance: vector[Coin { denom, amount }],
-                shares_dst: vector[DecCoin { denom, amount: decimal128::from_ratio_u64(amount, 1) }],
+                shares_dst: vector[DecCoin {
+                        denom,
+                        amount: decimal128::from_ratio_u64(amount, 1)
+                    }],
                 unbonding_id: (test_state.unbonding_id as u32),
             },
             balance: vector[Coin { denom, amount }],
@@ -150,16 +173,18 @@ module vip::mstaking_mock {
 
         // handle unbonding
         let key_to_delete = vector[];
-        let iter = table::iter_mut(
-            &mut test_state.completion_time_to_unbonding,
-            option::none(),
-            option::some(end_key),
-            2
-        );
+        let iter =
+            table::iter_mut(
+                &mut test_state.completion_time_to_unbonding,
+                option::none(),
+                option::some(end_key),
+                2,
+            );
         loop {
             if (!table::prepare_mut(iter)) { break };
             let (key, unbonding_delegation_req) = table::next_mut(iter);
-            let unbonding_delegation = get_unbonding_delegation(*unbonding_delegation_req);
+            let unbonding_delegation =
+                get_unbonding_delegation(*unbonding_delegation_req);
             let unbonding_id = decode_u64(key.unbonding_id);
             let (found, entry_index) = vector::find(
                 &unbonding_delegation.unbond.entries,
@@ -170,7 +195,9 @@ module vip::mstaking_mock {
             );
             assert!(found, 1);
 
-            let entry = vector::remove(&mut unbonding_delegation.unbond.entries, entry_index);
+            let entry = vector::remove(
+                &mut unbonding_delegation.unbond.entries, entry_index
+            );
 
             // release token
             let balance = vector::borrow(&entry.balance, 0);
@@ -190,25 +217,30 @@ module vip::mstaking_mock {
         vector::for_each_ref(
             &key_to_delete,
             |key| {
-                let req = table::remove(&mut test_state.completion_time_to_unbonding, *key);
+                let req = table::remove(
+                    &mut test_state.completion_time_to_unbonding, *key
+                );
                 unset_unbonding_delegation(&req);
-            }
+            },
         );
 
         // handle redelegate
         let key_to_delete = vector[];
-        let iter = table::iter_mut(
-            &mut test_state.completion_time_to_redelegations,
-            option::none(),
-            option::some(end_key),
-            2
-        );
+        let iter =
+            table::iter_mut(
+                &mut test_state.completion_time_to_redelegations,
+                option::none(),
+                option::some(end_key),
+                2,
+            );
         loop {
             if (!table::prepare_mut(iter)) { break };
             let (key, redelegations_req) = table::next_mut(iter);
             let redelegations = get_redelegations(*redelegations_req);
             let unbonding_id = decode_u64(key.unbonding_id);
-            let redelegation = vector::borrow_mut(&mut redelegations.redelegation_responses, 0);
+            let redelegation = vector::borrow_mut(
+                &mut redelegations.redelegation_responses, 0
+            );
             let (found, entry_index) = vector::find(
                 &redelegation.entries,
                 |entry| {
@@ -232,13 +264,16 @@ module vip::mstaking_mock {
         vector::for_each_ref(
             &key_to_delete,
             |key| {
-                let req = table::remove(&mut test_state.completion_time_to_redelegations, *key);
+                let req =
+                    table::remove(&mut test_state.completion_time_to_redelegations, *key);
                 unset_redelegations(&req);
-            }
+            },
         );
     }
 
-    public fun update_voting_power_weights(denoms: vector<String>, weights: vector<Decimal128>) {
+    public fun update_voting_power_weights(
+        denoms: vector<String>, weights: vector<Decimal128>
+    ) {
         assert!(vector::length(&denoms) == vector::length(&weights), 1);
         let voting_power_weights = vector[];
         let i = 0;
@@ -250,10 +285,16 @@ module vip::mstaking_mock {
             i = i + 1;
         };
         let pool = get_pool().pool;
-        set_pool(pool.not_bonded_tokens, pool.bonded_tokens, voting_power_weights); 
+        set_pool(pool.not_bonded_tokens, pool.bonded_tokens, voting_power_weights);
     }
 
-    fun delegate_internal(account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64, with_transfer: bool) acquires TestState {
+    fun delegate_internal(
+        account: &signer,
+        validator_addr: String,
+        metadata: Object<Metadata>,
+        amount: u64,
+        with_transfer: bool
+    ) acquires TestState {
         let test_state = borrow_global_mut<TestState>(@vip);
         let addr = signer::address_of(account);
         let delegator_addr = to_sdk(addr);
@@ -261,95 +302,130 @@ module vip::mstaking_mock {
 
         // transfer asset to test account
         if (with_transfer) {
-            let test_account_addr = object::address_from_extend_ref(&test_state.extend_ref);
+            let test_account_addr =
+                object::address_from_extend_ref(&test_state.extend_ref);
             coin::transfer(account, test_account_addr, metadata, amount);
         };
 
         // get and update delegation
         let delegation_req = DelegationRequest { validator_addr, delegator_addr };
-        let delegation = if (table::contains(&test_state.delegation, delegation_req)) {
-            get_delegation(delegation_req)
-        } else {
-            table::add(&mut test_state.delegation, delegation_req, true);
-            DelegationResponse {
-                delegation_response: DelegationResponseInner {
-                    delegation: Delegation {
-                        delegator_address: delegator_addr,
-                        validator_address: validator_addr,
-                        shares: vector[]
+        let delegation =
+            if (table::contains(&test_state.delegation, delegation_req)) {
+                get_delegation(delegation_req)
+            } else {
+                table::add(&mut test_state.delegation, delegation_req, true);
+                DelegationResponse {
+                    delegation_response: DelegationResponseInner {
+                        delegation: Delegation {
+                            delegator_address: delegator_addr,
+                            validator_address: validator_addr,
+                            shares: vector[]
+                        },
+                        balance: vector[],
                     },
-                    balance: vector[],
-                },
-            }
-        };
+                }
+            };
 
         // update balance
         let (found, balance_index) = vector::find(
             &delegation.delegation_response.balance,
             |balance| {
-                let Coin { denom: coin_denom, amount: _ } = *balance; 
+                let Coin { denom: coin_denom, amount: _ } = *balance;
                 coin_denom == denom
             },
         );
         if (!found) {
             balance_index = vector::length(&delegation.delegation_response.balance);
-            vector::push_back(&mut delegation.delegation_response.balance, Coin { denom, amount: 0 });
+            vector::push_back(
+                &mut delegation.delegation_response.balance, Coin { denom, amount: 0 }
+            );
         };
-        let balance = vector::borrow_mut(&mut delegation.delegation_response.balance, balance_index);
+        let balance = vector::borrow_mut(
+            &mut delegation.delegation_response.balance, balance_index
+        );
         balance.amount = balance.amount + amount;
 
         // update share
         let (found, share_index) = vector::find(
             &delegation.delegation_response.delegation.shares,
             |share| {
-                let DecCoin { denom: coin_denom, amount: _ } = *share; 
+                let DecCoin { denom: coin_denom, amount: _ } = *share;
                 coin_denom == denom
             },
         );
         if (!found) {
-            share_index = vector::length(&delegation.delegation_response.delegation.shares);
-            vector::push_back(&mut delegation.delegation_response.delegation.shares, DecCoin { denom, amount: decimal128::zero() });
+            share_index = vector::length(
+                &delegation.delegation_response.delegation.shares
+            );
+            vector::push_back(
+                &mut delegation.delegation_response.delegation.shares,
+                DecCoin { denom, amount: decimal128::zero() },
+            );
         };
-        let share = vector::borrow_mut(&mut delegation.delegation_response.delegation.shares, share_index);
-        share.amount = decimal128::add(&share.amount, &decimal128::from_ratio_u64(amount, 1)); // TODO: support slashing cases
+        let share = vector::borrow_mut(
+            &mut delegation.delegation_response.delegation.shares, share_index
+        );
+        share.amount = decimal128::add(
+            &share.amount, &decimal128::from_ratio_u64(amount, 1)
+        ); // TODO: support slashing cases
 
         // set delegation
         set_delegation(&delegation_req, &delegation);
 
         // get delegator delegations
-        let delegator_delegations_req = DelegatorDelegationsRequest { delegator_addr, pagination: option::none() };
-        let delegator_delegations = if (table::contains(&test_state.delegator_delegations, delegator_delegations_req)) {
-            get_delegator_delegations(delegator_delegations_req)
-        } else {
-            table::add(&mut test_state.delegator_delegations, delegator_delegations_req, true);
-            DelegatorDelegationsResponse {
-                delegation_responses: vector[],
-                pagination: option::none(),
-            }
+        let delegator_delegations_req = DelegatorDelegationsRequest {
+            delegator_addr,
+            pagination: option::none()
         };
+        let delegator_delegations =
+            if (table::contains(
+                    &test_state.delegator_delegations, delegator_delegations_req
+                )) {
+                get_delegator_delegations(delegator_delegations_req)
+            } else {
+                table::add(
+                    &mut test_state.delegator_delegations, delegator_delegations_req, true
+                );
+                DelegatorDelegationsResponse {
+                    delegation_responses: vector[],
+                    pagination: option::none(),
+                }
+            };
 
         // update delegator delegations
         let (found, delegation_index) = vector::find(
             &delegator_delegations.delegation_responses,
             |delegation| {
                 let DelegationResponseInner { delegation, balance: _ } = *delegation;
-                let Delegation { delegator_address, validator_address, shares: _ } = delegation;
+                let Delegation { delegator_address, validator_address, shares: _ } =
+                    delegation;
                 delegator_address == delegator_addr && validator_address == validator_addr
             },
         );
 
         if (found) {
-            let old_delegation = vector::borrow_mut(&mut delegator_delegations.delegation_responses, delegation_index);
+            let old_delegation = vector::borrow_mut(
+                &mut delegator_delegations.delegation_responses, delegation_index
+            );
             *old_delegation = delegation.delegation_response;
         } else {
-            vector::push_back(&mut delegator_delegations.delegation_responses, delegation.delegation_response);
+            vector::push_back(
+                &mut delegator_delegations.delegation_responses,
+                delegation.delegation_response,
+            );
         };
 
         // set delegator delegations
         set_delegator_delegations(&delegator_delegations_req, &delegator_delegations);
     }
 
-    fun undelegate_internal(account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64, create_unbonding: bool) acquires TestState {
+    fun undelegate_internal(
+        account: &signer,
+        validator_addr: String,
+        metadata: Object<Metadata>,
+        amount: u64,
+        create_unbonding: bool
+    ) acquires TestState {
         let test_state = borrow_global_mut<TestState>(@vip);
         let addr = signer::address_of(account);
         let delegator_addr = to_sdk(addr);
@@ -368,12 +444,14 @@ module vip::mstaking_mock {
         let (found, balance_index) = vector::find(
             &delegation.delegation_response.balance,
             |balance| {
-                let Coin { denom: coin_denom, amount: _ } = *balance; 
+                let Coin { denom: coin_denom, amount: _ } = *balance;
                 coin_denom == denom
             },
         );
         assert!(found, 1);
-        let balance = vector::borrow_mut(&mut delegation.delegation_response.balance, balance_index);
+        let balance = vector::borrow_mut(
+            &mut delegation.delegation_response.balance, balance_index
+        );
         balance.amount = balance.amount - amount;
         if (balance.amount == 0) {
             vector::remove(&mut delegation.delegation_response.balance, balance_index);
@@ -383,28 +461,39 @@ module vip::mstaking_mock {
         let (found, share_index) = vector::find(
             &delegation.delegation_response.delegation.shares,
             |share| {
-                let DecCoin { denom: coin_denom, amount: _ } = *share; 
+                let DecCoin { denom: coin_denom, amount: _ } = *share;
                 coin_denom == denom
             },
         );
         assert!(found, 1);
-        let share = vector::borrow_mut(&mut delegation.delegation_response.delegation.shares, share_index);
-        share.amount = decimal128::sub(&share.amount, &decimal128::from_ratio_u64(amount, 1)); // TODO: support slashing cases
+        let share = vector::borrow_mut(
+            &mut delegation.delegation_response.delegation.shares, share_index
+        );
+        share.amount = decimal128::sub(
+            &share.amount, &decimal128::from_ratio_u64(amount, 1)
+        ); // TODO: support slashing cases
         if (share.amount == decimal128::zero()) {
-            vector::remove<DecCoin>(&mut delegation.delegation_response.delegation.shares, share_index);
+            vector::remove<DecCoin>(
+                &mut delegation.delegation_response.delegation.shares, share_index
+            );
         };
 
-        let delegation_deleted = if (vector::length(&mut delegation.delegation_response.delegation.shares)  == 0) {
-            table::remove(&mut test_state.delegation, delegation_req);
-            unset_delegation(&delegation_req);
-            true
-        } else {
-            false
-        };
+        let delegation_deleted =
+            if (vector::length(&mut delegation.delegation_response.delegation.shares) == 0) {
+                table::remove(&mut test_state.delegation, delegation_req);
+                unset_delegation(&delegation_req);
+                true
+            } else { false };
 
         // get delegator delegations
-        let delegator_delegations_req = DelegatorDelegationsRequest { delegator_addr, pagination: option::none() };
-        assert!(table::contains(&test_state.delegator_delegations, delegator_delegations_req), 1);
+        let delegator_delegations_req = DelegatorDelegationsRequest {
+            delegator_addr,
+            pagination: option::none()
+        };
+        assert!(
+            table::contains(&test_state.delegator_delegations, delegator_delegations_req),
+            1,
+        );
         let delegator_delegations = get_delegator_delegations(delegator_delegations_req);
 
         // update delegator delegations
@@ -412,21 +501,28 @@ module vip::mstaking_mock {
             &delegator_delegations.delegation_responses,
             |delegation| {
                 let DelegationResponseInner { delegation, balance: _ } = *delegation;
-                let Delegation { delegator_address, validator_address, shares: _ } = delegation;
+                let Delegation { delegator_address, validator_address, shares: _ } =
+                    delegation;
                 delegator_address == delegator_addr && validator_address == validator_addr
             },
         );
 
         assert!(found, 1);
         if (delegation_deleted) {
-            vector::remove(&mut delegator_delegations.delegation_responses, delegation_index);
+            vector::remove(
+                &mut delegator_delegations.delegation_responses, delegation_index
+            );
         } else {
-            let old_delegation = vector::borrow_mut(&mut delegator_delegations.delegation_responses, delegation_index);
+            let old_delegation = vector::borrow_mut(
+                &mut delegator_delegations.delegation_responses, delegation_index
+            );
             *old_delegation = delegation.delegation_response;
         };
 
         if (vector::length(&delegator_delegations.delegation_responses) == 0) {
-            table::remove(&mut test_state.delegator_delegations, delegator_delegations_req);
+            table::remove(
+                &mut test_state.delegator_delegations, delegator_delegations_req
+            );
             unset_delegator_delegations(&delegator_delegations_req);
         } else {
             // set delegator delegations
@@ -435,31 +531,45 @@ module vip::mstaking_mock {
 
         // set unbonding
         if (create_unbonding) {
-            let unbonding_delegation_req = UnbondingDelegationRequest { delegator_addr, validator_addr };
-            let unbonding_delegation = if (table::contains(&test_state.unbonding_delegation, unbonding_delegation_req)) {
-                get_unbonding_delegation(unbonding_delegation_req)
-            } else {
-                table::add(&mut test_state.unbonding_delegation, unbonding_delegation_req, true);
-                UnbondingDelegationResponse {
-                    unbond: UnbondingDelegation {
-                        delegator_address: delegator_addr,
-                        validator_address: validator_addr,
-                        entries: vector[]
-                    }
-                }
+            let unbonding_delegation_req = UnbondingDelegationRequest {
+                delegator_addr,
+                validator_addr
             };
+            let unbonding_delegation =
+                if (table::contains(
+                        &test_state.unbonding_delegation, unbonding_delegation_req
+                    )) {
+                    get_unbonding_delegation(unbonding_delegation_req)
+                } else {
+                    table::add(
+                        &mut test_state.unbonding_delegation,
+                        unbonding_delegation_req,
+                        true,
+                    );
+                    UnbondingDelegationResponse {
+                        unbond: UnbondingDelegation {
+                            delegator_address: delegator_addr,
+                            validator_address: validator_addr,
+                            entries: vector[]
+                        }
+                    }
+                };
 
             let (height, timestamp) = block::get_block_info();
             test_state.unbonding_id = test_state.unbonding_id + 1;
             let completion_time = timestamp + test_state.unbonding_period;
 
-            table::add(&mut test_state.completion_time_to_unbonding, gen_key(completion_time, test_state.unbonding_id), unbonding_delegation_req);
+            table::add(
+                &mut test_state.completion_time_to_unbonding,
+                gen_key(completion_time, test_state.unbonding_id),
+                unbonding_delegation_req,
+            );
 
             let new_entry = UnbondingDelegationEntry {
                 creation_height: height,
                 completion_time: string::utf8(b""),
-                initial_balance: vector[Coin {denom, amount}],
-                balance: vector[Coin {denom, amount}],
+                initial_balance: vector[Coin { denom, amount }],
+                balance: vector[Coin { denom, amount }],
                 unbonding_id: test_state.unbonding_id,
                 unbonding_on_hold_ref_count: 0,
             };
@@ -473,7 +583,7 @@ module vip::mstaking_mock {
         set_query_response(
             b"/initia.mstaking.v1.Query/Delegation",
             marshal(req),
-            marshal(res)
+            marshal(res),
         );
     }
 
@@ -485,11 +595,13 @@ module vip::mstaking_mock {
         );
     }
 
-    fun set_unbonding_delegation(req: &UnbondingDelegationRequest, res: &UnbondingDelegationResponse) {
+    fun set_unbonding_delegation(
+        req: &UnbondingDelegationRequest, res: &UnbondingDelegationResponse
+    ) {
         set_query_response(
             b"/initia.mstaking.v1.Query/UnbondingDelegation",
             marshal(req),
-            marshal(res)
+            marshal(res),
         );
     }
 
@@ -501,11 +613,13 @@ module vip::mstaking_mock {
         );
     }
 
-    fun set_redelegations(req: &RedelegationsRequest, res: &RedelegationsResponse) {
+    fun set_redelegations(
+        req: &RedelegationsRequest, res: &RedelegationsResponse
+    ) {
         set_query_response(
             b"/initia.mstaking.v1.Query/Redelegations",
             marshal(req),
-            marshal(res)
+            marshal(res),
         );
     }
 
@@ -517,11 +631,13 @@ module vip::mstaking_mock {
         );
     }
 
-    fun set_delegator_delegations(req: &DelegatorDelegationsRequest, res: &DelegatorDelegationsResponse) {
+    fun set_delegator_delegations(
+        req: &DelegatorDelegationsRequest, res: &DelegatorDelegationsResponse
+    ) {
         set_query_response(
             b"/initia.mstaking.v1.Query/DelegatorDelegations",
             marshal(req),
-            marshal(res)
+            marshal(res),
         );
     }
 
@@ -533,21 +649,21 @@ module vip::mstaking_mock {
         );
     }
 
-    fun set_pool(not_bonded_tokens: vector<Coin>, bonded_tokens: vector<Coin>, voting_power_weights: vector<DecCoin>) {
+    fun set_pool(
+        not_bonded_tokens: vector<Coin>,
+        bonded_tokens: vector<Coin>,
+        voting_power_weights: vector<DecCoin>
+    ) {
         let req = PoolRequest {};
 
         let res = PoolResponse {
-            pool: Pool {
-                not_bonded_tokens,
-                bonded_tokens,
-                voting_power_weights,
-            },
+            pool: Pool { not_bonded_tokens, bonded_tokens, voting_power_weights, },
         };
 
         set_query_response(
             b"/initia.mstaking.v1.Query/Pool",
             marshal(&req),
-            marshal(&res)
+            marshal(&res),
         );
     }
 
@@ -569,7 +685,8 @@ module vip::mstaking_mock {
         unmarshal<RedelegationsResponse>(response)
     }
 
-    fun get_delegator_delegations(req: DelegatorDelegationsRequest): DelegatorDelegationsResponse {
+    fun get_delegator_delegations(req: DelegatorDelegationsRequest)
+        : DelegatorDelegationsResponse {
         let path = b"/initia.mstaking.v1.Query/DelegatorDelegations";
         let response = query_stargate(path, marshal(&req));
         unmarshal<DelegatorDelegationsResponse>(response)
@@ -580,14 +697,14 @@ module vip::mstaking_mock {
         let response = query_stargate(path, b"{}");
         unmarshal<PoolResponse>(response)
         // TODO: use below when json marshal fixed
-        // query<PoolRequest, PoolResponse>(path, PoolRequest {}) 
+        // query<PoolRequest, PoolResponse>(path, PoolRequest {})
     }
-    
+
     fun gen_key(completion_time: u64, unbonding_id: u64): CompletionTimeKey {
         CompletionTimeKey {
             completion_time: initia_std::table_key::encode_u64(completion_time),
             unbonding_id: initia_std::table_key::encode_u64(unbonding_id),
-        } 
+        }
     }
 
     // query req/res types
