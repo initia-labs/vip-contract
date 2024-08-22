@@ -1153,9 +1153,7 @@ module vip::vip {
                 false
             },
         );
-        tvl_manager::add_snapshot(
-            current_stage, bridge_ids, tvls
-        );
+        tvl_manager::add_snapshot(current_stage, bridge_ids, tvls);
     }
 
     // update reward record data of module store in reward module
@@ -1327,7 +1325,12 @@ module vip::vip {
         let start_stage = *vector::borrow(&mut stages, 0);
         let end_stage = *vector::borrow(&mut stages, len - 1);
         check_user_reward_claimable(
-            module_store, account, bridge_id, version, start_stage, end_stage
+            module_store,
+            account,
+            bridge_id,
+            version,
+            start_stage,
+            end_stage,
         );
         let vesting_period = module_store.vesting_period;
         let minimum_score_ratio = module_store.minimum_score_ratio;
@@ -3659,9 +3662,7 @@ module vip::vip {
                 *simple_map::borrow(&score_map, &6),],
         );
         // full vested
-        assert!(
-            initial_reward_vesting1 == total_reward, 1
-        );
+        assert!(initial_reward_vesting1 == total_reward, 1);
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
