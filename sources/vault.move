@@ -1,11 +1,9 @@
 module vip::vault {
     use std::error;
-    use std::signer;
 
     use initia_std::object::{Self, ExtendRef};
     use initia_std::fungible_asset::FungibleAsset;
     use initia_std::primary_fungible_store;
-    use initia_std::fungible_asset;
 
     use vip::reward;
     use vip::utils;
@@ -17,13 +15,6 @@ module vip::vault {
 
     const EINVALID_AMOUNT: u64 = 1;
     const EINVALID_REWARD_PER_STAGE: u64 = 2;
-
-    //
-    // Constants
-    //
-
-    const VAULT_PREFIX: u8 = 0xf1;
-    const REWARD_SYMBOL: vector<u8> = b"uinit";
 
     //
     // Resources
@@ -39,27 +30,19 @@ module vip::vault {
     // Implementations
     //
 
-    fun init_module(chain: &signer) {
-        let seed = generate_vault_store_seed();
-        let vault_store_addr =
-            object::create_object_address(&signer::address_of(chain), seed);
-
-        let constructor_ref = object::create_named_object(chain, seed);
+    fun init_module(vip: &signer) {
+        let constructor_ref = object::create_object(@0x0, false);
         let extend_ref = object::generate_extend_ref(&constructor_ref);
+        let vault_store_addr = object::address_from_constructor_ref(&constructor_ref);
 
         move_to(
-            chain,
+            vip,
             ModuleStore {
                 extend_ref,
                 reward_per_stage: 0, // set zero for safety
                 vault_store_addr
             },
         );
-    }
-
-    fun generate_vault_store_seed(): vector<u8> {
-        let seed = vector[VAULT_PREFIX];
-        return seed
     }
 
     //
@@ -74,12 +57,7 @@ module vip::vault {
         );
         let vault_signer =
             object::generate_signer_for_extending(&module_store.extend_ref);
-        let vault_store =
-            primary_fungible_store::ensure_primary_store_exists(
-                module_store.vault_store_addr,
-                reward::reward_metadata(),
-            );
-        fungible_asset::withdraw(&vault_signer, vault_store, amount)
+        primary_fungible_store::withdraw(&vault_signer, reward::reward_metadata(), amount)
     }
 
     //

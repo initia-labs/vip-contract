@@ -26,13 +26,6 @@ module vip::vesting {
     const EINVALID_VESTING_TYPE: u64 = 5;
     const EINVALID_STAGE: u64 = 6;
 
-    const ENOT_FOUND: u64 = 101;
-    //
-    // Constants
-    //
-
-    const REWARD_SYMBOL: vector<u8> = b"uinit";
-
     //
     // Resources
     //
@@ -273,7 +266,7 @@ module vip::vesting {
 
                 // create user vesting
                 if (initial_reward_amount > 0) {
-                    batch_create_user_vesting(
+                    create_user_vesting(
                         account_addr,
                         bridge_id,
                         version,
@@ -388,7 +381,7 @@ module vip::vesting {
                 );
 
                 // create operator vesting position
-                batch_create_operator_vesting(
+                create_operator_vesting(
                     operator_addr,
                     bridge_id,
                     version,
@@ -551,6 +544,7 @@ module vip::vesting {
     //
     // Public Functions
     //
+
     public fun is_user_vesting_store_registered(
         account_addr: address, bridge_id: u64, version: u64,
     ): bool acquires ModuleStore {
@@ -607,9 +601,8 @@ module vip::vesting {
                     if (claim_info.l2_score >= value.minimum_score) {
                         value.vest_max_amount
                     } else {
-                        (
-                            (value.vest_max_amount as u128) * (claim_info.l2_score as u128)
-                            / (value.minimum_score as u128) as u64
+                        utils::mul_div_u64(
+                            value.vest_max_amount, claim_info.l2_score, value.minimum_score
                         )
                     };
                 if (value.remaining_reward >= value.vest_max_amount) {
@@ -670,7 +663,7 @@ module vip::vesting {
         (net_vested_reward, net_penalty_reward)
     }
 
-    fun batch_create_user_vesting(
+    fun create_user_vesting(
         account_addr: address,
         bridge_id: u64,
         version: u64,
@@ -684,37 +677,28 @@ module vip::vesting {
                 &claim_info.minimum_score_ratio,
                 claim_info.l2_score,
             );
+
+        let user_vesting = UserVesting {
+            initial_reward: vesting_reward_amount,
+            remaining_reward: vesting_reward_amount,
+            penalty_reward: 0,
+            start_stage: claim_info.start_stage,
+            end_stage: claim_info.end_stage,
+            l2_score: claim_info.l2_score,
+            minimum_score,
+            vest_max_amount: vesting_reward_amount
+                / (claim_info.end_stage - claim_info.start_stage)
+        };
+
         // create user vesting position
         table::add(
             user_vestings,
             table_key::encode_u64(claim_info.start_stage),
-            UserVesting {
-                initial_reward: vesting_reward_amount,
-                remaining_reward: vesting_reward_amount,
-                penalty_reward: 0,
-                start_stage: claim_info.start_stage,
-                end_stage: claim_info.end_stage,
-                l2_score: claim_info.l2_score,
-                minimum_score,
-                vest_max_amount: vesting_reward_amount
-                    / (claim_info.end_stage - claim_info.start_stage)
-            },
+            user_vesting,
         );
+
         // add user vestings
-        vector::push_back(
-            vestings,
-            UserVesting {
-                initial_reward: vesting_reward_amount,
-                remaining_reward: vesting_reward_amount,
-                penalty_reward: 0,
-                start_stage: claim_info.start_stage,
-                end_stage: claim_info.end_stage,
-                l2_score: claim_info.l2_score,
-                minimum_score,
-                vest_max_amount: vesting_reward_amount
-                    / (claim_info.end_stage - claim_info.start_stage)
-            },
-        );
+        vector::push_back(vestings, user_vesting);
 
         event::emit(
             UserVestingCreateEvent {
@@ -730,7 +714,7 @@ module vip::vesting {
         );
     }
 
-    fun batch_create_operator_vesting(
+    fun create_operator_vesting(
         account_addr: address,
         bridge_id: u64,
         version: u64,

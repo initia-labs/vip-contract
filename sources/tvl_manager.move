@@ -12,12 +12,12 @@ module vip::tvl_manager {
 
     const EINVALID_BRIDGE_ID: u64 = 1;
 
-    const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60 * 60 * 4;
+    const DEFAULT_SNAPSHOT_INTERVAL: u64 = 60 * 60 * 4; // 4 hours
 
     struct ModuleStore has key {
         last_snapshot_time: u64,
         last_snapshot_stage: u64,
-        snapshot_interval: u64,
+        snapshot_interval: u64, // minimum snapshot interval
         // The average tvl each stage(vip stage) and bridge id
         summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>,
     }

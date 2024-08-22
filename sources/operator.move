@@ -23,12 +23,6 @@ module vip::operator {
     const EUNAUTHORIZED: u64 = 7;
 
     //
-    // Constants
-    //
-
-    const OPERATOR_STORE_PREFIX: u8 = 0xf6;
-
-    //
     // Resources
     //
     struct ModuleStore has key {

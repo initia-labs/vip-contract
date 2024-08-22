@@ -472,8 +472,8 @@ module vip::test {
             get_validator(),
             stage,
             1000,
-            1000,
             usdc_metadata(),
+            1000,
         );
     }
 
@@ -800,8 +800,8 @@ module vip::test {
             get_validator(),
             1,
             remaining_reward,
-            1_000_000,
             usdc_metadata(),
+            1_000_000,
         );
         assert!(
             !vesting::is_user_vesting_position_exists(
@@ -880,8 +880,8 @@ module vip::test {
             get_validator(),
             1,
             remaining_reward,
-            1_000_000,
             usdc_metadata(),
+            1_000_000,
         );
         assert!(
             !vesting::is_user_vesting_position_exists(
@@ -957,8 +957,8 @@ module vip::test {
             get_validator(),
             1,
             remaining_reward,
-            1_000_000,
             usdc_metadata(),
+            1_000_000,
         );
 
         assert!(reward::balance(receiver_addr) == 0, 4);
@@ -1155,8 +1155,8 @@ module vip::test {
             get_validator(),
             1,
             vesting5_remaining_reward, // zapping_amount
-            vesting5_remaining_reward, // zapping_amount
             usdc_metadata(),
+            vesting5_remaining_reward, // zapping_amount
         );
         // zapping position of stage 5
         vip::zapping_script(
@@ -1168,8 +1168,8 @@ module vip::test {
             get_validator(),
             5,
             vesting5_remaining_reward, // zapping_amount
-            vesting5_remaining_reward, // zapping_amount
             usdc_metadata(),
+            vesting5_remaining_reward, // zapping_amount
         );
 
     }
@@ -1318,8 +1318,8 @@ module vip::test {
             get_validator(),
             1,
             zapping_amount,
-            zapping_amount,
             usdc_metadata(),
+            zapping_amount,
         );
         // stage 1 vesting position zapped but not finalized yet
         assert!(
@@ -1445,8 +1445,8 @@ module vip::test {
             get_validator(),
             1,
             zapping_amount,
-            zapping_amount,
             usdc_metadata(),
+            zapping_amount,
         );
         // stage 1 vesting position zapped but not finalized yet
         assert!(
@@ -1573,8 +1573,8 @@ module vip::test {
             get_validator(),
             1,
             initial_reward,
-            1000_000,
             usdc_metadata(),
+            1000_000,
         )
     }
 
@@ -1640,8 +1640,8 @@ module vip::test {
             get_validator(),
             1,
             vesting1_initial_reward,
-            vesting1_initial_reward, // usdc amount 1:1
             usdc_metadata(),
+            vesting1_initial_reward, // usdc amount 1:1
         );
 
         let vault_balance_before = vault::balance();
@@ -1844,8 +1844,8 @@ module vip::test {
             validators,
             stages,
             zapping_amounts,
-            stakelisted_amounts,
             stakelist_metadatas,
+            stakelisted_amounts,
         );
 
         stage = 1;

@@ -22,6 +22,7 @@ module vip::weight_vote {
     //
     // Errors
     //
+
     const EMODULE_STORE_ALREADY_EXISTS: u64 = 1;
     const EUNAUTHORIZED: u64 = 2;
     // VOTE ERROR
@@ -35,15 +36,6 @@ module vip::weight_vote {
     const EINVALID_VOTING_POWER: u64 = 8;
     // NOT FOUND ERROR
     const ECYCLE_NOT_FOUND: u64 = 9;
-    const ENOT_FOUND: u64 = 101;
-    //
-    //  Constants
-    //
-
-    const PROOF_LENGTH: u64 = 32;
-
-    const VOTE_YES: u64 = 1;
-    const VOTE_NO: u64 = 0;
 
     struct ModuleStore has key {
         // current cycle

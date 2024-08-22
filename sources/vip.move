@@ -41,7 +41,6 @@ module vip::vip {
     const ESNAPSHOT_NOT_EXISTS: u64 = 6;
     const EBRIDGE_NOT_REGISTERED: u64 = 7;
     const EPREV_STAGE_SNAPSHOT_NOT_FOUND: u64 = 8;
-    const ENOT_FOUND: u64 = 101; // TABLE NOT FOUND
     // EINVLAID ERROR
     const EINVALID_MERKLE_PROOFS: u64 = 9;
     const EINVALID_PROOF_LENGTH: u64 = 10;
@@ -73,16 +72,15 @@ module vip::vip {
     //  Constants
     //
     const PROOF_LENGTH: u64 = 32;
-    const REWARD_SYMBOL: vector<u8> = b"uinit";
     const DEFAULT_POOL_SPLIT_RATIO: vector<u8> = b"0.4";
     const DEFAULT_MIN_SCORE_RATIO: vector<u8> = b"0.5";
     const DEFAULT_VESTING_PERIOD: u64 = 26; // 26 stages
-    const DEFAULT_STAGE_INTERVAL: u64 = 60 * 60 * 24 * 7; // 1week
+    const DEFAULT_STAGE_INTERVAL: u64 = 60 * 60 * 24 * 7 * 2; // 2 weeks
     const DEFAULT_MINIMUM_ELIGIBLE_TVL: u64 = 0;
     const DEFAULT_MAXIMUM_TVL_RATIO: vector<u8> = b"1";
     const DEFAULT_MAXIMUM_WEIGHT_RATIO: vector<u8> = b"1";
     const DEFAULT_VIP_START_STAGE: u64 = 0;
-    const DEFAULT_CHALLENGE_PERIOD: u64 = 60 * 60 * 24; // 1day
+    const DEFAULT_CHALLENGE_PERIOD: u64 = 60 * 60 * 24; // 1 day
 
     // vm type
     const MOVEVM: u64 = 0;
@@ -497,8 +495,8 @@ module vip::vip {
         validator: string::String,
         stage: u64,
         zapping_amount: u64,
-        stakelisted_amount: u64,
         stakelisted_metadata: Object<Metadata>,
+        stakelisted_amount: u64,
     ) {
         let account_addr = signer::address_of(account);
         let esinit =
@@ -602,7 +600,7 @@ module vip::vip {
         );
 
         event::emit(
-            FundEvent { stage, total_operator_funded_reward, total_user_funded_reward, },
+            FundEvent { stage, total_operator_funded_reward, total_user_funded_reward },
         );
         (total_operator_funded_reward, total_user_funded_reward)
     }
@@ -1619,8 +1617,8 @@ module vip::vip {
         validator: string::String,
         stage: u64,
         zapping_amount: u64,
-        stakelisted_amount: u64,
         stakelisted_metadata: Object<Metadata>,
+        stakelisted_amount: u64,
     ) acquires ModuleStore {
 
         let account_addr = signer::address_of(account);
@@ -1634,8 +1632,8 @@ module vip::vip {
             validator,
             stage,
             zapping_amount,
-            stakelisted_amount,
             stakelisted_metadata,
+            stakelisted_amount,
         );
     }
 
@@ -1648,8 +1646,8 @@ module vip::vip {
         validator: vector<string::String>,
         stage: vector<u64>,
         zapping_amount: vector<u64>,
-        stakelisted_amount: vector<u64>,
         stakelisted_metadata: vector<Object<Metadata>>,
+        stakelisted_amount: vector<u64>,
     ) acquires ModuleStore {
         let batch_length = vector::length(&stage);
         assert!(
@@ -1689,8 +1687,8 @@ module vip::vip {
                     *vector::borrow(&validator, i),
                     *s,
                     *vector::borrow(&zapping_amount, i),
-                    *vector::borrow(&stakelisted_amount, i),
                     *vector::borrow(&stakelisted_metadata, i),
+                    *vector::borrow(&stakelisted_amount, i),
                 );
             },
         );
@@ -1856,39 +1854,10 @@ module vip::vip {
         table::borrow(&module_store.bridges, key)
     }
 
-    fun load_deregistered_bridge_mut(
-        module_store: &mut ModuleStore, bridge_id: u64, version: u64
-    ): &mut Bridge {
-        let key = BridgeInfoKey {
-            is_registered: false,
-            bridge_id: table_key::encode_u64(bridge_id),
-            version: table_key::encode_u64(version),
-        };
-        assert!(
-            table::contains(&module_store.bridges, key),
-            error::not_found(EBRIDGE_NOT_FOUND),
-        );
-        table::borrow_mut(&mut module_store.bridges, key)
-    }
-
-    fun load_deregistered_bridge_imut(
-        module_store: &ModuleStore, bridge_id: u64, version: u64
-    ): &Bridge {
-        let key = BridgeInfoKey {
-            is_registered: false,
-            bridge_id: table_key::encode_u64(bridge_id),
-            version: table_key::encode_u64(version),
-        };
-        assert!(
-            table::contains(&module_store.bridges, key),
-            error::not_found(EBRIDGE_NOT_FOUND),
-        );
-        table::borrow(&module_store.bridges, key)
-    }
-
     //
     // View Functions
     //
+
     #[view]
     public fun get_snapshot(bridge_id: u64, stage: u64): SnapshotResponse acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
@@ -4408,8 +4377,8 @@ module vip::vip {
             validator,
             stage,
             zapping_amount,
-            zapping_amount,
             stakelisted_metadata,
+            zapping_amount,
         );
     }
 }

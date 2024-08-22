@@ -86,11 +86,6 @@ module vip::reward {
     //
 
     #[view]
-    public fun balance(addr: address): u64 {
-        primary_fungible_store::balance(addr, reward_metadata())
-    }
-
-    #[view]
     public fun get_user_distrubuted_reward(
         bridge_id: u64, version: u64, stage: u64
     ): u64 acquires ModuleStore {
@@ -129,5 +124,10 @@ module vip::reward {
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
+    }
+
+    #[test_only]
+    public fun balance(addr: address): u64 {
+        primary_fungible_store::balance(addr, reward_metadata())
     }
 }
