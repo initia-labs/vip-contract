@@ -861,10 +861,10 @@ module vip::lock_staking {
                     &metadata,
                     share,
                 );
-            let remain_lock_preiod =
-                if (release_time > curr_time) {
-                    release_time - curr_time
-                } else { 0 };
+            // let remain_lock_preiod =
+            //     if (release_time > curr_time) {
+            //         release_time - curr_time
+            //     } else { 0 };
 
             vector::push_back(
                 &mut res,
@@ -872,14 +872,14 @@ module vip::lock_staking {
                     metadata,
                     validator,
                     amount,
-                    remain_lock_preiod,
+                    release_time,
                 },
             );
         };
 
         res
     }
-    
+
     #[test_only]
     use initia_std::query::set_query_response;
 
