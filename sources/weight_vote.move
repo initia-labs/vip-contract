@@ -640,12 +640,17 @@ module vip::weight_vote {
             error::not_found(ECYCLE_NOT_FOUND),
         );
         let proposal = table::borrow(&module_store.proposals, cycle_key);
-        let WeightVote { max_voting_power, voting_power, weights } =
-            table::borrow_with_default(&proposal.votes, user, &WeightVote{
+
+        if (!table::contains(&proposal.votes, user)) {
+            return WeightVoteResponse {
                 max_voting_power: 0,
                 voting_power: 0,
-                weights: vector[],
-            });
+                weights: vector[]
+            }
+        };
+
+        let WeightVote { max_voting_power, voting_power, weights } =
+            table::borrow(&proposal.votes, user);
 
         WeightVoteResponse {
             max_voting_power: *max_voting_power,

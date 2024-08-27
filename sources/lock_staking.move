@@ -864,12 +864,7 @@ module vip::lock_staking {
 
             vector::push_back(
                 &mut res,
-                LockedDelegationResponse {
-                    metadata,
-                    validator,
-                    amount,
-                    release_time,
-                },
+                LockedDelegationResponse { metadata, validator, amount, release_time, },
             );
         };
 
