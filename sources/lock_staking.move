@@ -43,7 +43,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         validator: String,
         amount: u64,
-        remain_lock_preiod: u64,
+        release_time: u64,
     }
 
     struct StakingAccount has key {
@@ -673,7 +673,7 @@ module vip::lock_staking {
             locked_delegation.metadata,
             locked_delegation.validator,
             locked_delegation.amount,
-            locked_delegation.remain_lock_preiod,
+            locked_delegation.release_time,
         )
     }
 
@@ -861,10 +861,10 @@ module vip::lock_staking {
                     &metadata,
                     share,
                 );
-            let remain_lock_preiod =
-                if (release_time > curr_time) {
-                    release_time - curr_time
-                } else { 0 };
+            // let remain_lock_preiod =
+            //     if (release_time > curr_time) {
+            //         release_time - curr_time
+            //     } else { 0 };
 
             vector::push_back(
                 &mut res,
@@ -872,14 +872,14 @@ module vip::lock_staking {
                     metadata,
                     validator,
                     amount,
-                    remain_lock_preiod,
+                    release_time,
                 },
             );
         };
 
         res
     }
-    
+
     #[test_only]
     use initia_std::query::set_query_response;
 
