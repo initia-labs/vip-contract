@@ -5,6 +5,7 @@ module initia_std::mstaking_mock {
 
     use initia_std::primary_fungible_store;
     use initia_std::dex;
+    use initia_std::staking;
     use initia_std::address::{to_sdk, from_sdk};
     use initia_std::block;
     use initia_std::coin;
@@ -29,11 +30,17 @@ module initia_std::mstaking_mock {
         delegator_delegations: Table<DelegatorDelegationsRequest, bool>,
         unbonding_delegation: Table<UnbondingDelegationRequest, bool>,
         redelegations: Table<RedelegationsRequest, bool>,
-
+        // distributed reward
+        reward: Table<DistributedRewardKey, u64>,
         // completion time => unbonding mapping
         completion_time_to_unbonding: Table<CompletionTimeKey, UnbondingDelegationRequest>,
         // completion time => redelegation mapping
         completion_time_to_redelegations: Table<CompletionTimeKey, RedelegationsRequest>,
+    }
+
+    struct DistributedRewardKey has copy, drop {
+        delegation: DelegationRequest,
+        metadata: Object<Metadata>,
     }
 
     struct CompletionTimeKey has copy, drop {
@@ -55,6 +62,7 @@ module initia_std::mstaking_mock {
                 delegator_delegations: table::new(),
                 unbonding_delegation: table::new(),
                 redelegations: table::new(),
+                reward: table::new(),
                 completion_time_to_unbonding: table::new(),
                 completion_time_to_redelegations: table::new(),
             },
@@ -64,12 +72,14 @@ module initia_std::mstaking_mock {
     public fun delegate(
         account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64
     ) acquires TestState {
+        before_shares_modified(account, validator_addr);
         delegate_internal(account, validator_addr, metadata, amount, true);
     }
 
     public fun undelegate(
         account: &signer, validator_addr: String, metadata: Object<Metadata>, amount: u64
     ) acquires TestState {
+        before_shares_modified(account, validator_addr);
         undelegate_internal(account, validator_addr, metadata, amount, true);
     }
 
@@ -80,6 +90,8 @@ module initia_std::mstaking_mock {
         metadata: Object<Metadata>,
         amount: u64,
     ) acquires TestState {
+        before_shares_modified(account, src_validator_addr);
+        before_shares_modified(account, dst_validator_addr);
         undelegate_internal(account, src_validator_addr, metadata, amount, false);
         delegate_internal(account, dst_validator_addr, metadata, amount, false);
         let test_state = borrow_global_mut<TestState>(@initia_std);
@@ -162,6 +174,402 @@ module initia_std::mstaking_mock {
         vector::push_back(&mut redelegation_response.entries, new_entry);
 
         set_redelegations(&redelegations_req, &redelegations);
+    }
+
+    public fun withdraw_delegations_reward(
+        account: &signer, validator_addr: String, metadata: Object<Metadata>
+    ) acquires TestState {
+        let delegator = signer::address_of(account);
+        let delegator_addr = to_sdk(delegator);
+        let test_state = borrow_global_mut<TestState>(@initia_std);
+        let test_signer = object::generate_signer_for_extending(&test_state.extend_ref);
+        let key = DistributedRewardKey {
+            delegation: DelegationRequest { validator_addr, delegator_addr },
+            metadata,
+        };
+        if (!table::contains(&test_state.reward, key)) { return };
+        let amount = table::borrow_mut(&mut test_state.reward, key);
+        // for simplicity, send tokens directly from the chain when claiming rewards.
+        coin::transfer(&test_signer, delegator, metadata, *amount);
+        *amount = 0;
+
+    }
+
+    inline fun use_coin(_c: &Coin) {}
+
+    fun floor(val: &Decimal128): u64 {
+        (decimal128::val(val) / decimal128::val(&decimal128::one()) as u64)
+    }
+
+    fun slash_unbonding_delegation(
+        test_state: &TestState,
+        validator_addr: String,
+        slash_factor: Decimal128,
+        end_key: CompletionTimeKey
+    ) {
+        // iterate through unbonding delegations from slashed validator
+        let iter =
+            table::iter(
+                &test_state.completion_time_to_unbonding,
+                option::none(),
+                option::some(end_key),
+                2,
+            );
+
+        loop {
+            if (!table::prepare(iter)) { break };
+            let (_key, unbonding_delegation_req) = table::next(iter);
+            let unbonding_delegation =
+                get_unbonding_delegation(*unbonding_delegation_req).unbond;
+            let (unbonding_delegator_addr, unbonding_validator_address, unbonding_entries) =
+
+                unpack_unbonding_delegation(unbonding_delegation);
+            if (unbonding_validator_address != validator_addr) {
+                continue
+            };
+            let new_unbonding_entries = vector<UnbondingDelegationEntry>[];
+            vector::for_each_mut(
+                &mut unbonding_entries,
+                |entry| {
+                    use_unbonding_delegation_entry(entry);
+                    let initial_balance = entry.initial_balance;
+                    let new_balance = entry.balance;
+                    vector::enumerate_ref(
+                        &initial_balance,
+                        |i, initial_coin| {
+                            use_coin(initial_coin);
+                            let coin = vector::borrow_mut(&mut new_balance, i);
+                            let slashing_amount =
+                                decimal128::mul_u64(&slash_factor, initial_coin.amount);
+                            if (coin.amount > slashing_amount) {
+                                coin.amount = coin.amount - slashing_amount;
+                            }
+                        },
+                    );
+                    vector::push_back(
+                        &mut new_unbonding_entries,
+                        UnbondingDelegationEntry {
+                            creation_height: entry.creation_height,
+                            completion_time: entry.completion_time,
+                            initial_balance: entry.initial_balance,
+                            balance: new_balance,
+                            unbonding_id: entry.unbonding_id,
+                            unbonding_on_hold_ref_count: entry.unbonding_on_hold_ref_count
+                        },
+                    );
+                },
+            );
+
+            set_unbonding_delegation(
+                &UnbondingDelegationRequest {
+                    delegator_addr: unbonding_delegator_addr,
+                    validator_addr
+                },
+                &UnbondingDelegationResponse {
+                    unbond: UnbondingDelegation {
+                        delegator_address: unbonding_delegator_addr,
+                        validator_address: validator_addr,
+                        entries: new_unbonding_entries
+                    }
+                },
+            );
+
+        };
+    }
+
+    fun slash_redelegations(
+        test_state: &TestState,
+        validator_addr: String,
+        slash_factor: Decimal128,
+        end_key: CompletionTimeKey,
+    ) {
+        // iterate through redelegations from slashed source validator
+        let iter =
+            table::iter(
+                &test_state.completion_time_to_redelegations,
+                option::none(),
+                option::some(end_key),
+                2,
+            );
+
+        loop {
+            if (!table::prepare(iter)) { break };
+            let (_key, redelegation_delegation_req) = table::next(iter);
+            let redelegation_responses =
+                get_redelegations(*redelegation_delegation_req).redelegation_responses;
+            let redelegation_response = vector::borrow(&redelegation_responses, 0);
+            let redelegation_entries = redelegation_response.entries; // vector<RedelegationEntryResponse>
+            let redelegations = redelegation_response.redelegation;
+            let (delegator_addr, src_validator_addr, dst_validator_addr) =
+                unpack_redelegation_req(redelegations);
+            // slash redelegation moved from src val
+            if (src_validator_addr != validator_addr) {
+                continue
+            };
+
+            vector::for_each_ref(
+                &redelegation_entries,
+                |entry| {
+                    use_response(entry);
+                    let initial_balances = entry.redelegation_entry.initial_balance;
+                    let slashing_coins = vector<Coin>[];
+                    // calculate slash amount proportional to stake contributing to infraction
+                    vector::enumerate_ref(
+                        &initial_balances,
+                        |i, initial_balance| {
+                            use_coin(initial_balance);
+                            let slashing_amount =
+                                decimal128::mul_u64(&slash_factor, initial_balance.amount);
+                            vector::push_back(
+                                &mut slashing_coins,
+                                Coin {
+                                    denom: initial_balance.denom,
+                                    amount: slashing_amount
+                                },
+                            );
+                        },
+                    );
+                    // 1. slashing unbonding delegation entry of dst val
+                    let unbonding_entries =
+                        get_unbonding_delegation(
+                            UnbondingDelegationRequest {
+                                delegator_addr,
+                                validator_addr: dst_validator_addr
+                            },
+                        ).unbond.entries;
+
+                    let new_unbonding_entries = vector<UnbondingDelegationEntry>[];
+                    vector::for_each_ref(
+                        &unbonding_entries,
+                        |entry| {
+                            use_unbonding_delegation_entry(entry);
+                            // calc unbonding slashing coins,
+                            let unbonding_slashing_coins =
+                                min_coins(slashing_coins, entry.balance);
+                            slashing_coins = sub_coins(
+                                slashing_coins, unbonding_slashing_coins
+                            );
+                            let new_balance = sub_coins(entry.balance, slashing_coins);
+                            vector::push_back(
+                                &mut new_unbonding_entries,
+                                UnbondingDelegationEntry {
+                                    creation_height: entry.creation_height,
+                                    completion_time: entry.completion_time,
+                                    initial_balance: entry.initial_balance,
+                                    balance: new_balance,
+                                    unbonding_id: entry.unbonding_id,
+                                    unbonding_on_hold_ref_count: entry.unbonding_on_hold_ref_count
+                                },
+                            );
+                        },
+                    );
+                    // set unbonding delegation with new balance
+                    set_unbonding_delegation(
+                        &UnbondingDelegationRequest {
+                            delegator_addr,
+                            validator_addr: dst_validator_addr,
+                        },
+                        &UnbondingDelegationResponse {
+                            unbond: UnbondingDelegation {
+                                delegator_address: delegator_addr,
+                                validator_address: dst_validator_addr,
+                                entries: new_unbonding_entries
+                            }
+                        },
+                    );
+
+                    // if there are no reserved slashing coins, done
+                    // 2. slashing delegations on dst addr; reserved slashing amount
+                    if (!is_zero_coins(slashing_coins)) {
+                        let del_iter =
+                            table::iter(
+                                &test_state.delegation,
+                                option::none(),
+                                option::none(),
+                                2,
+                            );
+                        loop {
+                            if (!table::prepare(del_iter)) { break };
+                            let (delegation_req, _v) = table::next(del_iter);
+                            if (delegation_req.validator_addr != dst_validator_addr) {
+                                continue
+                            };
+                            let inner =
+                                get_delegation(delegation_req).delegation_response;
+                            let shares = inner.delegation.shares;
+                            let balances = inner.balance;
+
+                            let new_balance = vector<Coin>[];
+                            vector::enumerate_ref(
+                                &balances,
+                                |idx, balance| {
+                                    use_coin(balance);
+                                    let slashing_amount = vector::borrow(
+                                        &slashing_coins, idx
+                                    ).amount;
+                                    let new_balance_amount =
+                                        balance.amount - slashing_amount;
+                                    vector::push_back(
+                                        &mut new_balance,
+                                        Coin {
+                                            denom: balance.denom,
+                                            amount: new_balance_amount
+                                        },
+                                    );
+                                },
+                            );
+                            let new_shares = vector<DecCoin>[];
+                            // reset staking ratio of shares and amounts
+                            vector::enumerate_ref(
+                                &shares,
+                                |idx, s| {
+                                    use_dec_coin(s);
+                                    let share_amount =
+                                        decimal128::round_up_u64(&s.amount);
+                                    vector::push_back(
+                                        &mut new_shares,
+                                        DecCoin {
+                                            denom: s.denom,
+                                            amount: decimal128::from_ratio_u64(share_amount,1)
+                                        },
+                                    );
+                                    let new_balance_amount = vector::borrow(
+                                        &new_balance, idx
+                                    ).amount;
+                                    staking::set_staking_share_ratio(
+                                        *string::bytes(&validator_addr),
+                                        &coin::denom_to_metadata(s.denom),
+                                        share_amount,
+                                        new_balance_amount,
+                                    );
+                                },
+                            );
+
+                            // reset delegation with new shares and balances
+                            set_delegation(
+                                &delegation_req,
+                                &DelegationResponse {
+                                    delegation_response: DelegationResponseInner {
+                                        delegation: Delegation {
+                                            delegator_address: delegation_req.delegator_addr,
+                                            validator_address: delegation_req.validator_addr,
+                                            shares: new_shares
+                                        },
+                                        balance: new_balance,
+                                    }
+                                },
+                            )
+                        }
+                    }
+                },
+            );
+        };
+    }
+
+    fun slash_delegations(
+        test_state: &TestState,
+        validator_addr: String,
+        slash_factor: Decimal128
+    ) {
+        let iter = table::iter(
+            &test_state.delegation,
+            option::none(),
+            option::none(),
+            2,
+        );
+        loop {
+            if (!table::prepare(iter)) { break };
+            let (delegation_req, _v) = table::next(iter);
+            if (delegation_req.validator_addr != validator_addr) {
+                continue
+            };
+            let inner = get_delegation(delegation_req).delegation_response;
+            let shares = inner.delegation.shares;
+            let balances = inner.balance;
+            let new_share = vector<DecCoin>[];
+            let new_balance = vector<Coin>[];
+            vector::for_each_ref(
+                &balances,
+                |balance| {
+                    use_coin(balance);
+                    let slashing_amount =
+                        decimal128::mul_u64(&slash_factor, balance.amount);
+                    let reserve = balance.amount - slashing_amount;
+                    vector::push_back(
+                        &mut new_balance,
+                        Coin { denom: balance.denom, amount: reserve },
+                    );
+                },
+            );
+            // reset staking ratio of shares and amounts
+            vector::enumerate_ref(
+                &shares,
+                |idx, s| {
+                    use_dec_coin(s);
+                    let share_amount = decimal128::round_up_u64(&s.amount);
+                    vector::push_back(
+                        &mut new_share,
+                        DecCoin {
+                            denom: s.denom,
+                            amount: decimal128::from_ratio_u64(share_amount,1)
+                        },
+                    );
+                    let reserve_amount = vector::borrow(&new_balance, idx).amount;
+                    staking::set_staking_share_ratio(
+                        *string::bytes(&validator_addr),
+                        &coin::denom_to_metadata(s.denom),
+                        share_amount,
+                        reserve_amount,
+                    );
+                },
+            );
+
+            // reset delegation
+            set_delegation(
+                &delegation_req,
+                &DelegationResponse {
+                    delegation_response: DelegationResponseInner {
+                        delegation: Delegation {
+                            delegator_address: delegation_req.delegator_addr,
+                            validator_address: delegation_req.validator_addr,
+                            shares: new_share
+                        },
+                        balance: new_balance,
+                    }
+                },
+            )
+        }
+    }
+
+    public fun slash(
+        validator_addr: String, slash_factor: Decimal128, infraction_time: u64
+    ) acquires TestState {
+        let (_, timestamp) = block::get_block_info();
+        assert!(timestamp >= infraction_time, 1);
+        let end_key = CompletionTimeKey {
+            completion_time: encode_u64(infraction_time + 1),
+            unbonding_id: encode_u64(0),
+        };
+        let test_state = borrow_global<TestState>(@initia_std);
+        slash_unbonding_delegation(
+            test_state,
+            validator_addr,
+            slash_factor,
+            end_key
+        );
+
+        slash_redelegations(
+            test_state,
+            validator_addr,
+            slash_factor,
+            end_key
+        );
+
+        slash_delegations(
+            test_state,
+            validator_addr,
+            slash_factor
+        );
     }
 
     public fun clear_completed_entries() acquires TestState {
@@ -347,7 +755,7 @@ module initia_std::mstaking_mock {
             &mut delegation.delegation_response.balance, balance_index
         );
         balance.amount = balance.amount + amount;
-
+        let new_amount = balance.amount;
         // update share
         let (found, share_index) = vector::find(
             &delegation.delegation_response.delegation.shares,
@@ -369,9 +777,23 @@ module initia_std::mstaking_mock {
             &mut delegation.delegation_response.delegation.shares, share_index
         );
         share.amount = decimal128::add(
-            &share.amount, &decimal128::from_ratio_u64(amount, 1)
-        ); // TODO: support slashing cases
+            &share.amount,
+            &decimal128::from_ratio_u64(
+                staking::amount_to_share(
+                    *string::bytes(&validator_addr),
+                    &metadata,
+                    amount,
+                ), 1
+            ),
+        );
 
+        // set staking ratio
+        staking::set_staking_share_ratio(
+            *string::bytes(&validator_addr),
+            &metadata,
+            decimal128::round_up_u64(&share.amount),
+            new_amount,
+        );
         // set delegation
         set_delegation(&delegation_req, &delegation);
 
@@ -451,8 +873,9 @@ module initia_std::mstaking_mock {
         let balance = vector::borrow_mut(
             &mut delegation.delegation_response.balance, balance_index
         );
-        balance.amount = balance.amount - amount;
-        if (balance.amount == 0) {
+        let new_amount = balance.amount - amount;
+        balance.amount = new_amount;
+        if (new_amount == 0) {
             vector::remove(&mut delegation.delegation_response.balance, balance_index);
         };
 
@@ -469,8 +892,33 @@ module initia_std::mstaking_mock {
             &mut delegation.delegation_response.delegation.shares, share_index
         );
         share.amount = decimal128::sub(
-            &share.amount, &decimal128::from_ratio_u64(amount, 1)
-        ); // TODO: support slashing cases
+            &share.amount,
+            &decimal128::from_ratio_u64(
+                staking::amount_to_share(
+                    *string::bytes(&validator_addr),
+                    &metadata,
+                    amount,
+                ),
+                1
+            ),
+        );
+        if (new_amount == 0) {
+            staking::set_staking_share_ratio(
+                *string::bytes(&validator_addr),
+                &metadata,
+                1,
+                1,
+            );
+        } else {
+            staking::set_staking_share_ratio(
+                *string::bytes(&validator_addr),
+                &metadata,
+                decimal128::round_up_u64(&share.amount),
+                new_amount,
+            );
+        };
+        
+
         if (share.amount == decimal128::zero()) {
             vector::remove<DecCoin>(
                 &mut delegation.delegation_response.delegation.shares, share_index
@@ -523,6 +971,7 @@ module initia_std::mstaking_mock {
                 &mut test_state.delegator_delegations, delegator_delegations_req
             );
             unset_delegator_delegations(&delegator_delegations_req);
+
         } else {
             // set delegator delegations
             set_delegator_delegations(&delegator_delegations_req, &delegator_delegations);
@@ -795,15 +1244,106 @@ module initia_std::mstaking_mock {
         amount: u64,
     }
 
+    fun min_coins(a: vector<Coin>, b: vector<Coin>): vector<Coin> {
+        let results = vector<Coin>[];
+        vector::for_each_ref(
+            &a,
+            |a_c| {
+                use_coin(a_c);
+                let (find, idx) = vector::find(
+                    &b,
+                    |b_c| {
+                        use_coin(b_c);
+                        b_c.denom == a_c.denom
+                    },
+                );
+                let amount =
+                    if (find) {
+                        let b_c = vector::borrow(&b, idx);
+                        let _amount =
+                            if (a_c.amount > b_c.amount) {
+                                b_c.amount
+                            } else {
+                                a_c.amount
+                            };
+                        _amount
+                    } else { 0 };
+                vector::push_back(
+                    &mut results,
+                    Coin { denom: a_c.denom, amount, },
+                );
+            },
+        );
+        results
+    }
+
+    // a - b
+    // always a_c.amount > b_c.amount, otherwise make error
+    fun sub_coins(a: vector<Coin>, b: vector<Coin>): vector<Coin> {
+        let results = vector<Coin>[];
+        vector::for_each_ref(
+            &a,
+            |a_c| {
+                use_coin(a_c);
+                let (find, idx) = vector::find(
+                    &b,
+                    |b_c| {
+                        use_coin(b_c);
+                        b_c.denom == a_c.denom
+                    },
+                );
+                let amount =
+                    if (find) {
+                        let b_c = vector::borrow(&b, idx);
+                        a_c.amount - b_c.amount
+                    } else {
+                        a_c.amount
+                    };
+                vector::push_back(
+                    &mut results,
+                    Coin { denom: a_c.denom, amount, },
+                );
+            },
+        );
+        results
+    }
+
+    fun is_zero_coins(coins: vector<Coin>): bool {
+
+        let is_zero = true;
+        vector::for_each_ref(
+            &coins,
+            |c| {
+                use_coin(c);
+                if (c.amount != 0) {
+                    is_zero = false
+                }
+            },
+        );
+        is_zero
+    }
+
     struct DecCoin has copy, drop, store {
         denom: String,
         amount: Decimal128,
     }
 
+    inline fun use_dec_coin(_V: &DecCoin) {}
+
     struct UnbondingDelegation has copy, drop, store {
         delegator_address: String,
         validator_address: String,
         entries: vector<UnbondingDelegationEntry>
+    }
+
+    fun unpack_unbonding_delegation(
+        unbonding_delegation: UnbondingDelegation
+    ): (String, String, vector<UnbondingDelegationEntry>) {
+        (
+            unbonding_delegation.delegator_address,
+            unbonding_delegation.validator_address,
+            unbonding_delegation.entries
+        )
     }
 
     struct UnbondingDelegationEntry has copy, drop, store {
@@ -813,6 +1353,15 @@ module initia_std::mstaking_mock {
         balance: vector<Coin>,
         unbonding_id: u64,
         unbonding_on_hold_ref_count: u64,
+    }
+
+    inline fun use_unbonding_delegation_entry(
+        _entry: &UnbondingDelegationEntry
+    ) {}
+
+    struct RedelegationEntryResponse has copy, drop, store {
+        redelegation_entry: RedelegationEntry,
+        balance: vector<Coin>,
     }
 
     struct RedelegationResponse has copy, drop, store {
@@ -827,6 +1376,14 @@ module initia_std::mstaking_mock {
         entries: Option<vector<RedelegationEntry>>, // Always None for query response
     }
 
+    fun unpack_redelegation_req(redelegation: Redelegation): (String, String, String) {
+        (
+            redelegation.delegator_address,
+            redelegation.validator_src_address,
+            redelegation.validator_dst_address
+        )
+    }
+
     struct RedelegationEntry has copy, drop, store {
         creation_height: u32,
         completion_time: String,
@@ -835,9 +1392,33 @@ module initia_std::mstaking_mock {
         unbonding_id: u32,
     }
 
-    struct RedelegationEntryResponse has copy, drop, store {
-        redelegation_entry: RedelegationEntry,
-        balance: vector<Coin>,
+    inline fun use_response(_response: &RedelegationEntryResponse) {}
+
+    public fun set_reward(
+        delegator_addr: String,
+        validator_addr: String,
+        metadata: Object<Metadata>,
+        amount: u64
+    ) acquires TestState {
+        let test_state = borrow_global_mut<TestState>(@initia_std);
+        table::upsert(
+            &mut test_state.reward,
+            DistributedRewardKey {
+                delegation: DelegationRequest { validator_addr, delegator_addr, },
+                metadata
+            },
+            amount,
+        );
+    }
+
+    // cosmos hook
+    // calc reward before delegation shares modified
+    fun before_shares_modified(
+        account: &signer, // delegator
+        validator_addr: String
+    ) acquires TestState {
+        // mock up function supports only lp(USDC-INIT)
+        withdraw_delegations_reward(account, validator_addr, get_lp_metadata());
     }
 
     fun increase_block(height_diff: u64, time_diff: u64) {
@@ -921,10 +1502,6 @@ module initia_std::mstaking_mock {
         1000
     }
 
-    fun decimal18(): u128 {
-        1_000_000_000_000_000_000
-    }
-
     fun initialize(chain: &signer) {
         init_module(chain, get_unbonding_period());
         primary_fungible_store::init_module_for_test();
@@ -948,6 +1525,19 @@ module initia_std::mstaking_mock {
             1000000,
             1000000,
         );
+        // set staking ratio of val1, val2
+        staking::set_staking_share_ratio(
+            *string::bytes(&get_validator1()),
+            &get_lp_metadata(),
+            1000_000,
+            1000_000
+        );
+        staking::set_staking_share_ratio(
+            *string::bytes(&get_validator2()),
+            &get_lp_metadata(),
+            1000_000,
+            1000_000
+        );
     }
 
     // increase timestamp
@@ -964,12 +1554,26 @@ module initia_std::mstaking_mock {
         // mock lp providing
         coin::transfer(chain, signer::address_of(delegator1), metadata, delegating_amount);
         coin::transfer(
-            chain, signer::address_of(delegator2), metadata, 2 * delegating_amount
+            chain,
+            signer::address_of(delegator2),
+            metadata,
+            2 * delegating_amount,
         );
 
         // delegator1,2 delegate
         delegate(delegator1, get_validator1(), get_lp_metadata(), delegating_amount);
         delegate(delegator2, get_validator1(), get_lp_metadata(), 2 * delegating_amount);
+        // check staking ratio
+        let share1 =
+            staking::amount_to_share(
+                *string::bytes(&get_validator1()), &metadata, delegating_amount
+            );
+        let share2 =
+            staking::amount_to_share(
+                *string::bytes(&get_validator1()), &metadata, 2 * delegating_amount
+            );
+        assert!(share1 == delegating_amount, 1);
+        assert!(share2 == 2 * delegating_amount, 2);
 
         let response1 =
             get_delegation(
@@ -1000,7 +1604,7 @@ module initia_std::mstaking_mock {
                             }]
                     }
                 },
-            1,
+            3,
         );
         let response2 =
             get_delegation(
@@ -1031,7 +1635,7 @@ module initia_std::mstaking_mock {
                             }]
                     }
                 },
-            2,
+            4,
         );
     }
 
@@ -1045,7 +1649,12 @@ module initia_std::mstaking_mock {
 
         // delegate
         delegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount);
-
+        // check staking ratio
+        let share1 =
+            staking::amount_to_share(
+                *string::bytes(&get_validator1()), &metadata, delegating_amount
+            );
+        assert!(share1 == delegating_amount, 1);
         let response =
             get_delegation(
                 DelegationRequest {
@@ -1078,14 +1687,32 @@ module initia_std::mstaking_mock {
             1,
         );
         // undelegate
-        undelegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount);
-
+        undelegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount / 2);
+        share1 =
+            staking::amount_to_share(
+                *string::bytes(&get_validator1()), &metadata, 0
+            );
+        assert!(share1 == 0, 1);
+        response = get_delegation(
+            DelegationRequest {
+                validator_addr: get_validator1(),
+                delegator_addr: to_sdk(signer::address_of(delegator))
+            },
+        ); 
+        std::debug::print(&response);
+        undelegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount / 2);
+        share1 =
+            staking::amount_to_share(
+                *string::bytes(&get_validator1()), &metadata, 0
+            );
+        assert!(share1 == 0, 1);
         response = get_delegation(
             DelegationRequest {
                 validator_addr: get_validator1(),
                 delegator_addr: to_sdk(signer::address_of(delegator))
             },
         );
+        std::debug::print(&response);
         assert!(response == get_none_delegation_response(), 2);
 
         // check unbonding_delegation state
@@ -1109,11 +1736,11 @@ module initia_std::mstaking_mock {
                                 completion_time: string::utf8(b""),
                                 initial_balance: vector[Coin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: 1000
+                                        amount: delegating_amount
                                     }],
                                 balance: vector[Coin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: 1000
+                                        amount: delegating_amount
                                     }],
                                 unbonding_id: 1,
                                 unbonding_on_hold_ref_count: 0
@@ -1281,10 +1908,16 @@ module initia_std::mstaking_mock {
         let metadata = get_lp_metadata();
         // mock lp providing
         coin::transfer(
-            chain, signer::address_of(delegator1), metadata, 3 * delegating_amount
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            3 * delegating_amount,
         );
         coin::transfer(
-            chain, signer::address_of(delegator2), metadata, 3 * delegating_amount
+            chain,
+            signer::address_of(delegator2),
+            metadata,
+            3 * delegating_amount,
         );
 
         // delegator 1,2 delegate to val1 and val2
