@@ -846,7 +846,6 @@ module vip::lock_staking {
             );
 
         let res = vector[];
-        let (_, curr_time) = block::get_block_info();
 
         loop {
             if (!table::prepare<DelegationKey, LockedDelegation>(iter)) { break };
@@ -864,12 +863,7 @@ module vip::lock_staking {
 
             vector::push_back(
                 &mut res,
-                LockedDelegationResponse {
-                    metadata,
-                    validator,
-                    amount,
-                    release_time,
-                },
+                LockedDelegationResponse { metadata, validator, amount, release_time, },
             );
         };
 
