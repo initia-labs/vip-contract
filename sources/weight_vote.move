@@ -641,7 +641,11 @@ module vip::weight_vote {
         );
         let proposal = table::borrow(&module_store.proposals, cycle_key);
         let WeightVote { max_voting_power, voting_power, weights } =
-            table::borrow(&proposal.votes, user);
+            table::borrow_with_default(&proposal.votes, user, &WeightVote{
+                max_voting_power: 0,
+                voting_power: 0,
+                weights: vector[],
+            });
 
         WeightVoteResponse {
             max_voting_power: *max_voting_power,

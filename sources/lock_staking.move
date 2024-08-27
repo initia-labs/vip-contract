@@ -43,7 +43,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         validator: String,
         amount: u64,
-        remain_lock_preiod: u64,
+        release_time: u64,
     }
 
     struct StakingAccount has key {
@@ -666,62 +666,6 @@ module vip::lock_staking {
         exists<StakingAccount>(staking_account_addr)
     }
 
-    public fun get_staking_address(addr: address): address {
-        object::create_object_address(
-            &addr,
-            generate_staking_account_seed(copy addr),
-        )
-    }
-
-    public fun get_locked_delegations(addr: address): vector<LockedDelegationResponse> acquires StakingAccount {
-        let staking_account_addr = get_staking_address(addr);
-        if (!exists<StakingAccount>(staking_account_addr)) {
-            return vector[]
-        };
-        let staking_account = borrow_global<StakingAccount>(staking_account_addr);
-        let iter =
-            table::iter(
-                &staking_account.delegations,
-                option::none(),
-                option::none(),
-                1,
-            );
-
-        let res = vector[];
-        let (_, curr_time) = block::get_block_info();
-
-        loop {
-            if (!table::prepare<DelegationKey, LockedDelegation>(iter)) { break };
-            let (key, delegation) = table::next<DelegationKey, LockedDelegation>(iter);
-            let metadata = delegation.metadata;
-            let share = floor(&delegation.share);
-            let validator = delegation.validator;
-            let release_time = table_key::decode_u64(key.release_time);
-            let amount =
-                staking::share_to_amount(
-                    *string::bytes(&delegation.validator),
-                    &metadata,
-                    share,
-                );
-            let remain_lock_preiod =
-                if (release_time > curr_time) {
-                    release_time - curr_time
-                } else { 0 };
-
-            vector::push_back(
-                &mut res,
-                LockedDelegationResponse {
-                    metadata,
-                    validator,
-                    amount,
-                    remain_lock_preiod,
-                },
-            );
-        };
-
-        res
-    }
-
     public fun unpack_locked_delegation(
         locked_delegation: &LockedDelegationResponse
     ): (Object<Metadata>, String, u64, u64) {
@@ -729,7 +673,7 @@ module vip::lock_staking {
             locked_delegation.metadata,
             locked_delegation.validator,
             locked_delegation.amount,
-            locked_delegation.remain_lock_preiod,
+            locked_delegation.release_time,
         )
     }
 
@@ -876,6 +820,60 @@ module vip::lock_staking {
                 to_bytes(&coin::metadata(@initia_std, string::utf8(b"uinit"))),
                 to_bytes(&option::none<u64>()),],
         )
+    }
+
+    #[view]
+    public fun get_staking_address(addr: address): address {
+        object::create_object_address(
+            &addr,
+            generate_staking_account_seed(copy addr),
+        )
+    }
+
+    #[view]
+    public fun get_locked_delegations(addr: address): vector<LockedDelegationResponse> acquires StakingAccount {
+        let staking_account_addr = get_staking_address(addr);
+        if (!exists<StakingAccount>(staking_account_addr)) {
+            return vector[]
+        };
+        let staking_account = borrow_global<StakingAccount>(staking_account_addr);
+        let iter =
+            table::iter(
+                &staking_account.delegations,
+                option::none(),
+                option::none(),
+                1,
+            );
+
+        let res = vector[];
+        let (_, curr_time) = block::get_block_info();
+
+        loop {
+            if (!table::prepare<DelegationKey, LockedDelegation>(iter)) { break };
+            let (key, delegation) = table::next<DelegationKey, LockedDelegation>(iter);
+            let metadata = delegation.metadata;
+            let share = floor(&delegation.share);
+            let validator = delegation.validator;
+            let release_time = table_key::decode_u64(key.release_time);
+            let amount =
+                staking::share_to_amount(
+                    *string::bytes(&delegation.validator),
+                    &metadata,
+                    share,
+                );
+
+            vector::push_back(
+                &mut res,
+                LockedDelegationResponse {
+                    metadata,
+                    validator,
+                    amount,
+                    release_time,
+                },
+            );
+        };
+
+        res
     }
 
     #[test_only]
