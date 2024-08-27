@@ -635,10 +635,13 @@ module vip::weight_vote {
     public fun get_weight_vote(cycle: u64, user: address): WeightVoteResponse acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
-        assert!(
-            table::contains(&module_store.proposals, cycle_key),
-            error::not_found(ECYCLE_NOT_FOUND),
-        );
+        if(!table::contains(&module_store.proposals, cycle_key)) {
+            return WeightVoteResponse {
+                max_voting_power: 0,
+                voting_power:0,
+                weights: vector[]
+            };
+        };
         let proposal = table::borrow(&module_store.proposals, cycle_key);
         let WeightVote { max_voting_power, voting_power, weights } =
             table::borrow_with_default(&proposal.votes, user, &WeightVote{
