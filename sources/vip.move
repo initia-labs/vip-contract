@@ -614,8 +614,8 @@ module vip::vip {
                         stage,
                         bridge_id: *bridge_id,
                         version,
-                        user_reward_amount: total_user_funded_reward,
-                        operator_reward_amount: total_operator_funded_reward
+                        user_reward_amount: user_funded_reward,
+                        operator_reward_amount: operator_funded_reward
                     },
                 );
                 // record the distributed reward
@@ -623,8 +623,8 @@ module vip::vip {
                     *bridge_id,
                     version,
                     stage,
-                    total_user_funded_reward,
-                    total_operator_funded_reward,
+                    user_funded_reward,
+                    operator_funded_reward,
                 );
             },
         );
