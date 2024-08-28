@@ -4430,7 +4430,7 @@ module vip::vip {
         let lock_period = 60 * 60 * 24; // 1 day
 
         skip_period(100);
-        update_minimun_lock_staking_period(chain, lock_period);
+        update_minimun_lock_staking_period(vip, lock_period);
         let esinit_amount =
             vesting::get_user_vesting_remaining(
                 signer::address_of(receiver),

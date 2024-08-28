@@ -890,7 +890,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xC001d, location = vip)]
+    #[expected_failure(abort_code = 0xC001f, location = vip)]
     fun fail_lock_stake_vesting_position_without_claim(
         chain: &signer,
         vip: &signer,
