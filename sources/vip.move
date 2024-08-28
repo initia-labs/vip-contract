@@ -17,6 +17,7 @@ module vip::vip {
     use initia_std::decimal256::{Self, Decimal256};
     use initia_std::simple_map::{Self, SimpleMap};
     use initia_std::bcs;
+    use initia_std::dex;
     use vip::utils;
     use vip::operator;
     use vip::vesting::{Self, UserVestingClaimInfo, OperatorVestingClaimInfo};
@@ -906,28 +907,24 @@ module vip::vip {
     fun check_lock_stakable(
         account_addr: address, bridge_id: u64, version: u64, stage: u64
     ) acquires ModuleStore {
-        // check if it is already finalized, make the error
+        // check if it is already finalized
         assert!(
             vesting::is_user_vesting_position_exists(
                 account_addr, bridge_id, version, stage
             ),
             error::invalid_state(EALREADY_FINALIZED),
         );
-        // check the last claimed stage >= submitted_stage
-        // it means there can be claimable reward not to be lock staked
+
+        // check if there is claimable reward remaining
         let last_claimed_stage =
             vesting::get_user_last_claimed_stage(account_addr, bridge_id, version);
         let last_submitted_stage = get_last_submitted_stage(bridge_id, version);
         let module_store = borrow_global<ModuleStore>(@vip);
-        let can_lock_stake =
-            if (last_claimed_stage >= last_submitted_stage) { true }
-            else {
-                // check is there any claimable reward not on challenge period
-                let check_stage = last_claimed_stage + 1;
-                !is_after_challenge_period(module_store, bridge_id, version, check_stage)
-            };
+        let has_claimable_reward = 
+            last_claimed_stage < last_submitted_stage && 
+            is_after_challenge_period(module_store, bridge_id, version, last_claimed_stage + 1);
         assert!(
-            can_lock_stake,
+            !has_claimable_reward,
             error::not_implemented(ECLAIMABLE_REWARD_CAN_BE_EXIST),
         );
     }
@@ -2195,9 +2192,6 @@ module vip::vip {
     //
     #[test_only]
     use initia_std::coin::{BurnCapability, FreezeCapability, MintCapability};
-
-    #[test_only]
-    use initia_std::dex;
 
     #[test_only]
     use initia_std::staking;
