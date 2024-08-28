@@ -54,12 +54,20 @@ module vip::test {
         1
     }
 
+    fun get_bridge2_id(): u64 {
+        2
+    }
+
     fun get_version(): u64 {
         1
     }
 
     fun get_bridge_address(): address {
         @0x99
+    }
+
+    fun get_bridge2_address(): address {
+        @0x98
     }
 
     fun get_stage(): u64 {
@@ -130,7 +138,7 @@ module vip::test {
     }
 
     // only do fund reward not
-    fun only_fund_reward(
+    fun fund_reward(
         agent: &signer,
         stages: &mut vector<u64>,
         merkle_proofs: &mut vector<vector<vector<u8>>>,
@@ -145,9 +153,36 @@ module vip::test {
         vector::push_back(merkle_proofs, vector[vector[]]);
         vector::push_back(l2_scores, 0);
     }
-
+    fun submit_snapshot( 
+        agent: &signer,
+        bridge_id: u64,
+        user: address,
+        l2_score: u64,
+        total_l2_score: u64,
+        stages: &mut vector<u64>,
+        merkle_proofs: &mut vector<vector<vector<u8>>>,
+        l2_scores: &mut vector<u64>
+    ) acquires TestState {
+        let test_state = borrow_global_mut<TestState>(@vip);
+        let stage = test_state.last_submitted_stage;
+        let (merkle_root, merkle_proof) =
+            get_merkle_root_and_proof(
+                stage, user, l2_score, total_l2_score
+            );
+        vip::submit_snapshot(
+            agent,
+            bridge_id,
+            stage,
+            merkle_root,
+            total_l2_score,
+        );
+        vector::push_back(stages, stage);
+        vector::push_back(merkle_proofs, merkle_proof);
+        vector::push_back(l2_scores, l2_score);
+    }
     fun submit_snapshot_and_fund_reward(
         agent: &signer,
+        bridge_id: u64,
         user: address,
         l2_score: u64,
         total_l2_score: u64,
@@ -165,7 +200,7 @@ module vip::test {
             );
         vip::submit_snapshot(
             agent,
-            get_bridge_id(),
+            bridge_id,
             stage,
             merkle_root,
             total_l2_score,
@@ -266,12 +301,21 @@ module vip::test {
         );
         vault::deposit(chain, 9_000_000_000_000_000);
         vault::update_reward_per_stage(vip, 100_000_000);
+
         coin::transfer(
             chain,
             get_bridge_address(),
             init_metadata,
-            1,
+            100_000_000,
         );
+
+        coin::transfer(
+            chain,
+            get_bridge2_address(),
+            init_metadata,
+            100_000_000,
+        );
+
         vip::register(
             vip,
             signer::address_of(operator),
@@ -284,10 +328,22 @@ module vip::test {
             get_vm_type(),
         );
 
-        vip::update_vip_weight(
+        vip::register(
             vip,
-            get_bridge_id(),
-            decimal256::one(),
+            signer::address_of(operator),
+            get_bridge2_id(),
+            get_bridge2_address(),
+            string::utf8(b"contract"),
+            decimal256::from_ratio(1, 2),
+            decimal256::from_ratio(1, 2),
+            decimal256::from_ratio(1, 2),
+            get_vm_type(),
+        );
+
+        vip::update_vip_weights(
+            vip,
+            vector[get_bridge_id(),get_bridge2_id()],
+            vector[decimal256::from_ratio_u64(1,2),decimal256::from_ratio_u64(1,2)],
         );
         move_to(vip, TestState { last_submitted_stage: 0 });
         dex::create_pair_script(
@@ -400,6 +456,7 @@ module vip::test {
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             user_addr,
             10,
             100,
@@ -409,6 +466,7 @@ module vip::test {
         );
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             user_addr,
             20,
             100,
@@ -418,6 +476,7 @@ module vip::test {
         );
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             user_addr,
             0,
             100,
@@ -427,6 +486,7 @@ module vip::test {
         );
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             user_addr,
             40,
             100,
@@ -445,6 +505,7 @@ module vip::test {
         (stages, merkle_proofs, l2_scores) = reset_claim_args();
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             user_addr,
             40,
             100,
@@ -495,6 +556,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -506,6 +568,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -517,6 +580,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -528,6 +592,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -581,6 +646,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -592,6 +658,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -603,6 +670,7 @@ module vip::test {
         // total score: 1000, receiver's score : 0
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             0,
             1000,
@@ -664,6 +732,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -675,6 +744,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -686,6 +756,7 @@ module vip::test {
         // total score: 0, receiver's score : 0
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             0,
             0,
@@ -698,6 +769,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -754,6 +826,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -766,6 +839,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -829,6 +903,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -910,6 +985,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -932,6 +1008,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1013,22 +1090,12 @@ module vip::test {
             usdc_metadata(),
             100_000_000,
         );
-        vip::register(
-            vip,
-            signer::address_of(operator),
-            2, // bridge_id
-            get_bridge_address(),
-            string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            get_vm_type(),
-        );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1040,6 +1107,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1061,7 +1129,7 @@ module vip::test {
         );
 
         // stage3 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -1084,7 +1152,7 @@ module vip::test {
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 5, 1);
 
         // stage4 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -1095,6 +1163,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1123,7 +1192,6 @@ module vip::test {
         );
         let vesting1_initial_reward =
             vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 1);
-
         let vault_balance_after = vault::balance();
 
         // stage 1 vested reward(stage 2)
@@ -1182,22 +1250,12 @@ module vip::test {
     ) acquires TestState {
         initialize(chain, vip, operator);
         let receiver_addr = signer::address_of(receiver);
-        vip::register(
-            vip,
-            signer::address_of(operator),
-            2, // bridge_id
-            get_bridge_address(),
-            string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            get_vm_type(),
-        );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1209,6 +1267,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1219,7 +1278,7 @@ module vip::test {
         // deregister bridge
         vip::deregister(vip, get_bridge_id());
         // stage3 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -1259,6 +1318,7 @@ module vip::test {
         // stage 1 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             20,
             100,
@@ -1269,6 +1329,7 @@ module vip::test {
         // stage 2 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             20,
             100,
@@ -1330,6 +1391,7 @@ module vip::test {
         // stage 3 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             5,
             100,
@@ -1395,6 +1457,7 @@ module vip::test {
         // stage 1 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             10,
             100,
@@ -1405,6 +1468,7 @@ module vip::test {
         // stage 2 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             20,
             100,
@@ -1457,6 +1521,7 @@ module vip::test {
         // stage 3 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             40,
             100,
@@ -1488,6 +1553,7 @@ module vip::test {
         // stage 4 distributed
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             40,
             100,
@@ -1534,6 +1600,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1594,23 +1661,13 @@ module vip::test {
             usdc_metadata(),
             1_000_000_00,
         );
-        vip::register(
-            vip,
-            signer::address_of(operator),
-            2, // bridge_id
-            get_bridge_address(),
-            string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            get_vm_type(),
-        );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
 
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1650,6 +1707,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1669,7 +1727,7 @@ module vip::test {
         // deregister bridge
         vip::deregister(vip, get_bridge_id());
         // stage3 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -1688,7 +1746,7 @@ module vip::test {
             get_vm_type(),
         );
         // stage4 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -1699,6 +1757,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1755,6 +1814,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1766,6 +1826,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1777,6 +1838,7 @@ module vip::test {
         // total score: 1000, receiver's score : 200
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             200,
             1000,
@@ -1789,6 +1851,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1874,6 +1937,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1885,6 +1949,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1896,6 +1961,7 @@ module vip::test {
         // total score: 1000, receiver's score : 200
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             200,
             1000,
@@ -1947,24 +2013,13 @@ module vip::test {
         let receiver_addr = signer::address_of(receiver);
         let operator_addr = signer::address_of(operator);
         let vesting_period = get_vesting_period();
-        // register the other bridge
-        vip::register(
-            vip,
-            signer::address_of(operator),
-            2, // bridge_id
-            get_bridge_address(),
-            string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            get_vm_type(),
-        );
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 1, 1);
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -1976,6 +2031,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -1987,7 +2043,7 @@ module vip::test {
         // deregister bridge
         vip::deregister(vip, get_bridge_id());
         // stage3 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -2007,7 +2063,7 @@ module vip::test {
         );
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 5, 1);
         // stage4 distributed
-        only_fund_reward(
+        fund_reward(
             vip,
             &mut stages,
             &mut merkle_proofs,
@@ -2018,6 +2074,7 @@ module vip::test {
         // total score: 1000, receiver's score : 100
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -2075,6 +2132,7 @@ module vip::test {
         // stage 1 snapshot submitted
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             100,
             1000,
@@ -2086,6 +2144,7 @@ module vip::test {
         // total score: 1000, receiver's score : 500
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             500,
             1000,
@@ -2110,6 +2169,7 @@ module vip::test {
         // total score: 1000, receiver's score : 200
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             200,
             1000,
@@ -2122,6 +2182,7 @@ module vip::test {
         // total score: 1000, receiver's score : 200
         submit_snapshot_and_fund_reward(
             vip,
+            get_bridge_id(),
             receiver_addr,
             200,
             1000,
@@ -2171,5 +2232,143 @@ module vip::test {
                     + vesting3_initial_reward / get_vesting_period(),
             3,
         );
+    }
+
+
+    #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun e2e_bridge_reward(
+        chain: &signer,
+        vip: &signer,
+        operator: &signer,
+        receiver: &signer,
+    ) acquires TestState {
+        // stage 1 distributed 
+        initialize(chain, vip, operator);
+        let receiver_addr = signer::address_of(receiver);
+        coin::transfer(
+            chain,
+            receiver_addr,
+            usdc_metadata(),
+            100_000_000
+        );
+        let (bridge1_stages, bridge1_merkle_proofs, bridge1_l2_scores) = reset_claim_args();
+        let (bridge2_stages, bridge2_merkle_proofs, bridge2_l2_scores) = reset_claim_args();
+        // submit snapshot of stage 1(bridge id: 1, 2); total score: 1000, receiver's score : 100
+        // stage 1 snapshot submitted. stage 2 distributed
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            receiver_addr,
+            100,
+            1000,
+            &mut bridge1_stages,
+            &mut bridge1_merkle_proofs,
+            &mut bridge1_l2_scores, 
+        );
+        submit_snapshot(
+            vip,
+            get_bridge2_id(),
+            receiver_addr,
+            100,
+            1000,
+            &mut bridge2_stages,
+            &mut bridge2_merkle_proofs,
+            &mut bridge2_l2_scores,
+        );
+        let user_distributed_reward1 = reward::get_user_distrubuted_reward(get_bridge_id(), get_version(), 2);
+        let user_distributed_reward2 = reward::get_user_distrubuted_reward(get_bridge2_id(), get_version(), 2);
+        let operator_distributed_reward1 = reward::get_operator_distrubuted_reward(get_bridge_id(), get_version(), 2);
+        let operator_distributed_reward2 = reward::get_operator_distrubuted_reward(get_bridge2_id(), get_version(), 2);
+        // same weight and same tvl 
+        assert!(user_distributed_reward1 == user_distributed_reward2 , 1);
+        assert!(operator_distributed_reward1 == operator_distributed_reward2 , 1);
+        // stage 2
+        // weight 0.6 : 0.4
+        // total score: 1000, receiver's score : 500
+        // total score: 1000, receiver's score : 250
+        vip::update_vip_weights(
+            chain,
+            vector[get_bridge_id(), get_bridge2_id()],
+            vector[decimal256::from_ratio_u64(3,5),decimal256::from_ratio_u64(2,5)]
+        );
+
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            receiver_addr,
+            500,
+            1000,
+            &mut bridge1_stages,
+            &mut bridge1_merkle_proofs,
+            &mut bridge1_l2_scores,
+        );
+
+        submit_snapshot(
+            vip,
+            get_bridge2_id(),
+            receiver_addr,
+            100,
+            1000,
+            &mut bridge2_stages,
+            &mut bridge2_merkle_proofs,
+            &mut bridge2_l2_scores,
+        );
+        // weight 0.6 / 0.4
+        // max weight: 0.5 
+        // if total reward is 100
+        // weight pool reward (50) (bridge 1) : (bridge 2) = 25 : 20, 5 -> return to vault
+        // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
+        // total pool reward (bridge 1) : (bridge 2) =  50 : 45
+        // reward1: reward2 = 25: 22.5 
+        user_distributed_reward1 = reward::get_user_distrubuted_reward(get_bridge_id(), get_version(), 3);
+        user_distributed_reward2 = reward::get_user_distrubuted_reward(get_bridge2_id(), get_version(), 3);
+        operator_distributed_reward1 = reward::get_operator_distrubuted_reward(get_bridge_id(), get_version(), 3);
+        operator_distributed_reward2 = reward::get_operator_distrubuted_reward(get_bridge2_id(), get_version(), 3);
+        assert!(user_distributed_reward1 * 45 == user_distributed_reward2 * 50, 2);
+        assert!(operator_distributed_reward1 * 45 == operator_distributed_reward2 * 50, 2);
+
+        // stage3
+        // total score: 1000, receiver's score : 200
+        // total score: 1000, receiver's score : 400
+        vip::update_vip_weights(
+            chain,
+            vector[get_bridge_id(), get_bridge2_id()],
+            vector[decimal256::from_ratio_u64(3,10),decimal256::from_ratio_u64(7,10)]
+        );
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            receiver_addr,
+            200,
+            1000,
+            &mut bridge1_stages,
+            &mut bridge1_merkle_proofs,
+            &mut bridge1_l2_scores,
+        );
+
+        submit_snapshot(
+            vip,
+            get_bridge2_id(),
+            receiver_addr,
+            400,
+            1000,
+            &mut bridge2_stages,
+            &mut bridge2_merkle_proofs,
+            &mut bridge2_l2_scores,
+        );
+
+        // weight 0.3 / 0.7
+        // max weight: 0.5 
+        // if total reward is 100
+        // weight pool reward (50) (bridge 1) : (bridge 2) = 15 : 25, 15 -> return to vault
+        // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
+        // total pool reward (bridge 1) : (bridge 2) =  40 : 50
+        // reward1 : reward2 = 20: 25 
+        user_distributed_reward1 = reward::get_user_distrubuted_reward(get_bridge_id(), get_version(), 4);
+        user_distributed_reward2 = reward::get_user_distrubuted_reward(get_bridge2_id(), get_version(), 4);
+        operator_distributed_reward1 = reward::get_operator_distrubuted_reward(get_bridge_id(), get_version(), 4);
+        operator_distributed_reward2 = reward::get_operator_distrubuted_reward(get_bridge2_id(), get_version(), 4);
+        assert!(user_distributed_reward1 * 25 == user_distributed_reward2 * 20, 2);
+        assert!(operator_distributed_reward1 * 25 == operator_distributed_reward2 * 20, 2);
     }
 }
