@@ -9,7 +9,7 @@ module vip::vip {
     use std::block;
 
     use initia_std::object::{Self, Object};
-    use initia_std::fungible_asset::{Self, Metadata};
+    use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
     use initia_std::primary_fungible_store;
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
@@ -496,13 +496,10 @@ module vip::vip {
 
     fun lock_stake(
         account: &signer,
-        bridge_id: u64,
-        version: u64,
         lp_metadata: Object<Metadata>,
         min_liquidity: option::Option<u64>,
         validator: string::String,
-        stage: u64,
-        esinit_amount: u64,
+        esinit: FungibleAsset,
         stakelisted_metadata: Object<Metadata>,
         stakelisted_amount: u64,
         lock_stake_period: Option<u64>,
@@ -515,18 +512,9 @@ module vip::vip {
             error::invalid_argument(ESTAKELISTED_NOT_ENOUGH),
         );
         assert!(
-            esinit_amount > 0 && stakelisted_amount > 0,
+            fungible_asset::amount(&esinit) > 0 && stakelisted_amount > 0,
             error::invalid_argument(EINVALID_LOCK_STAKING_AMOUNT),
         );
-
-        let esinit =
-            vesting::withdraw_vesting(
-                account_addr,
-                bridge_id,
-                version,
-                stage,
-                esinit_amount,
-            );
 
         let stakelisted =
             primary_fungible_store::withdraw(
@@ -920,9 +908,11 @@ module vip::vip {
             vesting::get_user_last_claimed_stage(account_addr, bridge_id, version);
         let last_submitted_stage = get_last_submitted_stage(bridge_id, version);
         let module_store = borrow_global<ModuleStore>(@vip);
-        let has_claimable_reward = 
-            last_claimed_stage < last_submitted_stage && 
-            is_after_challenge_period(module_store, bridge_id, version, last_claimed_stage + 1);
+        let has_claimable_reward =
+            last_claimed_stage < last_submitted_stage
+                && is_after_challenge_period(
+                    module_store, bridge_id, version, last_claimed_stage + 1
+                );
         assert!(
             !has_claimable_reward,
             error::not_implemented(ECLAIMABLE_REWARD_CAN_BE_EXIST),
@@ -1673,15 +1663,21 @@ module vip::vip {
     ) acquires ModuleStore {
         let account_addr = signer::address_of(account);
         check_lock_stakable(account_addr, bridge_id, version, stage);
+        let esinit =
+            vesting::withdraw_vesting(
+                account_addr,
+                bridge_id,
+                version,
+                stage,
+                esinit_amount,
+            );
+
         lock_stake(
             account,
-            bridge_id,
-            version,
             lp_metadata,
             min_liquidity,
             validator,
-            stage,
-            esinit_amount,
+            esinit,
             stakelisted_metadata,
             stakelisted_amount,
             lock_stake_period,
@@ -1692,58 +1688,52 @@ module vip::vip {
         account: &signer,
         bridge_id: u64,
         version: u64,
-        lp_metadata: vector<Object<Metadata>>,
-        min_liquidity: vector<option::Option<u64>>,
-        validator: vector<string::String>,
+        lp_metadata: Object<Metadata>,
+        min_liquidity: option::Option<u64>,
+        validator: string::String,
         stage: vector<u64>,
         esinit_amount: vector<u64>,
-        stakelisted_metadata: vector<Object<Metadata>>,
-        stakelisted_amount: vector<u64>,
-        lock_stake_period: vector<Option<u64>>,
+        stakelisted_metadata: Object<Metadata>,
+        stakelisted_amount: u64,
+        lock_stake_period: Option<u64>,
     ) acquires ModuleStore {
-        let batch_length = vector::length(&stage);
+        let account_addr = signer::address_of(account);
+
         assert!(
-            vector::length(&lp_metadata) == batch_length,
+            vector::length(&esinit_amount) == vector::length(&stage),
             error::invalid_argument(EINVALID_BATCH_ARGUMENT),
         );
-        assert!(
-            vector::length(&min_liquidity) == batch_length,
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT),
-        );
-        assert!(
-            vector::length(&validator) == batch_length,
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT),
-        );
-        assert!(
-            vector::length(&esinit_amount) == batch_length,
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT),
-        );
-        assert!(
-            vector::length(&stakelisted_amount) == batch_length,
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT),
-        );
-        assert!(
-            vector::length(&stakelisted_metadata) == batch_length,
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT),
-        );
+
+        let esinit_metadata = reward::reward_metadata();
+        let esinit = fungible_asset::zero(esinit_metadata);
 
         vector::enumerate_ref(
             &stage,
             |i, s| {
-                lock_stake_script(
-                    account,
-                    bridge_id,
-                    version,
-                    *vector::borrow(&lp_metadata, i),
-                    *vector::borrow(&min_liquidity, i),
-                    *vector::borrow(&validator, i),
-                    *s,
-                    *vector::borrow(&esinit_amount, i),
-                    *vector::borrow(&stakelisted_metadata, i),
-                    *vector::borrow(&stakelisted_amount, i),
-                    *vector::borrow(&lock_stake_period, i),
-                );
+                check_lock_stakable(account_addr, bridge_id, version, *s);
+                let amount = *vector::borrow(&esinit_amount, i);
+                let withdrawn_asset =
+                    vesting::withdraw_vesting(
+                        account_addr,
+                        bridge_id,
+                        version,
+                        *s,
+                        amount,
+                    );
+
+                fungible_asset::merge(&mut esinit, withdrawn_asset);
             },
+        );
+
+        lock_stake(
+            account,
+            lp_metadata,
+            min_liquidity,
+            validator,
+            esinit,
+            stakelisted_metadata,
+            stakelisted_amount,
+            lock_stake_period,
         );
     }
 

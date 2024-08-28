@@ -1807,12 +1807,8 @@ module vip::test {
         );
         let stage = 1;
         let lock_staking_amounts = vector::empty<u64>();
-        let stakelisted_amounts = vector::empty<u64>();
-        let min_liquidity = vector::empty<option::Option<u64>>();
-        let validators = vector::empty<string::String>();
-        let lp_metadatas = vector::empty<Object<Metadata>>();
+        let stakelisted_amount: u64 = 0;
         let stakelist_metadatas = vector::empty<Object<Metadata>>();
-        let lock_period = vector::empty<option::Option<u64>>();
         while (stage < 5) {
             let remaining =
                 vesting::get_user_vesting_remaining(
@@ -1822,18 +1818,11 @@ module vip::test {
                     stage,
                 );
             vector::push_back(&mut lock_staking_amounts, remaining);
-            vector::push_back(&mut stakelisted_amounts, remaining);
-            vector::push_back(&mut min_liquidity, option::none());
-            vector::push_back(&mut validators, get_validator());
-            vector::push_back(
-                &mut lp_metadatas,
-                get_lp_metadata(),
-            );
+            stakelisted_amount = stakelisted_amount + remaining;
             vector::push_back(
                 &mut stakelist_metadatas,
                 usdc_metadata(),
             );
-            vector::push_back(&mut lock_period, option::none());
             stage = stage + 1;
         };
 
@@ -1841,14 +1830,14 @@ module vip::test {
             receiver,
             get_bridge_id(),
             get_version(),
-            lp_metadatas,
-            min_liquidity,
-            validators,
+            get_lp_metadata(),
+            option::none(),
+            get_validator(),
             stages,
             lock_staking_amounts,
-            stakelist_metadatas,
-            stakelisted_amounts,
-            lock_period,
+            usdc_metadata(),
+            stakelisted_amount,
+            option::none(),
         );
 
         stage = 1;
