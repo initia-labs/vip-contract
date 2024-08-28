@@ -20,7 +20,7 @@ module vip::lock_staking {
     use initia_std::staking;
     use initia_std::query::query_stargate;
 
-    friend vip::zapping;
+    friend vip::vip;
 
     const EUNAUTHORIZED: u64 = 1;
     const EDELEGATION_NOT_FOUND: u64 = 2;

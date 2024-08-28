@@ -8,8 +8,8 @@ module vip::vip {
     use std::event;
     use std::block;
 
-    use initia_std::object::{Object};
-    use initia_std::fungible_asset::{Metadata};
+    use initia_std::object::{Self, Object};
+    use initia_std::fungible_asset::{Self, Metadata};
     use initia_std::primary_fungible_store;
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
@@ -18,12 +18,12 @@ module vip::vip {
     use initia_std::simple_map::{Self, SimpleMap};
     use initia_std::bcs;
     use vip::utils;
-    use vip::zapping;
     use vip::operator;
     use vip::vesting::{Self, UserVestingClaimInfo, OperatorVestingClaimInfo};
     use vip::reward;
     use vip::vault;
     use vip::tvl_manager;
+    use vip::lock_staking;
 
     friend vip::weight_vote;
 
@@ -62,11 +62,14 @@ module vip::vip {
 
     // FUND
     const ETOO_EARLY_FUND: u64 = 26;
-    // ZAPPING
-    const EALREADY_FINALIZED_OR_ZAPPED: u64 = 27;
-    const EZAPPING_STAKELISTED_NOT_ENOUGH: u64 = 28;
+    // LOCK STAKING
+    const EALREADY_FINALIZED: u64 = 27;
+    const ESTAKELISTED_NOT_ENOUGH: u64 = 28;
+    const EINVALID_LOCK_STAKING_AMOUNT: u64 = 29;
+    const EINVALID_LOCK_STKAING_PERIOD: u64 = 30; 
+
     // CLAIM
-    const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 29;
+    const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 31;
 
     //
     //  Constants
@@ -81,6 +84,7 @@ module vip::vip {
     const DEFAULT_MAXIMUM_WEIGHT_RATIO: vector<u8> = b"1";
     const DEFAULT_VIP_START_STAGE: u64 = 0;
     const DEFAULT_CHALLENGE_PERIOD: u64 = 60 * 60 * 24; // 1 day
+    const DEFAULT_LOCK_STAKE_PERIOD: u64 = 60 * 60 * 24 * 7 * 26; // 26 weeks
 
     // vm type
     const MOVEVM: u64 = 0;
@@ -98,6 +102,8 @@ module vip::vip {
         stage_interval: u64,
         // the number of times vesting is divided
         vesting_period: u64,
+        // minimum lock stake preiod
+        minimum_lock_staking_period: u64,
         // interval time of vesting
         challenge_period: u64,
         // agent for snapshot taker and VIP reward funder
@@ -314,6 +320,7 @@ module vip::vip {
                 stage_end_time: stage_start_time,
                 stage_interval: DEFAULT_STAGE_INTERVAL,
                 vesting_period: DEFAULT_VESTING_PERIOD,
+                minimum_lock_staking_period: DEFAULT_LOCK_STAKE_PERIOD,
                 challenge_period: DEFAULT_CHALLENGE_PERIOD,
                 minimum_score_ratio: decimal256::from_string(
                     &string::utf8(DEFAULT_MIN_SCORE_RATIO)
@@ -486,7 +493,7 @@ module vip::vip {
         };
     }
 
-    fun zapping(
+    fun lock_stake(
         account: &signer,
         bridge_id: u64,
         version: u64,
@@ -494,24 +501,32 @@ module vip::vip {
         min_liquidity: option::Option<u64>,
         validator: string::String,
         stage: u64,
-        zapping_amount: u64,
+        esinit_amount: u64,
         stakelisted_metadata: Object<Metadata>,
         stakelisted_amount: u64,
-    ) {
+        lock_stake_period: Option<u64>,
+    ) acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
         let account_addr = signer::address_of(account);
+        assert!(
+            primary_fungible_store::balance(account_addr, stakelisted_metadata)
+                >= stakelisted_amount,
+            error::invalid_argument(ESTAKELISTED_NOT_ENOUGH),
+        );
+        assert!(
+            esinit_amount > 0 && stakelisted_amount > 0,
+            error::invalid_argument(EINVALID_LOCK_STAKING_AMOUNT),
+        );
+
         let esinit =
-            vesting::zapping_vesting(
+            vesting::withdraw_vesting(
                 account_addr,
                 bridge_id,
                 version,
                 stage,
-                zapping_amount,
-            );
-        assert!(
-            primary_fungible_store::balance(account_addr, stakelisted_metadata)
-                >= stakelisted_amount,
-            error::invalid_argument(EZAPPING_STAKELISTED_NOT_ENOUGH),
+                esinit_amount,
         );
+
         let stakelisted =
             primary_fungible_store::withdraw(
                 account,
@@ -519,13 +534,34 @@ module vip::vip {
                 stakelisted_amount,
             );
 
-        zapping::zapping(
+        let lock_period = if (option::is_some(&lock_stake_period)) {
+            assert!(*option::borrow(&lock_stake_period) >= module_store.minimum_lock_staking_period, error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD));
+            *option::borrow(&lock_stake_period)
+        } else {
+            module_store.minimum_lock_staking_period
+        };
+
+        let pair = object::convert<Metadata, dex::Config>(lp_metadata);
+        let (_, curr_time) = block::get_block_info();
+        let release_time = curr_time + lock_period;
+        let esinit_metadata = fungible_asset::asset_metadata(&esinit);
+
+        let (coin_a_metadata, _) = dex::pool_metadata(pair);
+
+        // if pair is reversed, swap coin_a and co  gin_b
+        let (coin_a, coin_b) =
+            if (coin_a_metadata == esinit_metadata) {
+                (esinit, stakelisted)
+            } else {
+                (stakelisted, esinit)
+            };
+
+        let liquidity = dex::provide_liquidity(pair, coin_a, coin_b, min_liquidity);
+        lock_staking::delegate_internal(
             account,
-            lp_metadata,
-            min_liquidity,
+            liquidity,
+            release_time,
             validator,
-            esinit,
-            stakelisted,
         );
     }
 
@@ -862,23 +898,23 @@ module vip::vip {
         };
     }
 
-    fun check_zappable(
+    fun check_lock_stakable(
         account_addr: address, bridge_id: u64, version: u64, stage: u64
     ) acquires ModuleStore {
-        // check if it is already finalized(or zapped), make the error
+        // check if it is already finalized, make the error
         assert!(
             vesting::is_user_vesting_position_exists(
                 account_addr, bridge_id, version, stage
             ),
-            error::invalid_state(EALREADY_FINALIZED_OR_ZAPPED),
+            error::invalid_state(EALREADY_FINALIZED),
         );
         // check the last claimed stage >= submitted_stage
-        // it means there can be claimable reward not to be zapped
+        // it means there can be claimable reward not to be lock staked
         let last_claimed_stage =
             vesting::get_user_last_claimed_stage(account_addr, bridge_id, version);
         let last_submitted_stage = get_last_submitted_stage(bridge_id, version);
         let module_store = borrow_global<ModuleStore>(@vip);
-        let can_zap =
+        let can_lock_stake =
             if (last_claimed_stage >= last_submitted_stage) { true }
             else {
                 // check is there any claimable reward not on challenge period
@@ -886,7 +922,7 @@ module vip::vip {
                 !is_after_challenge_period(module_store, bridge_id, version, check_stage)
             };
         assert!(
-            can_zap,
+            can_lock_stake,
             error::not_implemented(ECLAIMABLE_REWARD_CAN_BE_EXIST),
         );
     }
@@ -1496,6 +1532,7 @@ module vip::vip {
         chain: &signer,
         stage_interval: Option<u64>,
         vesting_period: Option<u64>,
+        minimum_lock_staking_period: Option<u64>,
         minimum_eligible_tvl: Option<u64>,
         maximum_tvl_ratio: Option<Decimal256>,
         maximum_weight_ratio: Option<Decimal256>,
@@ -1520,6 +1557,15 @@ module vip::vip {
                 error::invalid_argument(EINVALID_VEST_PERIOD),
             );
         };
+
+        if (option::is_some(&minimum_lock_staking_period)) {
+            module_store.minimum_lock_staking_period = option::extract(&mut minimum_lock_staking_period);
+            assert!(
+                module_store.minimum_lock_staking_period > 0,
+                error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD),
+            );
+        };
+
         if (option::is_some(&minimum_eligible_tvl)) {
             module_store.minimum_eligible_tvl = option::extract(&mut minimum_eligible_tvl);
         };
@@ -1608,7 +1654,7 @@ module vip::vip {
         operator::update_operator_addr(operator, bridge_id, version, new_operator_addr);
     }
 
-    public entry fun zapping_script(
+    public entry fun lock_stake_script(
         account: &signer,
         bridge_id: u64,
         version: u64,
@@ -1616,13 +1662,14 @@ module vip::vip {
         min_liquidity: option::Option<u64>,
         validator: string::String,
         stage: u64,
-        zapping_amount: u64,
+        esinit_amount: u64,
         stakelisted_metadata: Object<Metadata>,
         stakelisted_amount: u64,
+        lock_stake_period: Option<u64>,
     ) acquires ModuleStore {
         let account_addr = signer::address_of(account);
-        check_zappable(account_addr, bridge_id, version, stage);
-        zapping(
+        check_lock_stakable(account_addr, bridge_id, version, stage);
+        lock_stake(
             account,
             bridge_id,
             version,
@@ -1630,13 +1677,14 @@ module vip::vip {
             min_liquidity,
             validator,
             stage,
-            zapping_amount,
+            esinit_amount,
             stakelisted_metadata,
             stakelisted_amount,
+            lock_stake_period,
         );
     }
 
-    public entry fun batch_zapping_script(
+    public entry fun batch_lock_stake_script(
         account: &signer,
         bridge_id: u64,
         version: u64,
@@ -1644,9 +1692,10 @@ module vip::vip {
         min_liquidity: vector<option::Option<u64>>,
         validator: vector<string::String>,
         stage: vector<u64>,
-        zapping_amount: vector<u64>,
+        esinit_amount: vector<u64>,
         stakelisted_metadata: vector<Object<Metadata>>,
         stakelisted_amount: vector<u64>,
+        lock_stake_period: vector<Option<u64>>,
     ) acquires ModuleStore {
         let batch_length = vector::length(&stage);
         assert!(
@@ -1662,7 +1711,7 @@ module vip::vip {
             error::invalid_argument(EINVALID_BATCH_ARGUMENT),
         );
         assert!(
-            vector::length(&zapping_amount) == batch_length,
+            vector::length(&esinit_amount) == batch_length,
             error::invalid_argument(EINVALID_BATCH_ARGUMENT),
         );
         assert!(
@@ -1677,7 +1726,7 @@ module vip::vip {
         vector::enumerate_ref(
             &stage,
             |i, s| {
-                zapping_script(
+                lock_stake_script(
                     account,
                     bridge_id,
                     version,
@@ -1685,9 +1734,10 @@ module vip::vip {
                     *vector::borrow(&min_liquidity, i),
                     *vector::borrow(&validator, i),
                     *s,
-                    *vector::borrow(&zapping_amount, i),
+                    *vector::borrow(&esinit_amount, i),
                     *vector::borrow(&stakelisted_metadata, i),
                     *vector::borrow(&stakelisted_amount, i),
+                    *vector::borrow(&lock_stake_period, i),
                 );
             },
         );
@@ -2538,6 +2588,7 @@ module vip::vip {
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::none(), //vesting_period: Option<u64>,
+            option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
             option::none(), //maximum_tvl_ratio: Option<Decimal256>,
             option::none(), //maximum_weight_ratio: Option<Decimal256>,
@@ -2553,6 +2604,7 @@ module vip::vip {
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::some(period), //vesting_period: Option<u64>,
+            option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
             option::none(), //maximum_tvl_ratio: Option<Decimal256>,
             option::none(), //maximum_weight_ratio: Option<Decimal256>,
@@ -2568,6 +2620,7 @@ module vip::vip {
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::none(), //vesting_period: Option<u64>,
+            option::none(), //minimum_lock_staking_period: Option<u64>,
             option::some(tvl), //minimum_eligible_tvl: Option<u64>,
             option::none(), //maximum_tvl_ratio: Option<Decimal256>,
             option::none(), //maximum_weight_ratio: Option<Decimal256>,
@@ -2583,6 +2636,7 @@ module vip::vip {
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::none(), //vesting_period: Option<u64>,
+            option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
             option::none(), //maximum_tvl_ratio: Option<Decimal256>,
             option::none(), //maximum_weight_ratio: Option<Decimal256>,
@@ -2598,12 +2652,29 @@ module vip::vip {
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::none(), //vesting_period: Option<u64>,
+            option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
             option::none(), //maximum_tvl_ratio: Option<Decimal256>,
             option::none(), //maximum_weight_ratio: Option<Decimal256>,
             option::none(), //minimum_score_ratio: Option<Decimal256>,
             option::none(), //pool_split_ratio: Option<Decimal256>,
             option::some(period), //challenge_period: Option<u64>,
+        )
+    }
+
+    #[test_only]
+    fun update_minimun_lock_staking_period(chain: &signer, period: u64) acquires ModuleStore {
+        update_params(
+            chain,
+            option::none(), //stage_interval: Option<u64>,
+            option::none(), //vesting_period: Option<u64>,
+            option::some(period), //minimum_lock_staking_period: Option<u64>,
+            option::none(), //minimum_eligible_tvl: Option<u64>,
+            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
+            option::none(), //maximum_weight_ratio: Option<Decimal256>,
+            option::none(), //minimum_score_ratio: Option<Decimal256>,
+            option::none(), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //challenge_period: Option<u64>,
         )
     }
 
@@ -4179,7 +4250,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun test_setup_for_zapping(
+    public fun test_setup_for_lock_staking(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -4193,7 +4264,6 @@ module vip::vip {
         primary_fungible_store::init_module_for_test();
         reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
-        zapping::init_module_for_test(vip);
         tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
@@ -4296,7 +4366,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun test_zapping(
+    fun test_lock_staking(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -4304,7 +4374,7 @@ module vip::vip {
     ) acquires ModuleStore {
         let mint_amount = 10_000_000_000_000;
         let (bridge_id, _, stakelisted_metadata, lp_metadata, validator) =
-            test_setup_for_zapping(
+            test_setup_for_lock_staking(
                 chain,
                 vip,
                 operator,
@@ -4353,8 +4423,8 @@ module vip::vip {
         let lock_period = 60 * 60 * 24; // 1 day
 
         skip_period(100);
-        zapping::update_lock_period_script(chain, lock_period);
-        let zapping_amount =
+        update_minimun_lock_staking_period(chain, lock_period);
+        let esinit_amount =
             vesting::get_user_vesting_remaining(
                 signer::address_of(receiver),
                 bridge_id,
@@ -4362,8 +4432,8 @@ module vip::vip {
                 stage,
             );
 
-        // zap vesting in stage 1
-        zapping_script(
+        // lock stake vesting in stage 1
+        lock_stake_script(
             receiver,
             bridge_id,
             1,
@@ -4371,9 +4441,10 @@ module vip::vip {
             option::none(),
             validator,
             stage,
-            zapping_amount,
+            esinit_amount,
             stakelisted_metadata,
-            zapping_amount,
+            esinit_amount,
+            option::none(),
         );
     }
 }

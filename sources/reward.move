@@ -10,7 +10,6 @@ module vip::reward {
     use initia_std::coin;
     friend vip::weight_vote;
     friend vip::vesting;
-    friend vip::zapping;
     friend vip::vault;
     friend vip::vip;
 
