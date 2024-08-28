@@ -461,12 +461,12 @@ module vip::vesting {
         vault::withdraw(total_vested_reward)
     }
 
-    public(friend) fun zapping_vesting(
+    public(friend) fun withdraw_vesting(
         account_addr: address,
         bridge_id: u64,
         version: u64,
         stage: u64,
-        zapping_amount: u64
+        withdraw_amount: u64
     ): FungibleAsset acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let user_vesting_store =
@@ -484,10 +484,10 @@ module vip::vesting {
         let user_vesting = table::borrow_mut(&mut user_vesting_store.vestings, stage_key);
 
         assert!(
-            user_vesting.remaining_reward >= zapping_amount,
+            user_vesting.remaining_reward >= withdraw_amount,
             error::invalid_argument(EREWARD_NOT_ENOUGH),
         );
-        user_vesting.remaining_reward = user_vesting.remaining_reward - zapping_amount;
+        user_vesting.remaining_reward = user_vesting.remaining_reward - withdraw_amount;
         event::emit(
             UserVestingChangedEvent {
                 account: account_addr,
@@ -499,7 +499,7 @@ module vip::vesting {
                 penalty_reward: user_vesting.penalty_reward
             },
         );
-        // handle vesting positions that have changed to zapping positions
+        // handle vesting positions
         if (user_vesting.remaining_reward == 0) {
             let start_stage = user_vesting.start_stage;
             let penalty_reward = user_vesting.penalty_reward;
@@ -516,7 +516,7 @@ module vip::vesting {
             );
         };
 
-        vault::withdraw(zapping_amount)
+        vault::withdraw(withdraw_amount)
     }
 
     public(friend) fun build_user_vesting_claim_info(

@@ -4,13 +4,11 @@ module vip::reward {
     use std::error;
     use initia_std::object::{Object};
     use initia_std::fungible_asset::{Metadata};
-    use initia_std::primary_fungible_store;
     use initia_std::table;
     use initia_std::table_key;
     use initia_std::coin;
     friend vip::weight_vote;
     friend vip::vesting;
-    friend vip::zapping;
     friend vip::vault;
     friend vip::vip;
 
@@ -120,6 +118,9 @@ module vip::reward {
 
         0
     }
+
+    #[test_only]
+    use initia_std::primary_fungible_store;
 
     #[test_only]
     public fun init_module_for_test(chain: &signer) {

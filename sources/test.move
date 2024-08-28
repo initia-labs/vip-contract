@@ -16,7 +16,6 @@ module vip::test {
     use initia_std::primary_fungible_store;
     use initia_std::vector;
     use vip::vip;
-    use vip::zapping;
     use vip::tvl_manager;
     use vip::vault;
     use vip::vesting;
@@ -246,7 +245,6 @@ module vip::test {
                 string::utf8(b"uusdc"),
                 10000000000000000,
             );
-        zapping::init_module_for_test(vip);
         tvl_manager::init_module_for_test(vip);
         vip::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
@@ -256,6 +254,7 @@ module vip::test {
             vip,
             option::some(TEST_STAGE_INTERVAL),
             option::some(TEST_VESTING_PERIOD),
+            option::none(),
             option::some(TEST_MIN_ELIGIBLE_TVL),
             option::some(decimal256::one()),
             option::some(
@@ -463,7 +462,7 @@ module vip::test {
         );
         let stage = *vector::borrow(&stages, 0);
 
-        vip::zapping_script(
+        vip::lock_stake_script(
             user,
             get_bridge_id(),
             get_version(),
@@ -474,6 +473,7 @@ module vip::test {
             1000,
             usdc_metadata(),
             1000,
+            option::none(),
         );
     }
 
@@ -735,7 +735,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun zapping_vesting_position(
+    fun lock_stake_vesting_position(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -786,9 +786,9 @@ module vip::test {
 
         let remaining_reward =
             vesting::get_user_vesting_remaining(receiver_addr, get_bridge_id(), 1, 1);
-        // zapping stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
+        // lock stake stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
         // without waiting the challenge period
-        vip::zapping_script(
+        vip::lock_stake_script(
             receiver,
             1,
             get_version(),
@@ -799,6 +799,7 @@ module vip::test {
             remaining_reward,
             usdc_metadata(),
             1_000_000,
+            option::none(),
         );
         assert!(
             !vesting::is_user_vesting_position_exists(
@@ -809,7 +810,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun zapping_vesting_position_in_challenge_period(
+    fun lock_stake_vesting_position_in_challenge_period(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -865,9 +866,9 @@ module vip::test {
 
         let remaining_reward =
             vesting::get_user_vesting_remaining(receiver_addr, get_bridge_id(), 1, 1);
-        // zapping stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
+        // lock stake stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
         // without waiting the challenge period of vesting position2
-        vip::zapping_script(
+        vip::lock_stake_script(
             receiver,
             1,
             get_version(),
@@ -878,6 +879,7 @@ module vip::test {
             remaining_reward,
             usdc_metadata(),
             1_000_000,
+            option::none(),
         );
         assert!(
             !vesting::is_user_vesting_position_exists(
@@ -888,8 +890,8 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xC001d, location = vip)]
-    fun fail_zapping_vesting_position_without_claim(
+    #[expected_failure(abort_code = 0xC001f, location = vip)]
+    fun fail_lock_stake_vesting_position_without_claim(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -941,9 +943,9 @@ module vip::test {
         let remaining_reward =
             vesting::get_user_vesting_remaining(receiver_addr, get_bridge_id(), 1, 1);
         let vault_balance_before = vault::balance();
-        // zapping stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
+        // lock stake stage 1 vesting position; remaining reward: (stage_reward) * 100 / 1000
         // without waiting the challenge period
-        vip::zapping_script(
+        vip::lock_stake_script(
             receiver,
             1,
             get_version(),
@@ -954,6 +956,7 @@ module vip::test {
             remaining_reward,
             usdc_metadata(),
             1_000_000,
+            option::none(),
         );
 
         assert!(reward::balance(receiver_addr) == 0, 4);
@@ -1139,8 +1142,8 @@ module vip::test {
                 receiver_addr, get_bridge_id(), 2, 5
             );
 
-        // zapping position of stage 1
-        vip::zapping_script(
+        // lock stake position of stage 1
+        vip::lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version(),
@@ -1148,12 +1151,13 @@ module vip::test {
             option::none(),
             get_validator(),
             1,
-            vesting5_remaining_reward, // zapping_amount
+            vesting5_remaining_reward, // lock staking amount
             usdc_metadata(),
-            vesting5_remaining_reward, // zapping_amount
+            vesting5_remaining_reward, // lock staking amount
+            option::none(),
         );
-        // zapping position of stage 5
-        vip::zapping_script(
+        // lock stake position of stage 5
+        vip::lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version() + 1,
@@ -1161,9 +1165,10 @@ module vip::test {
             option::none(),
             get_validator(),
             5,
-            vesting5_remaining_reward, // zapping_amount
+            vesting5_remaining_reward, // lock staking amount
             usdc_metadata(),
-            vesting5_remaining_reward, // zapping_amount
+            vesting5_remaining_reward, // lock staking amount
+            option::none(),
         );
     }
 
@@ -1231,11 +1236,11 @@ module vip::test {
     }
 
     //
-    // User Zapping
+    // User Lock Staking
     //
-    // after zapping, remaining reward < vesting reward per stage
+    // after lock staking, remaining reward < vesting reward per stage
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun partial_zapping_scene1(
+    fun partial_lock_stake_scene1(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1300,9 +1305,9 @@ module vip::test {
         vector::remove(&mut l2_scores, 0);
 
         let extra = 1000;
-        let zapping_amount = 8 * vesting1_initial_reward / get_vesting_period() + extra;
-        // zapping stage 1 vesting position
-        vip::zapping_script(
+        let lock_staking_amount = 8 * vesting1_initial_reward / get_vesting_period() + extra;
+        // lock stake stage 1 vesting position
+        vip::lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version(),
@@ -1310,11 +1315,12 @@ module vip::test {
             option::none(),
             get_validator(),
             1,
-            zapping_amount,
+            lock_staking_amount,
             usdc_metadata(),
-            zapping_amount,
+            lock_staking_amount,
+            option::none(),
         );
-        // stage 1 vesting position zapped but not finalized yet
+        // stage 1 vesting position lock staked but not finalized yet
         assert!(
             vesting::is_user_vesting_position_exists(
                 receiver_addr, get_bridge_id(), 1, 1
@@ -1353,7 +1359,7 @@ module vip::test {
             5,
         );
         let vesting1_penalty_reward =
-            vesting1_initial_reward / (2 * get_vesting_period()) - extra; // 50% vesting amount per stage; extra is zapped
+            vesting1_initial_reward / (2 * get_vesting_period()) - extra; // 50% vesting amount per stage; extra is lock staked
         let vesting2_penalty_reward = vesting2_initial_reward / (2 * get_vesting_period()); // 50% vesting amount per stage
         vesting::get_user_vesting_penalty_reward(receiver_addr, get_bridge_id(), 1, 2);
         let vesting2_remaining_reward =
@@ -1369,9 +1375,9 @@ module vip::test {
         )
     }
 
-    // after zapping, remaining reward >= vesting reward per stage
+    // after lock staking, remaining reward >= vesting reward per stage
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun partial_zapping_scene2(
+    fun partial_lock_stake_scene2(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1426,9 +1432,9 @@ module vip::test {
 
         let vesting1_initial_reward =
             vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 1);
-        let zapping_amount = 7 * vesting1_initial_reward / get_vesting_period() + 100;
-        // zapping stage 1 vesting position
-        vip::zapping_script(
+        let lock_staking_amount = 7 * vesting1_initial_reward / get_vesting_period() + 100;
+        // lock stake stage 1 vesting position
+        vip::lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version(),
@@ -1436,11 +1442,12 @@ module vip::test {
             option::none(),
             get_validator(),
             1,
-            zapping_amount,
+            lock_staking_amount,
             usdc_metadata(),
-            zapping_amount,
+            lock_staking_amount,
+            option::none(),
         );
-        // stage 1 vesting position zapped but not finalized yet
+        // stage 1 vesting position lock staked but not finalized yet
         assert!(
             vesting::is_user_vesting_position_exists(
                 receiver_addr, get_bridge_id(), 1, 1
@@ -1507,7 +1514,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun zapping_deregistered_bridge_vesting_positions(
+    fun lock_stake_deregistered_bridge_vesting_positions(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1555,8 +1562,8 @@ module vip::test {
                 1,
                 1,
             );
-        // user can only zap the deregisterd minitia positions
-        vip::zapping_script(
+        // user can only lock stake the deregisterd minitia positions
+        vip::lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version(),
@@ -1567,11 +1574,12 @@ module vip::test {
             initial_reward,
             usdc_metadata(),
             1000_000,
+            option::none(),
         )
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun zapping_re_registered_bridge_reward(
+    fun lock_stake_re_registered_bridge_reward(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1611,7 +1619,7 @@ module vip::test {
             &mut l2_scores,
         );
 
-        // stage 1 claim & zapping
+        // stage 1 claim & lock stake
         vip::batch_claim_user_reward_script(
             receiver,
             get_bridge_id(),
@@ -1622,8 +1630,8 @@ module vip::test {
         );
         let vesting1_initial_reward =
             vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 1);
-        // user can only zap the deregisterd minitia positions
-        vip::zapping_script(
+        // user can only lock stake the deregisterd minitia positions
+        vip::lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version(),
@@ -1634,6 +1642,7 @@ module vip::test {
             vesting1_initial_reward,
             usdc_metadata(),
             vesting1_initial_reward, // usdc amount 1:1
+            option::none(),
         );
 
         let vault_balance_before = vault::balance();
@@ -1727,7 +1736,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    fun test_batch_zapping(
+    fun test_batch_lock_stake(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1797,11 +1806,8 @@ module vip::test {
             l2_scores,
         );
         let stage = 1;
-        let zapping_amounts = vector::empty<u64>();
-        let stakelisted_amounts = vector::empty<u64>();
-        let min_liquidity = vector::empty<option::Option<u64>>();
-        let validators = vector::empty<string::String>();
-        let lp_metadatas = vector::empty<Object<Metadata>>();
+        let lock_staking_amounts = vector::empty<u64>();
+        let stakelisted_amount: u64 = 0;
         let stakelist_metadatas = vector::empty<Object<Metadata>>();
         while (stage < 5) {
             let remaining =
@@ -1811,14 +1817,8 @@ module vip::test {
                     1,
                     stage,
                 );
-            vector::push_back(&mut zapping_amounts, remaining);
-            vector::push_back(&mut stakelisted_amounts, remaining);
-            vector::push_back(&mut min_liquidity, option::none());
-            vector::push_back(&mut validators, get_validator());
-            vector::push_back(
-                &mut lp_metadatas,
-                get_lp_metadata(),
-            );
+            vector::push_back(&mut lock_staking_amounts, remaining);
+            stakelisted_amount = stakelisted_amount + remaining;
             vector::push_back(
                 &mut stakelist_metadatas,
                 usdc_metadata(),
@@ -1826,17 +1826,18 @@ module vip::test {
             stage = stage + 1;
         };
 
-        vip::batch_zapping_script(
+        vip::batch_lock_stake_script(
             receiver,
             get_bridge_id(),
             get_version(),
-            lp_metadatas,
-            min_liquidity,
-            validators,
+            get_lp_metadata(),
+            option::none(),
+            get_validator(),
             stages,
-            zapping_amounts,
-            stakelist_metadatas,
-            stakelisted_amounts,
+            lock_staking_amounts,
+            usdc_metadata(),
+            stakelisted_amount,
+            option::none(),
         );
 
         stage = 1;
