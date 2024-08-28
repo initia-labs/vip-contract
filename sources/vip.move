@@ -66,7 +66,7 @@ module vip::vip {
     const EALREADY_FINALIZED: u64 = 27;
     const ESTAKELISTED_NOT_ENOUGH: u64 = 28;
     const EINVALID_LOCK_STAKING_AMOUNT: u64 = 29;
-    const EINVALID_LOCK_STKAING_PERIOD: u64 = 30; 
+    const EINVALID_LOCK_STKAING_PERIOD: u64 = 30;
 
     // CLAIM
     const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 31;
@@ -525,7 +525,7 @@ module vip::vip {
                 version,
                 stage,
                 esinit_amount,
-        );
+            );
 
         let stakelisted =
             primary_fungible_store::withdraw(
@@ -534,12 +534,17 @@ module vip::vip {
                 stakelisted_amount,
             );
 
-        let lock_period = if (option::is_some(&lock_stake_period)) {
-            assert!(*option::borrow(&lock_stake_period) >= module_store.minimum_lock_staking_period, error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD));
-            *option::borrow(&lock_stake_period)
-        } else {
-            module_store.minimum_lock_staking_period
-        };
+        let lock_period =
+            if (option::is_some(&lock_stake_period)) {
+                assert!(
+                    *option::borrow(&lock_stake_period)
+                        >= module_store.minimum_lock_staking_period,
+                    error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD),
+                );
+                *option::borrow(&lock_stake_period)
+            } else {
+                module_store.minimum_lock_staking_period
+            };
 
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
         let (_, curr_time) = block::get_block_info();
@@ -1559,7 +1564,9 @@ module vip::vip {
         };
 
         if (option::is_some(&minimum_lock_staking_period)) {
-            module_store.minimum_lock_staking_period = option::extract(&mut minimum_lock_staking_period);
+            module_store.minimum_lock_staking_period = option::extract(
+                &mut minimum_lock_staking_period
+            );
             assert!(
                 module_store.minimum_lock_staking_period > 0,
                 error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD),

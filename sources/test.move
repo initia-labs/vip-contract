@@ -473,7 +473,7 @@ module vip::test {
             1000,
             usdc_metadata(),
             1000,
-            option::none()
+            option::none(),
         );
     }
 
@@ -799,7 +799,7 @@ module vip::test {
             remaining_reward,
             usdc_metadata(),
             1_000_000,
-            option::none()
+            option::none(),
         );
         assert!(
             !vesting::is_user_vesting_position_exists(
@@ -879,7 +879,7 @@ module vip::test {
             remaining_reward,
             usdc_metadata(),
             1_000_000,
-            option::none()
+            option::none(),
         );
         assert!(
             !vesting::is_user_vesting_position_exists(
