@@ -66,13 +66,13 @@ module vip::vesting {
         l2_score: u64,
         total_l2_score: u64,
         minimum_score_ratio: Decimal256,
-        distributed_reward: u64,
+        funded_reward: u64,
     }
 
     struct OperatorVestingClaimInfo has drop, copy {
         start_stage: u64,
         end_stage: u64,
-        distributed_reward: u64,
+        funded_reward: u64,
     }
 
     struct UserVestingResponse has drop {
@@ -251,7 +251,7 @@ module vip::vesting {
                 let initial_reward_amount =
                     if (claim_info.total_l2_score == 0) { 0 }
                     else {
-                        let total_user_reward = claim_info.distributed_reward;
+                        let total_user_reward = claim_info.funded_reward;
                         utils::mul_div_u64(
                             total_user_reward,
                             claim_info.l2_score,
@@ -371,9 +371,9 @@ module vip::vesting {
                 let OperatorVestingClaimInfo {
                     start_stage,
                     end_stage: _,
-                    distributed_reward
+                    funded_reward
                 } = *claim_info;
-                let initial_reward = distributed_reward;
+                let initial_reward = funded_reward;
 
                 assert!(
                     !table::contains(
@@ -528,7 +528,7 @@ module vip::vesting {
         l2_score: u64,
         minimum_score_ratio: Decimal256,
         total_l2_score: u64,
-        distributed_reward: u64,
+        funded_reward: u64,
     ): UserVestingClaimInfo {
         UserVestingClaimInfo {
             start_stage,
@@ -536,14 +536,14 @@ module vip::vesting {
             l2_score,
             minimum_score_ratio,
             total_l2_score,
-            distributed_reward,
+            funded_reward,
         }
     }
 
     public(friend) fun build_operator_vesting_claim_info(
-        start_stage: u64, end_stage: u64, distributed_reward: u64,
+        start_stage: u64, end_stage: u64, funded_reward: u64,
     ): OperatorVestingClaimInfo {
-        OperatorVestingClaimInfo { start_stage, end_stage, distributed_reward }
+        OperatorVestingClaimInfo { start_stage, end_stage, funded_reward }
     }
 
     //

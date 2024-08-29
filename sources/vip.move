@@ -652,7 +652,7 @@ module vip::vip {
         split_amount
     }
 
-    fun get_user_distributed_reward_internal(
+    fun get_user_funded_reward_internal(
         module_store: &ModuleStore,
         bridge_id: u64,
         stage: u64,
@@ -671,7 +671,7 @@ module vip::vip {
         *table::borrow(&stage_data.user_funded_rewards, bridge_id)
     }
 
-    fun get_operator_distributed_reward_internal(
+    fun get_operator_funded_reward_internal(
         module_store: &ModuleStore,
         bridge_id: u64,
         stage: u64,
@@ -1471,7 +1471,7 @@ module vip::vip {
                         *l2_score,
                         minimum_score_ratio,
                         snapshot.total_l2_score,
-                        get_user_distributed_reward_internal(
+                        get_user_funded_reward_internal(
                             module_store, bridge_id, *stage
                         ),
                     ),
@@ -1548,7 +1548,7 @@ module vip::vip {
                 vesting::build_operator_vesting_claim_info(
                     stage,
                     stage + module_store.vesting_period,
-                    get_operator_distributed_reward_internal(
+                    get_operator_funded_reward_internal(
                         module_store, bridge_id, stage
                     ),
                 ),
@@ -2222,17 +2222,17 @@ module vip::vip {
     }
 
     #[view]
-    public fun get_user_distributed_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
+    public fun get_user_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        get_user_distributed_reward_internal(module_store, bridge_id, stage)
+        get_user_funded_reward_internal(module_store, bridge_id, stage)
     }
 
     #[view]
-    public fun get_operator_distributed_reward(
+    public fun get_operator_funded_reward(
         bridge_id: u64, stage: u64
     ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        get_operator_distributed_reward_internal(module_store, bridge_id, stage)
+        get_operator_funded_reward_internal(module_store, bridge_id, stage)
     }
 
     //
