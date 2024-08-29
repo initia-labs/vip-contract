@@ -1,14 +1,16 @@
 module vip::vault {
     use std::error;
+    use std::string;
 
-    use initia_std::object::{Self, ExtendRef};
-    use initia_std::fungible_asset::FungibleAsset;
+    use initia_std::coin;
+    use initia_std::fungible_asset::{FungibleAsset, Metadata};
+    use initia_std::object::{Self, ExtendRef, Object};
     use initia_std::primary_fungible_store;
 
-    use vip::reward;
     use vip::utils;
-    // friend initia_std::vip;
+
     friend vip::vesting;
+
     //
     // Errors
     //
@@ -57,7 +59,7 @@ module vip::vault {
         );
         let vault_signer =
             object::generate_signer_for_extending(&module_store.extend_ref);
-        primary_fungible_store::withdraw(&vault_signer, reward::reward_metadata(), amount)
+        primary_fungible_store::withdraw(&vault_signer, reward_metadata(), amount)
     }
 
     //
@@ -72,7 +74,7 @@ module vip::vault {
         );
         primary_fungible_store::transfer(
             funder,
-            reward::reward_metadata(),
+            reward_metadata(),
             vault_store_addr,
             amount,
         );
@@ -103,13 +105,18 @@ module vip::vault {
     #[view]
     public fun balance(): u64 acquires ModuleStore {
         let vault_store_addr = get_vault_store_address();
-        primary_fungible_store::balance(vault_store_addr, reward::reward_metadata())
+        primary_fungible_store::balance(vault_store_addr, reward_metadata())
     }
 
     #[view]
     public fun reward_per_stage(): u64 acquires ModuleStore {
         let vault_store = borrow_global<ModuleStore>(@vip);
         vault_store.reward_per_stage
+    }
+
+    #[view]
+    public fun reward_metadata(): Object<Metadata> {
+        coin::metadata(@initia_std, string::utf8(b"uinit"))
     }
 
     //
@@ -121,10 +128,6 @@ module vip::vault {
         init_module(chain);
     }
 
-    #[test_only]
-    use initia_std::string;
-    #[test_only]
-    use initia_std::coin;
     #[test_only]
     use initia_std::option;
 

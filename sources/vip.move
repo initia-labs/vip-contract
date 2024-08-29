@@ -1,30 +1,30 @@
 module vip::vip {
-    use std::hash::sha3_256;
+    use std::bcs;
     use std::error;
-    use std::string;
-    use std::signer;
-    use std::vector;
-    use std::option::{Self, Option};
     use std::event;
-    use std::block;
-
-    use initia_std::object::{Self, Object};
-    use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
-    use initia_std::primary_fungible_store;
-    use initia_std::table::{Self, Table};
-    use initia_std::table_key;
+    use std::hash::sha3_256;
+    use std::option::{Self, Option};
+    use std::signer;
+    use std::string;
+    use std::vector;
+    
+    use initia_std::block;
     use initia_std::coin;
     use initia_std::decimal256::{Self, Decimal256};
-    use initia_std::simple_map::{Self, SimpleMap};
-    use initia_std::bcs;
     use initia_std::dex;
-    use vip::utils;
-    use vip::operator;
-    use vip::vesting::{Self, UserVestingClaimInfo, OperatorVestingClaimInfo};
-    use vip::reward;
-    use vip::vault;
-    use vip::tvl_manager;
+    use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
+    use initia_std::object::{Self, Object};
+    use initia_std::primary_fungible_store;
+    use initia_std::simple_map::{Self, SimpleMap};
+    use initia_std::table::{Self, Table};
+    use initia_std::table_key;
+
     use vip::lock_staking;
+    use vip::operator;
+    use vip::tvl_manager;
+    use vip::utils;
+    use vip::vault;
+    use vip::vesting::{Self, UserVestingClaimInfo, OperatorVestingClaimInfo};
 
     friend vip::weight_vote;
 
@@ -42,35 +42,36 @@ module vip::vip {
     const ESNAPSHOT_NOT_EXISTS: u64 = 6;
     const EBRIDGE_NOT_REGISTERED: u64 = 7;
     const EPREV_STAGE_SNAPSHOT_NOT_FOUND: u64 = 8;
+    const EFUNDED_REWARD_NOT_FOUND: u64 = 9;
     // EINVLAID ERROR
-    const EINVALID_MERKLE_PROOFS: u64 = 9;
-    const EINVALID_PROOF_LENGTH: u64 = 10;
-    const EINVALID_VEST_PERIOD: u64 = 11;
-    const EINVALID_MAX_TVL: u64 = 12;
-    const EINVALID_RATIO: u64 = 13;
-    const EINVALID_TOTAL_SHARE: u64 = 14;
-    const EINVALID_CLAIMABLE_STAGE: u64 = 15;
-    const EINVALID_BATCH_ARGUMENT: u64 = 16;
-    const EINVALID_TOTAL_REWARD: u64 = 17;
-    const EINVALID_WEIGHT: u64 = 18;
-    const EINVALID_STAGE_ORDER: u64 = 19;
-    const EINVALID_CLAIMABLE_PERIOD: u64 = 20;
-    const EINVALID_CHALLENGE_PERIOD: u64 = 21;
-    const EINVALID_CHALLENGE_STAGE: u64 = 22;
-    const EINVALID_STAGE_INTERVAL: u64 = 23;
-    const EINVALID_STAGE_SNAPSHOT: u64 = 34;
-    const EINVALID_VM_TYPE: u64 = 25;
+    const EINVALID_MERKLE_PROOFS: u64 = 10;
+    const EINVALID_PROOF_LENGTH: u64 = 11;
+    const EINVALID_VEST_PERIOD: u64 = 12;
+    const EINVALID_MAX_TVL: u64 = 13;
+    const EINVALID_RATIO: u64 = 14;
+    const EINVALID_TOTAL_SHARE: u64 = 15;
+    const EINVALID_CLAIMABLE_STAGE: u64 = 16;
+    const EINVALID_BATCH_ARGUMENT: u64 = 17;
+    const EINVALID_TOTAL_REWARD: u64 = 18;
+    const EINVALID_WEIGHT: u64 = 19;
+    const EINVALID_STAGE_ORDER: u64 = 20;
+    const EINVALID_CLAIMABLE_PERIOD: u64 = 21;
+    const EINVALID_CHALLENGE_PERIOD: u64 = 22;
+    const EINVALID_CHALLENGE_STAGE: u64 = 23;
+    const EINVALID_STAGE_INTERVAL: u64 = 24;
+    const EINVALID_STAGE_SNAPSHOT: u64 = 25;
+    const EINVALID_VM_TYPE: u64 = 26;
 
     // FUND
-    const ETOO_EARLY_FUND: u64 = 26;
+    const ETOO_EARLY_FUND: u64 = 27;
     // LOCK STAKING
-    const EALREADY_FINALIZED: u64 = 27;
-    const ESTAKELISTED_NOT_ENOUGH: u64 = 28;
-    const EINVALID_LOCK_STAKING_AMOUNT: u64 = 29;
-    const EINVALID_LOCK_STKAING_PERIOD: u64 = 30;
+    const EALREADY_FINALIZED: u64 = 28;
+    const ESTAKELISTED_NOT_ENOUGH: u64 = 29;
+    const EINVALID_LOCK_STAKING_AMOUNT: u64 = 30;
+    const EINVALID_LOCK_STKAING_PERIOD: u64 = 31;
 
     // CLAIM
-    const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 31;
+    const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 32;
 
     //
     //  Constants
@@ -150,7 +151,9 @@ module vip::vip {
         stage_end_time: u64,
         pool_split_ratio: Decimal256,
         total_operator_funded_reward: u64,
+        operator_funded_rewards: Table<u64 /* bridge id */, u64>,
         total_user_funded_reward: u64,
+        user_funded_rewards: Table<u64 /* bridge id */, u64>,
         vesting_period: u64,
         minimum_score_ratio: Decimal256,
         snapshots: Table<SnapshotKey, Snapshot>
@@ -576,9 +579,11 @@ module vip::vip {
         initial_weight_pool_reward_amount: u64,
         bridge_ids: vector<u64>,
         versions: vector<u64>,
-    ): (u64, u64) {
+    ): (u64, u64, Table<u64, u64>, Table<u64, u64>) {
         let total_user_funded_reward = 0;
         let total_operator_funded_reward = 0;
+        let user_funded_reward_table = table::new();
+        let operator_funded_reward_table = table::new();
         vector::enumerate_ref(
             &bridge_ids,
             |i, bridge_id| {
@@ -618,13 +623,10 @@ module vip::vip {
                         operator_reward_amount: operator_funded_reward
                     },
                 );
-                // record the distributed reward
-                reward::record_distributed_reward(
-                    *bridge_id,
-                    version,
-                    stage,
-                    user_funded_reward,
-                    operator_funded_reward,
+
+                table::add(&mut user_funded_reward_table, *bridge_id, user_funded_reward);
+                table::add(
+                    &mut operator_funded_reward_table, *bridge_id, operator_funded_reward
                 );
             },
         );
@@ -632,7 +634,12 @@ module vip::vip {
         event::emit(
             FundEvent { stage, total_operator_funded_reward, total_user_funded_reward },
         );
-        (total_operator_funded_reward, total_user_funded_reward)
+        (
+            total_operator_funded_reward,
+            total_user_funded_reward,
+            operator_funded_reward_table,
+            user_funded_reward_table
+        )
     }
 
     fun split_reward_with_share_internal(
@@ -645,10 +652,48 @@ module vip::vip {
         split_amount
     }
 
+    fun get_user_funded_reward_internal(
+        module_store: &ModuleStore,
+        bridge_id: u64,
+        stage: u64,
+    ): u64 {
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(&module_store.stage_data, stage_key),
+            error::not_found(ESTAGE_DATA_NOT_FOUND),
+        );
+        let stage_data = table::borrow(&module_store.stage_data, stage_key);
+
+        assert!(
+            table::contains(&stage_data.user_funded_rewards, bridge_id),
+            error::not_found(EFUNDED_REWARD_NOT_FOUND),
+        );
+        *table::borrow(&stage_data.user_funded_rewards, bridge_id)
+    }
+
+    fun get_operator_funded_reward_internal(
+        module_store: &ModuleStore,
+        bridge_id: u64,
+        stage: u64,
+    ): u64 {
+        let stage_key = table_key::encode_u64(stage);
+        assert!(
+            table::contains(&module_store.stage_data, stage_key),
+            error::not_found(ESTAGE_DATA_NOT_FOUND),
+        );
+        let stage_data = table::borrow(&module_store.stage_data, stage_key);
+
+        assert!(
+            table::contains(&stage_data.operator_funded_rewards, bridge_id),
+            error::not_found(EFUNDED_REWARD_NOT_FOUND),
+        );
+        *table::borrow(&stage_data.operator_funded_rewards, bridge_id)
+    }
+
     // fund reward to distribute to operators and users and distribute previous stage rewards
     fun fund_reward(
         module_store: &mut ModuleStore, stage: u64, initial_reward_amount: u64
-    ): (u64, u64) {
+    ): (u64, u64, Table<u64, u64>, Table<u64, u64>) {
         let (bridge_ids, versions) = get_whitelisted_bridge_ids_internal(module_store);
         // fill the balance shares of bridges
         let balance_shares = calculate_balance_share(module_store, bridge_ids);
@@ -661,7 +706,12 @@ module vip::vip {
                 initial_reward_amount,
             );
         let weight_pool_reward_amount = initial_reward_amount - balance_pool_reward_amount;
-        let (total_operator_funded_reward, total_user_funded_reward) =
+        let (
+            total_operator_funded_reward,
+            total_user_funded_reward,
+            operator_funded_rewards,
+            user_funded_rewards
+        ) =
             split_reward(
                 stage,
                 &balance_shares,
@@ -672,7 +722,12 @@ module vip::vip {
                 versions,
             );
 
-        (total_operator_funded_reward, total_user_funded_reward)
+        (
+            total_operator_funded_reward,
+            total_user_funded_reward,
+            operator_funded_rewards,
+            user_funded_rewards
+        )
     }
 
     // calculate balance share
@@ -911,7 +966,10 @@ module vip::vip {
         let has_claimable_reward =
             last_claimed_stage < last_submitted_stage
                 && is_after_challenge_period(
-                    module_store, bridge_id, version, last_claimed_stage + 1
+                    module_store,
+                    bridge_id,
+                    version,
+                    last_claimed_stage + 1,
                 );
         assert!(
             !has_claimable_reward,
@@ -1171,7 +1229,7 @@ module vip::vip {
                 let bridge_tvl =
                     primary_fungible_store::balance(
                         bridge.bridge_addr,
-                        reward::reward_metadata(),
+                        vault::reward_metadata(),
                     );
                 vector::push_back(&mut bridge_ids, bridge_id);
                 vector::push_back(&mut tvls, bridge_tvl);
@@ -1203,12 +1261,16 @@ module vip::vip {
         module_store.stage_start_time = stage_end_time;
         module_store.stage_end_time = stage_end_time + stage_interval;
         let initial_reward_amount = vault::reward_per_stage();
-        let (total_operator_funded_reward, total_user_funded_reward) =
-            fund_reward(
-                module_store,
-                fund_stage,
-                initial_reward_amount,
-            );
+        let (
+            total_operator_funded_reward,
+            total_user_funded_reward,
+            operator_funded_rewards,
+            user_funded_rewards
+        ) = fund_reward(
+            module_store,
+            fund_stage,
+            initial_reward_amount,
+        );
         table::add(
             &mut module_store.stage_data,
             table_key::encode_u64(fund_stage),
@@ -1217,7 +1279,9 @@ module vip::vip {
                 stage_end_time: module_store.stage_end_time,
                 pool_split_ratio: module_store.pool_split_ratio,
                 total_operator_funded_reward,
+                operator_funded_rewards,
                 total_user_funded_reward,
+                user_funded_rewards,
                 vesting_period: module_store.vesting_period,
                 minimum_score_ratio: module_store.minimum_score_ratio,
                 snapshots: table::new<SnapshotKey, Snapshot>(),
@@ -1407,6 +1471,9 @@ module vip::vip {
                         *l2_score,
                         minimum_score_ratio,
                         snapshot.total_l2_score,
+                        get_user_funded_reward_internal(
+                            module_store, bridge_id, *stage
+                        ),
                     ),
                 );
                 prev_stage = *stage;
@@ -1479,7 +1546,11 @@ module vip::vip {
             vector::push_back(
                 &mut claim_infos,
                 vesting::build_operator_vesting_claim_info(
-                    stage, stage + module_store.vesting_period
+                    stage,
+                    stage + module_store.vesting_period,
+                    get_operator_funded_reward_internal(
+                        module_store, bridge_id, stage
+                    ),
                 ),
             );
             stage = stage + 1;
@@ -1704,7 +1775,7 @@ module vip::vip {
             error::invalid_argument(EINVALID_BATCH_ARGUMENT),
         );
 
-        let esinit_metadata = reward::reward_metadata();
+        let esinit_metadata = vault::reward_metadata();
         let esinit = fungible_asset::zero(esinit_metadata);
 
         vector::enumerate_ref(
@@ -2150,6 +2221,20 @@ module vip::vip {
         }
     }
 
+    #[view]
+    public fun get_user_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        get_user_funded_reward_internal(module_store, bridge_id, stage)
+    }
+
+    #[view]
+    public fun get_operator_funded_reward(
+        bridge_id: u64, stage: u64
+    ): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        get_operator_funded_reward_internal(module_store, bridge_id, stage)
+    }
+
     //
     // (only on compiler v1) for preventing compile error; because of inferring type issue
     //
@@ -2382,7 +2467,6 @@ module vip::vip {
     ): u64 acquires ModuleStore {
         primary_fungible_store::init_module_for_test();
         tvl_manager::init_module_for_test(vip);
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
@@ -2797,7 +2881,6 @@ module vip::vip {
     ) acquires ModuleStore {
         let mint_amount = 1_000_000_000;
         primary_fungible_store::init_module_for_test();
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         let (_, _, mint_cap, _) = initialize_coin(chain, string::utf8(b"uinit"));
         init_module_for_test(vip);
@@ -3183,7 +3266,7 @@ module vip::vip {
         assert!(
             coin::balance(
                 signer::address_of(receiver),
-                reward::reward_metadata(),
+                vault::reward_metadata(),
             ) == expected_reward,
             2,
         );
@@ -3449,7 +3532,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x50014, location = Self)]
+    #[expected_failure(abort_code = 0x50015, location = Self)]
     fun failed_user_claim_invalid_period(
         chain: &signer,
         vip: &signer,
@@ -3536,7 +3619,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, new_agent = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x50015, location = Self)]
+    #[expected_failure(abort_code = 0x50016, location = Self)]
     fun failed_execute_challenge(
         chain: &signer,
         vip: &signer,
@@ -3694,7 +3777,7 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0x10013, location = Self)]
+    #[expected_failure(abort_code = 0x10014, location = Self)]
     fun failed_claim_jump_stage(
         chain: &signer,
         vip: &signer,
@@ -3738,7 +3821,7 @@ module vip::vip {
         assert!(
             coin::balance(
                 signer::address_of(receiver),
-                reward::reward_metadata(),
+                vault::reward_metadata(),
             ) == (reward_per_stage / (vesting_period * 2)),
             1,
         );
@@ -3752,7 +3835,6 @@ module vip::vip {
     ) acquires ModuleStore {
         let mint_amount = 100_000_000_000_000;
         primary_fungible_store::init_module_for_test();
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         tvl_manager::init_module_for_test(vip);
         let (_, _, mint_cap, _) = initialize_coin(chain, string::utf8(b"uinit"));
@@ -3878,7 +3960,6 @@ module vip::vip {
     ) acquires ModuleStore, TestCapability {
         primary_fungible_store::init_module_for_test();
         tvl_manager::init_module_for_test(vip);
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
@@ -4110,12 +4191,11 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
-    #[expected_failure(abort_code = 0x10012, location = Self)]
+    #[expected_failure(abort_code = 0x10013, location = Self)]
     fun failed_update_vip_weights(
         chain: &signer, vip: &signer, operator: &signer
     ) acquires ModuleStore {
         primary_fungible_store::init_module_for_test();
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
@@ -4173,12 +4253,11 @@ module vip::vip {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
-    #[expected_failure(abort_code = 0x10012, location = Self)]
+    #[expected_failure(abort_code = 0x10013, location = Self)]
     fun failed_update_vip_weight(
         chain: &signer, vip: &signer, operator: &signer
     ) acquires ModuleStore {
         primary_fungible_store::init_module_for_test();
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
@@ -4253,7 +4332,6 @@ module vip::vip {
         dex::init_module_for_test();
         staking::init_module_for_test();
         primary_fungible_store::init_module_for_test();
-        reward::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
         tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
@@ -4261,7 +4339,7 @@ module vip::vip {
         let (_burn_cap, _freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
 
-        let reward_metadata = reward::reward_metadata();
+        let reward_metadata = vault::reward_metadata();
         coin::mint_to(
             &mint_cap,
             bridge_address,
