@@ -1,16 +1,16 @@
 module vip::utils {
-    use std::signer;
     use std::error;
-
+    use std::option::{Self, Option};
+    use std::signer;
     use std::string::String;
     use std::vector;
+
     use initia_std::address::to_sdk;
     use initia_std::coin;
     use initia_std::decimal128::{Self, Decimal128};
     use initia_std::fungible_asset::Metadata;
     use initia_std::json::{marshal, unmarshal};
     use initia_std::object::Object;
-    use initia_std::option::{Self, Option};
     use initia_std::simple_map::{Self, SimpleMap};
     use initia_std::table::{Self, Table};
     use initia_std::query::query_stargate;

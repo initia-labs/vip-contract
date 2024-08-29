@@ -1,11 +1,11 @@
 module vip::tvl_manager {
     use std::error;
     use std::event;
+    use std::vector;
 
-    use initia_std::vector;
-    use initia_std::table_key;
-    use initia_std::table;
     use initia_std::block;
+    use initia_std::table;
+    use initia_std::table_key;
 
     use vip::utils;
     friend vip::vip;

@@ -1,7 +1,7 @@
 module vip::operator {
     use std::error;
-    use std::signer;
     use std::event;
+    use std::signer;
     use std::vector;
 
     use initia_std::decimal256::{Self, Decimal256};

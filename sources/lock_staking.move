@@ -1,6 +1,7 @@
 module vip::lock_staking {
     use std::bcs::to_bytes;
     use std::error;
+    use std::option::{Self, Option};
     use std::signer;
     use std::string::{Self, String};
     use std::vector;
@@ -13,11 +14,10 @@ module vip::lock_staking {
     use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
     use initia_std::json::{marshal, unmarshal};
     use initia_std::object::{Self, ExtendRef, Object};
-    use initia_std::option::{Self, Option};
+    use initia_std::staking;
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
     use initia_std::type_info;
-    use initia_std::staking;
     use initia_std::query::query_stargate;
 
     friend vip::vip;
@@ -1068,7 +1068,7 @@ module vip::lock_staking {
         let new_entry = RedelegationEntryResponse {
             redelegation_entry: RedelegationEntry {
                 creation_height: (height as u32),
-                completion_time: initia_std::string_utils::to_string(
+                completion_time: std::string_utils::to_string(
                     &(curr_time + state.unbonding_period)
                 ),
                 initial_balance: vector[Coin { denom, amount }],
@@ -1199,7 +1199,7 @@ module vip::lock_staking {
 
         let new_entry = UnbondingDelegationEntry {
             creation_height: height,
-            completion_time: initia_std::string_utils::to_string(
+            completion_time: std::string_utils::to_string(
                 &(curr_time + state.unbonding_period)
             ),
             initial_balance: vector[Coin { denom, amount }],

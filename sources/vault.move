@@ -1,13 +1,16 @@
 module vip::vault {
     use std::error;
+    use std::string;
 
-    use initia_std::object::{Self, ExtendRef, Object};
+    use initia_std::coin;
     use initia_std::fungible_asset::{FungibleAsset, Metadata};
+    use initia_std::object::{Self, ExtendRef, Object};
     use initia_std::primary_fungible_store;
 
     use vip::utils;
-    // friend initia_std::vip;
+
     friend vip::vesting;
+
     //
     // Errors
     //
@@ -125,10 +128,6 @@ module vip::vault {
         init_module(chain);
     }
 
-    #[test_only]
-    use initia_std::string;
-    #[test_only]
-    use initia_std::coin;
     #[test_only]
     use initia_std::option;
 

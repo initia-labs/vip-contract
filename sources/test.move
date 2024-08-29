@@ -1,20 +1,22 @@
 #[test_only]
 module vip::test {
+    use std::bcs;
     use std::hash::sha3_256;
+    use std::option;
+    use std::signer;
+    use std::string::{Self, String};
+    use std::vector;
+
     use initia_std::block;
-    use initia_std::bcs;
     use initia_std::coin;
     use initia_std::dex;
     use initia_std::decimal128;
     use initia_std::decimal256::{Self, Decimal256};
     use initia_std::fungible_asset::Metadata;
     use initia_std::object::Object;
-    use initia_std::option;
     use initia_std::staking;
-    use initia_std::string::{Self, String};
-    use initia_std::signer;
     use initia_std::primary_fungible_store;
-    use initia_std::vector;
+
     use vip::vip;
     use vip::tvl_manager;
     use vip::vault;

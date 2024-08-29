@@ -1,29 +1,30 @@
 module vip::vip {
-    use std::hash::sha3_256;
+    use std::bcs;
     use std::error;
-    use std::string;
-    use std::signer;
-    use std::vector;
-    use std::option::{Self, Option};
     use std::event;
-    use std::block;
-
-    use initia_std::object::{Self, Object};
-    use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
-    use initia_std::primary_fungible_store;
-    use initia_std::table::{Self, Table};
-    use initia_std::table_key;
+    use std::hash::sha3_256;
+    use std::option::{Self, Option};
+    use std::signer;
+    use std::string;
+    use std::vector;
+    
+    use initia_std::block;
     use initia_std::coin;
     use initia_std::decimal256::{Self, Decimal256};
-    use initia_std::simple_map::{Self, SimpleMap};
-    use initia_std::bcs;
     use initia_std::dex;
-    use vip::utils;
-    use vip::operator;
-    use vip::vesting::{Self, UserVestingClaimInfo, OperatorVestingClaimInfo};
-    use vip::vault;
-    use vip::tvl_manager;
+    use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
+    use initia_std::object::{Self, Object};
+    use initia_std::primary_fungible_store;
+    use initia_std::simple_map::{Self, SimpleMap};
+    use initia_std::table::{Self, Table};
+    use initia_std::table_key;
+
     use vip::lock_staking;
+    use vip::operator;
+    use vip::tvl_manager;
+    use vip::utils;
+    use vip::vault;
+    use vip::vesting::{Self, UserVestingClaimInfo, OperatorVestingClaimInfo};
 
     friend vip::weight_vote;
 

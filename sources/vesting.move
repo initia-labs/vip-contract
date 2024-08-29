@@ -1,17 +1,20 @@
 module vip::vesting {
+    use std::bcs;
     use std::error;
+    use std::event;
+    use std::option;
     use std::signer;
     use std::vector;
-    use std::event;
-    use std::type_info;
-    use std::option;
+
+    use initia_std::decimal256::{Self, Decimal256};
     use initia_std::fungible_asset::{FungibleAsset};
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
-    use initia_std::bcs;
-    use initia_std::decimal256::{Self, Decimal256};
+    use initia_std::type_info;
+
     use vip::vault;
     use vip::utils;
+
     friend vip::vip;
 
     //

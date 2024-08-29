@@ -1,8 +1,8 @@
 module vip::weight_vote {
     use std::error;
+    use std::option::{Self, Option};
     use std::signer;
     use std::vector;
-    use std::option::{Self, Option};
 
     use initia_std::block::get_block_info;
     use initia_std::coin;
@@ -15,9 +15,9 @@ module vip::weight_vote {
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
 
-    use vip::vip;
-    use vip::utils;
     use vip::lock_staking;
+    use vip::utils;
+    use vip::vip;
 
     //
     // Errors
@@ -672,7 +672,7 @@ module vip::weight_vote {
     // #[test_only]
     // use initia_std::coin;
     // #[test_only]
-    // use initia_std::string;
+    // use std::string;
 
     // #[test_only]
     // use initia_std::block;
