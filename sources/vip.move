@@ -151,9 +151,9 @@ module vip::vip {
         stage_end_time: u64,
         pool_split_ratio: Decimal256,
         total_operator_funded_reward: u64,
-        operator_funded_reward: Table<u64 /* bridge id */, u64>,
+        operator_funded_rewards: Table<u64 /* bridge id */, u64>,
         total_user_funded_reward: u64,
-        user_funded_reward: Table<u64 /* bridge id */, u64>,
+        user_funded_rewards: Table<u64 /* bridge id */, u64>,
         vesting_period: u64,
         minimum_score_ratio: Decimal256,
         snapshots: Table<SnapshotKey, Snapshot>
@@ -665,10 +665,10 @@ module vip::vip {
         let stage_data = table::borrow(&module_store.stage_data, stage_key);
 
         assert!(
-            table::contains(&stage_data.user_funded_reward, bridge_id),
+            table::contains(&stage_data.user_funded_rewards, bridge_id),
             error::not_found(EFUNDED_REWARD_NOT_FOUND),
         );
-        *table::borrow(&stage_data.user_funded_reward, bridge_id)
+        *table::borrow(&stage_data.user_funded_rewards, bridge_id)
     }
 
     fun get_operator_distributed_reward_internal(
@@ -684,10 +684,10 @@ module vip::vip {
         let stage_data = table::borrow(&module_store.stage_data, stage_key);
 
         assert!(
-            table::contains(&stage_data.operator_funded_reward, bridge_id),
+            table::contains(&stage_data.operator_funded_rewards, bridge_id),
             error::not_found(EFUNDED_REWARD_NOT_FOUND),
         );
-        *table::borrow(&stage_data.operator_funded_reward, bridge_id)
+        *table::borrow(&stage_data.operator_funded_rewards, bridge_id)
     }
 
     // fund reward to distribute to operators and users and distribute previous stage rewards
@@ -709,8 +709,8 @@ module vip::vip {
         let (
             total_operator_funded_reward,
             total_user_funded_reward,
-            operator_funded_reward,
-            user_funded_reward
+            operator_funded_rewards,
+            user_funded_rewards
         ) =
             split_reward(
                 stage,
@@ -725,8 +725,8 @@ module vip::vip {
         (
             total_operator_funded_reward,
             total_user_funded_reward,
-            operator_funded_reward,
-            user_funded_reward
+            operator_funded_rewards,
+            user_funded_rewards
         )
     }
 
@@ -1264,8 +1264,8 @@ module vip::vip {
         let (
             total_operator_funded_reward,
             total_user_funded_reward,
-            operator_funded_reward,
-            user_funded_reward
+            operator_funded_rewards,
+            user_funded_rewards
         ) = fund_reward(
             module_store,
             fund_stage,
@@ -1279,9 +1279,9 @@ module vip::vip {
                 stage_end_time: module_store.stage_end_time,
                 pool_split_ratio: module_store.pool_split_ratio,
                 total_operator_funded_reward,
-                operator_funded_reward,
+                operator_funded_rewards,
                 total_user_funded_reward,
-                user_funded_reward,
+                user_funded_rewards,
                 vesting_period: module_store.vesting_period,
                 minimum_score_ratio: module_store.minimum_score_ratio,
                 snapshots: table::new<SnapshotKey, Snapshot>(),

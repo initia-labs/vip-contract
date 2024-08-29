@@ -57,7 +57,7 @@ module vip::weight_vote {
     struct Proposal has store {
         votes: Table<address, WeightVote>,
         total_tally: u64,
-        tally: Table<vector<u8> /* bridge id */, u64 /* tally */>,
+        tallies: Table<vector<u8> /* bridge id */, u64 /* tally */>,
         voting_end_time: u64,
         executed: bool,
     }
@@ -334,7 +334,7 @@ module vip::weight_vote {
             let bridge_id = *vector::borrow(&bridge_ids, index);
             let tally =
                 table::borrow_with_default(
-                    &proposal.tally,
+                    &proposal.tallies,
                     table_key::encode_u64(bridge_id),
                     &0,
                 );
@@ -404,7 +404,7 @@ module vip::weight_vote {
                 voting_power_removed = voting_power_removed + bridge_vp;
                 let tally =
                     table::borrow_mut_with_default(
-                        &mut proposal.tally,
+                        &mut proposal.tallies,
                         table_key::encode_u64(w.bridge_id),
                         0,
                     );
@@ -426,7 +426,7 @@ module vip::weight_vote {
                 voting_power_used = voting_power_used + bridge_vp;
                 let tally =
                     table::borrow_mut_with_default(
-                        &mut proposal.tally,
+                        &mut proposal.tallies,
                         table_key::encode_u64(w.bridge_id),
                         0,
                     );
@@ -529,7 +529,7 @@ module vip::weight_vote {
             Proposal {
                 votes: table::new(),
                 total_tally: 0,
-                tally: table::new(),
+                tallies: table::new(),
                 voting_end_time,
                 executed: false,
             },
@@ -575,7 +575,7 @@ module vip::weight_vote {
         );
         let proposal = table::borrow(&module_store.proposals, cycle_key);
         *table::borrow_with_default(
-            &proposal.tally,
+            &proposal.tallies,
             table_key::encode_u64(bridge_id),
             &0,
         )
@@ -600,7 +600,7 @@ module vip::weight_vote {
             |bridge_id| {
                 let tally =
                     table::borrow_with_default(
-                        &proposal.tally,
+                        &proposal.tallies,
                         table_key::encode_u64(bridge_id),
                         &0,
                     );

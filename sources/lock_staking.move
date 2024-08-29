@@ -876,8 +876,8 @@ module vip::lock_staking {
     #[test_only]
     struct MstakingState has key {
         extend_ref: ExtendRef,
-        delegation: Table<DelegationRequest, DelegationResponse>,
-        unbonding_delegation: Table<UnbondingDelegationRequest, UnbondingDelegationResponse>,
+        delegations: Table<DelegationRequest, DelegationResponse>,
+        unbonding_delegations: Table<UnbondingDelegationRequest, UnbondingDelegationResponse>,
         redelegations: Table<RedelegationsRequest, RedelegationsResponse>,
         unbonding_period: u64,
     }
@@ -892,8 +892,8 @@ module vip::lock_staking {
             chain,
             MstakingState {
                 extend_ref,
-                delegation: table::new(),
-                unbonding_delegation: table::new(),
+                delegations: table::new(),
+                unbonding_delegations: table::new(),
                 redelegations: table::new(),
                 unbonding_period: 0,
             },
@@ -986,7 +986,7 @@ module vip::lock_staking {
             marshal(&delegation),
         );
         table::upsert(
-            &mut state.delegation,
+            &mut state.delegations,
             req,
             DelegationResponse { delegation_response: delegation },
         );
@@ -1130,7 +1130,7 @@ module vip::lock_staking {
             marshal(&delegation),
         );
         table::upsert(
-            &mut state.delegation,
+            &mut state.delegations,
             req,
             DelegationResponse { delegation_response: delegation },
         );
@@ -1168,7 +1168,7 @@ module vip::lock_staking {
         let req = UnbondingDelegationRequest { delegator_addr, validator_addr };
         let res =
             table::borrow_mut_with_default(
-                &mut state.unbonding_delegation,
+                &mut state.unbonding_delegations,
                 req,
                 UnbondingDelegationResponse {
                     unbond: UnbondingDelegation {
