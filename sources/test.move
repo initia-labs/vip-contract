@@ -19,7 +19,6 @@ module vip::test {
     use vip::tvl_manager;
     use vip::vault;
     use vip::vesting;
-    use vip::reward;
 
     struct TestState has key {
         last_submitted_stage: u64,
@@ -137,6 +136,10 @@ module vip::test {
         block::set_block_info(height, curr_time + period);
     }
 
+    fun reward_balance(addr: address): u64 {
+        primary_fungible_store::balance(addr, vault::reward_metadata())
+    }
+
     // only do fund reward not
     fun fund_reward(
         agent: &signer,
@@ -153,7 +156,8 @@ module vip::test {
         vector::push_back(merkle_proofs, vector[vector[]]);
         vector::push_back(l2_scores, 0);
     }
-    fun submit_snapshot( 
+
+    fun submit_snapshot(
         agent: &signer,
         bridge_id: u64,
         user: address,
@@ -180,6 +184,7 @@ module vip::test {
         vector::push_back(merkle_proofs, merkle_proof);
         vector::push_back(l2_scores, l2_score);
     }
+
     fun submit_snapshot_and_fund_reward(
         agent: &signer,
         bridge_id: u64,
@@ -283,7 +288,6 @@ module vip::test {
         tvl_manager::init_module_for_test(vip);
         vip::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
-        reward::init_module_for_test(vip);
 
         vip::update_params(
             vip,
@@ -342,8 +346,8 @@ module vip::test {
 
         vip::update_vip_weights(
             vip,
-            vector[get_bridge_id(),get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(1,2),decimal256::from_ratio_u64(1,2)],
+            vector[get_bridge_id(), get_bridge2_id()],
+            vector[decimal256::from_ratio_u64(1, 2), decimal256::from_ratio_u64(1, 2)],
         );
         move_to(vip, TestState { last_submitted_stage: 0 });
         dex::create_pair_script(
@@ -707,12 +711,12 @@ module vip::test {
         let vault_balance_after = vault::balance();
         // vested stage 1 reward(stage_reward  + vested stage 2 reward(0))
         assert!(
-            reward::balance(receiver_addr) == (vesting1_initial_reward / vesting_period),
+            reward_balance(receiver_addr) == (vesting1_initial_reward / vesting_period),
             8,
         );
         // claim no reward of vesting2 position; vault balance reduce only amount of claim reward
         assert!(
-            vault_balance_after == vault_balance_before - reward::balance(receiver_addr),
+            vault_balance_after == vault_balance_before - reward_balance(receiver_addr),
             9,
         )
     }
@@ -777,7 +781,7 @@ module vip::test {
             &mut merkle_proofs,
             &mut l2_scores,
         );
-        assert!(reward::balance(receiver_addr) == 0, 1);
+        assert!(reward_balance(receiver_addr) == 0, 1);
 
         let vault_balance_before = vault::balance();
         // stage 1, 2, 3, 4 claimed
@@ -797,11 +801,11 @@ module vip::test {
         let vesting2_net_reward = 2 * vesting2_initial_reward / (5 * vesting_period); // stage 3: 0%, stage 4 : 40%
         let vault_balance_after = vault::balance();
         assert!(
-            reward::balance(receiver_addr) == vesting1_net_reward + vesting2_net_reward,
+            reward_balance(receiver_addr) == vesting1_net_reward + vesting2_net_reward,
             6,
         );
         assert!(
-            vault_balance_after == vault_balance_before - reward::balance(receiver_addr),
+            vault_balance_after == vault_balance_before - reward_balance(receiver_addr),
             7,
         );
     }
@@ -847,7 +851,7 @@ module vip::test {
             &mut merkle_proofs,
             &mut l2_scores,
         );
-        assert!(reward::balance(receiver_addr) == 0, 3);
+        assert!(reward_balance(receiver_addr) == 0, 3);
 
         vip::batch_claim_user_reward_script(
             receiver,
@@ -965,7 +969,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xC001f, location = vip)]
+    #[expected_failure(abort_code = 0xC0020, location = vip)]
     fun fail_lock_stake_vesting_position_without_claim(
         chain: &signer,
         vip: &signer,
@@ -1016,7 +1020,7 @@ module vip::test {
             &mut merkle_proofs,
             &mut l2_scores,
         );
-        assert!(reward::balance(receiver_addr) == 0, 3);
+        assert!(reward_balance(receiver_addr) == 0, 3);
         let remaining_reward =
             vesting::get_user_vesting_remaining(receiver_addr, get_bridge_id(), 1, 1);
         let vault_balance_before = vault::balance();
@@ -1036,7 +1040,7 @@ module vip::test {
             option::none(),
         );
 
-        assert!(reward::balance(receiver_addr) == 0, 4);
+        assert!(reward_balance(receiver_addr) == 0, 4);
 
         assert!(
             vault::balance() == vault_balance_before - remaining_reward,
@@ -1196,12 +1200,12 @@ module vip::test {
 
         // stage 1 vested reward(stage 2)
         assert!(
-            reward::balance(receiver_addr) == (vesting1_initial_reward / vesting_period),
+            reward_balance(receiver_addr) == (vesting1_initial_reward / vesting_period),
             4,
         );
         // claim no reward of vesting2 position; vault balance reduce only amount of claim reward
         assert!(
-            vault_balance_after == vault_balance_before - reward::balance(receiver_addr),
+            vault_balance_after == vault_balance_before - reward_balance(receiver_addr),
             5,
         );
 
@@ -1352,8 +1356,7 @@ module vip::test {
         let vesting2_initial_reward =
             vesting::get_user_vesting_initial_reward(receiver_addr, get_bridge_id(), 1, 2);
         assert!(
-            reward::balance(receiver_addr) == vesting1_initial_reward
-                / get_vesting_period(),
+            reward_balance(receiver_addr) == vesting1_initial_reward / get_vesting_period(),
             1,
         );
         // stage 1 clean up
@@ -1408,7 +1411,7 @@ module vip::test {
             l2_scores,
         );
         assert!(
-            reward::balance(receiver_addr)
+            reward_balance(receiver_addr)
                 == (3 * vesting1_initial_reward) / (2 * get_vesting_period())
                     + vesting2_initial_reward / (2 * get_vesting_period()),
             4,
@@ -1786,10 +1789,10 @@ module vip::test {
         );
 
         // stage 2 vested reward(5; 40% one time)
-        assert!(reward::balance(receiver_addr) == 0, 3);
+        assert!(reward_balance(receiver_addr) == 0, 3);
         // claim no reward of vesting2 position; vault balance reduced only by amount of claim reward
         assert!(
-            vault::balance() == vault_balance_before - reward::balance(receiver_addr),
+            vault::balance() == vault_balance_before - reward_balance(receiver_addr),
             4,
         )
     }
@@ -1995,7 +1998,7 @@ module vip::test {
             2,
         );
         assert!(
-            reward::balance(operator_addr)
+            reward_balance(operator_addr)
                 == vesting2_initial_reward / get_vesting_period()
                     + 2 * vesting1_initial_reward / get_vesting_period(),
             3,
@@ -2102,14 +2105,14 @@ module vip::test {
         let vault_balance_after = vault::balance();
         // stage 1 vesting reward(2)
         assert!(
-            reward::balance(operator_addr) == (
+            reward_balance(operator_addr) == (
                 (vesting1_initial_reward) / (vesting_period)
             ),
             3,
         );
         // claim no reward of vesting2 position; vault balance reduce only amount of claim reward
         assert!(
-            vault_balance_after == vault_balance_before - reward::balance(operator_addr),
+            vault_balance_after == vault_balance_before - reward_balance(operator_addr),
             4,
         )
     }
@@ -2220,20 +2223,18 @@ module vip::test {
             2,
         );
         assert!(
-            reward::balance(operator_addr) == vesting1_initial_reward
-                / get_vesting_period(),
+            reward_balance(operator_addr) == vesting1_initial_reward / get_vesting_period(),
             3,
         );
 
         assert!(
-            reward::balance(new_operator_addr)
+            reward_balance(new_operator_addr)
                 == 2 * vesting1_initial_reward / get_vesting_period()
                     + 2 * vesting2_initial_reward / get_vesting_period()
                     + vesting3_initial_reward / get_vesting_period(),
             3,
         );
     }
-
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
     fun e2e_bridge_reward(
@@ -2242,17 +2243,19 @@ module vip::test {
         operator: &signer,
         receiver: &signer,
     ) acquires TestState {
-        // stage 1 distributed 
+        // stage 1 distributed
         initialize(chain, vip, operator);
         let receiver_addr = signer::address_of(receiver);
         coin::transfer(
             chain,
             receiver_addr,
             usdc_metadata(),
-            100_000_000
+            100_000_000,
         );
-        let (bridge1_stages, bridge1_merkle_proofs, bridge1_l2_scores) = reset_claim_args();
-        let (bridge2_stages, bridge2_merkle_proofs, bridge2_l2_scores) = reset_claim_args();
+        let (bridge1_stages, bridge1_merkle_proofs, bridge1_l2_scores) =
+            reset_claim_args();
+        let (bridge2_stages, bridge2_merkle_proofs, bridge2_l2_scores) =
+            reset_claim_args();
         // submit snapshot of stage 1(bridge id: 1, 2); total score: 1000, receiver's score : 100
         // stage 1 snapshot submitted. stage 2 distributed
         submit_snapshot_and_fund_reward(
@@ -2263,7 +2266,7 @@ module vip::test {
             1000,
             &mut bridge1_stages,
             &mut bridge1_merkle_proofs,
-            &mut bridge1_l2_scores, 
+            &mut bridge1_l2_scores,
         );
         submit_snapshot(
             vip,
@@ -2275,13 +2278,17 @@ module vip::test {
             &mut bridge2_merkle_proofs,
             &mut bridge2_l2_scores,
         );
-        let user_distributed_reward1 = reward::get_user_distrubuted_reward(get_bridge_id(), get_version(), 2);
-        let user_distributed_reward2 = reward::get_user_distrubuted_reward(get_bridge2_id(), get_version(), 2);
-        let operator_distributed_reward1 = reward::get_operator_distrubuted_reward(get_bridge_id(), get_version(), 2);
-        let operator_distributed_reward2 = reward::get_operator_distrubuted_reward(get_bridge2_id(), get_version(), 2);
-        // same weight and same tvl 
-        assert!(user_distributed_reward1 == user_distributed_reward2 , 1);
-        assert!(operator_distributed_reward1 == operator_distributed_reward2 , 1);
+        let user_distributed_reward1 =
+            vip::get_user_distributed_reward(get_bridge_id(), 2);
+        let user_distributed_reward2 =
+            vip::get_user_distributed_reward(get_bridge2_id(), 2);
+        let operator_distributed_reward1 =
+            vip::get_operator_distributed_reward(get_bridge_id(), 2);
+        let operator_distributed_reward2 =
+            vip::get_operator_distributed_reward(get_bridge2_id(), 2);
+        // same weight and same tvl
+        assert!(user_distributed_reward1 == user_distributed_reward2, 1);
+        assert!(operator_distributed_reward1 == operator_distributed_reward2, 1);
         // stage 2
         // weight 0.6 : 0.4
         // total score: 1000, receiver's score : 500
@@ -2289,7 +2296,7 @@ module vip::test {
         vip::update_vip_weights(
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(3,5),decimal256::from_ratio_u64(2,5)]
+            vector[decimal256::from_ratio_u64(3, 5), decimal256::from_ratio_u64(2, 5)],
         );
 
         submit_snapshot_and_fund_reward(
@@ -2314,16 +2321,20 @@ module vip::test {
             &mut bridge2_l2_scores,
         );
         // weight 0.6 / 0.4
-        // max weight: 0.5 
+        // max weight: 0.5
         // if total reward is 100
         // weight pool reward (50) (bridge 1) : (bridge 2) = 25 : 20, 5 -> return to vault
         // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
         // total pool reward (bridge 1) : (bridge 2) =  50 : 45
-        // reward1: reward2 = 25: 22.5 
-        user_distributed_reward1 = reward::get_user_distrubuted_reward(get_bridge_id(), get_version(), 3);
-        user_distributed_reward2 = reward::get_user_distrubuted_reward(get_bridge2_id(), get_version(), 3);
-        operator_distributed_reward1 = reward::get_operator_distrubuted_reward(get_bridge_id(), get_version(), 3);
-        operator_distributed_reward2 = reward::get_operator_distrubuted_reward(get_bridge2_id(), get_version(), 3);
+        // reward1: reward2 = 25: 22.5
+        user_distributed_reward1 = vip::get_user_distributed_reward(get_bridge_id(), 3);
+        user_distributed_reward2 = vip::get_user_distributed_reward(get_bridge2_id(), 3);
+        operator_distributed_reward1 = vip::get_operator_distributed_reward(
+            get_bridge_id(), 3
+        );
+        operator_distributed_reward2 = vip::get_operator_distributed_reward(
+            get_bridge2_id(), 3
+        );
         assert!(user_distributed_reward1 * 45 == user_distributed_reward2 * 50, 2);
         assert!(operator_distributed_reward1 * 45 == operator_distributed_reward2 * 50, 2);
 
@@ -2333,7 +2344,7 @@ module vip::test {
         vip::update_vip_weights(
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(3,10),decimal256::from_ratio_u64(7,10)]
+            vector[decimal256::from_ratio_u64(3, 10), decimal256::from_ratio_u64(7, 10)],
         );
         submit_snapshot_and_fund_reward(
             vip,
@@ -2358,16 +2369,20 @@ module vip::test {
         );
 
         // weight 0.3 / 0.7
-        // max weight: 0.5 
+        // max weight: 0.5
         // if total reward is 100
         // weight pool reward (50) (bridge 1) : (bridge 2) = 15 : 25, 15 -> return to vault
         // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
         // total pool reward (bridge 1) : (bridge 2) =  40 : 50
-        // reward1 : reward2 = 20: 25 
-        user_distributed_reward1 = reward::get_user_distrubuted_reward(get_bridge_id(), get_version(), 4);
-        user_distributed_reward2 = reward::get_user_distrubuted_reward(get_bridge2_id(), get_version(), 4);
-        operator_distributed_reward1 = reward::get_operator_distrubuted_reward(get_bridge_id(), get_version(), 4);
-        operator_distributed_reward2 = reward::get_operator_distrubuted_reward(get_bridge2_id(), get_version(), 4);
+        // reward1 : reward2 = 20: 25
+        user_distributed_reward1 = vip::get_user_distributed_reward(get_bridge_id(), 4);
+        user_distributed_reward2 = vip::get_user_distributed_reward(get_bridge2_id(), 4);
+        operator_distributed_reward1 = vip::get_operator_distributed_reward(
+            get_bridge_id(), 4
+        );
+        operator_distributed_reward2 = vip::get_operator_distributed_reward(
+            get_bridge2_id(), 4
+        );
         assert!(user_distributed_reward1 * 25 == user_distributed_reward2 * 20, 2);
         assert!(operator_distributed_reward1 * 25 == operator_distributed_reward2 * 20, 2);
     }

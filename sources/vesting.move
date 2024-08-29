@@ -10,7 +10,6 @@ module vip::vesting {
     use initia_std::table_key;
     use initia_std::bcs;
     use initia_std::decimal256::{Self, Decimal256};
-    use vip::reward;
     use vip::vault;
     use vip::utils;
     friend vip::vip;
@@ -64,11 +63,13 @@ module vip::vesting {
         l2_score: u64,
         total_l2_score: u64,
         minimum_score_ratio: Decimal256,
+        distributed_reward: u64,
     }
 
     struct OperatorVestingClaimInfo has drop, copy {
         start_stage: u64,
         end_stage: u64,
+        distributed_reward: u64,
     }
 
     struct UserVestingResponse has drop {
@@ -247,13 +248,11 @@ module vip::vesting {
                 let initial_reward_amount =
                     if (claim_info.total_l2_score == 0) { 0 }
                     else {
-                        let total_user_reward =
-                            reward::get_user_distrubuted_reward(
-                                bridge_id, version, claim_info.start_stage
-                            );
-                        (
-                            (total_user_reward as u128) * (claim_info.l2_score as u128)
-                                / (claim_info.total_l2_score as u128) as u64
+                        let total_user_reward = claim_info.distributed_reward;
+                        utils::mul_div_u64(
+                            total_user_reward,
+                            claim_info.l2_score,
+                            claim_info.total_l2_score,
                         )
                     };
                 assert!(
@@ -366,11 +365,12 @@ module vip::vesting {
         vector::for_each_ref<OperatorVestingClaimInfo>(
             &claim_infos,
             |claim_info| {
-                let OperatorVestingClaimInfo { start_stage, end_stage: _ } = *claim_info;
-                let initial_reward =
-                    reward::get_operator_distrubuted_reward(
-                        bridge_id, version, start_stage
-                    );
+                let OperatorVestingClaimInfo {
+                    start_stage,
+                    end_stage: _,
+                    distributed_reward
+                } = *claim_info;
+                let initial_reward = distributed_reward;
 
                 assert!(
                     !table::contains(
@@ -524,21 +524,23 @@ module vip::vesting {
         end_stage: u64,
         l2_score: u64,
         minimum_score_ratio: Decimal256,
-        total_l2_score: u64
+        total_l2_score: u64,
+        distributed_reward: u64,
     ): UserVestingClaimInfo {
         UserVestingClaimInfo {
             start_stage,
             end_stage,
             l2_score,
             minimum_score_ratio,
-            total_l2_score
+            total_l2_score,
+            distributed_reward,
         }
     }
 
     public(friend) fun build_operator_vesting_claim_info(
-        start_stage: u64, end_stage: u64
+        start_stage: u64, end_stage: u64, distributed_reward: u64,
     ): OperatorVestingClaimInfo {
-        OperatorVestingClaimInfo { start_stage, end_stage }
+        OperatorVestingClaimInfo { start_stage, end_stage, distributed_reward }
     }
 
     //
