@@ -2280,10 +2280,8 @@ module vip::test {
             &mut bridge2_merkle_proofs,
             &mut bridge2_l2_scores,
         );
-        let user_distributed_reward1 =
-            vip::get_user_funded_reward(get_bridge_id(), 2);
-        let user_distributed_reward2 =
-            vip::get_user_funded_reward(get_bridge2_id(), 2);
+        let user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 2);
+        let user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 2);
         let operator_distributed_reward1 =
             vip::get_operator_funded_reward(get_bridge_id(), 2);
         let operator_distributed_reward2 =
@@ -2346,7 +2344,9 @@ module vip::test {
         vip::update_vip_weights(
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(3, 10), decimal256::from_ratio_u64(7, 10)],
+            vector[
+                decimal256::from_ratio_u64(3, 10),
+                decimal256::from_ratio_u64(7, 10)],
         );
         submit_snapshot_and_fund_reward(
             vip,

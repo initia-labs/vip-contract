@@ -7,7 +7,7 @@ module vip::vip {
     use std::signer;
     use std::string;
     use std::vector;
-    
+
     use initia_std::block;
     use initia_std::coin;
     use initia_std::decimal256::{Self, Decimal256};
@@ -1471,9 +1471,7 @@ module vip::vip {
                         *l2_score,
                         minimum_score_ratio,
                         snapshot.total_l2_score,
-                        get_user_funded_reward_internal(
-                            module_store, bridge_id, *stage
-                        ),
+                        get_user_funded_reward_internal(module_store, bridge_id, *stage),
                     ),
                 );
                 prev_stage = *stage;
@@ -1548,9 +1546,7 @@ module vip::vip {
                 vesting::build_operator_vesting_claim_info(
                     stage,
                     stage + module_store.vesting_period,
-                    get_operator_funded_reward_internal(
-                        module_store, bridge_id, stage
-                    ),
+                    get_operator_funded_reward_internal(module_store, bridge_id, stage),
                 ),
             );
             stage = stage + 1;
@@ -2228,9 +2224,7 @@ module vip::vip {
     }
 
     #[view]
-    public fun get_operator_funded_reward(
-        bridge_id: u64, stage: u64
-    ): u64 acquires ModuleStore {
+    public fun get_operator_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         get_operator_funded_reward_internal(module_store, bridge_id, stage)
     }
