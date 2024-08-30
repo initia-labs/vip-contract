@@ -290,7 +290,7 @@ module initia_std::mstaking_mock {
             if (src_validator_addr != validator_addr) {
                 continue
             };
-
+            // search redelegation from src val
             vector::for_each_ref(
                 &redelegation_entries,
                 |entry| {
@@ -394,53 +394,23 @@ module initia_std::mstaking_mock {
                             };
                             let inner =
                                 get_delegation(delegation_req).delegation_response;
-                            let shares = inner.delegation.shares;
                             let balances = inner.balance;
 
-                            let new_balance = vector<Coin>[];
-                            vector::enumerate_ref(
-                                &balances,
-                                |idx, balance| {
-                                    use_coin(balance);
-                                    let slashing_amount = vector::borrow(
-                                        &slashing_coins, idx
-                                    ).amount;
-                                    let new_balance_amount =
-                                        balance.amount - slashing_amount;
-                                    vector::push_back(
-                                        &mut new_balance,
-                                        Coin {
-                                            denom: balance.denom,
-                                            amount: new_balance_amount
-                                        },
-                                    );
-                                },
-                            );
+                            let new_balances = sub_coins(balances, slashing_coins);
                             let new_shares = vector<DecCoin>[];
-                            // reset staking ratio of shares and amounts
-                            vector::enumerate_ref(
-                                &shares,
-                                |idx, s| {
-                                    use_dec_coin(s);
-                                    let share_amount =
-                                        decimal128::ceil_u64(&s.amount);
+                            // calculate shares based on the 'amount_to_share', since the staking ratio remains constant.
+                            vector::for_each_ref(
+                                &new_balances,
+                                |new_balance| {
+                                    use_coin(new_balance);
                                     vector::push_back(
                                         &mut new_shares,
                                         DecCoin {
-                                            denom: s.denom,
+                                            denom: new_balance.denom,
                                             amount: decimal128::from_ratio_u64(
-                                                share_amount, 1
+                                                staking::amount_to_share(*string::bytes(&dst_validator_addr),&coin::denom_to_metadata(new_balance.denom),new_balance.amount), 1
                                             )
                                         },
-                                    );
-                                    let new_balance_amount = vector::borrow(
-                                        &new_balance, idx
-                                    ).amount;
-                                    staking::set_staking_share_ratio(
-                                        *string::bytes(&validator_addr),
-                                        &coin::denom_to_metadata(s.denom),
-                                        share_amount,
-                                        new_balance_amount,
                                     );
                                 },
                             );
@@ -451,7 +421,7 @@ module initia_std::mstaking_mock {
                                         validator_address: delegation_req.validator_addr,
                                         shares: new_shares
                                     },
-                                    balance: new_balance,
+                                    balance: new_balances,
                                 }
                             };
                             // reset delegation with new shares and balances
@@ -517,6 +487,8 @@ module initia_std::mstaking_mock {
             option::none(),
             2,
         );
+        let total_shares = vector<DecCoin>[];
+        let new_total_balances = vector<Coin>[];
         loop {
             if (!table::prepare(iter)) { break };
             let (delegation_req, _v) = table::next(iter);
@@ -524,9 +496,7 @@ module initia_std::mstaking_mock {
                 continue
             };
             let inner = get_delegation(delegation_req).delegation_response;
-            let shares = inner.delegation.shares;
             let balances = inner.balance;
-            let new_share = vector<DecCoin>[];
             let new_balance = vector<Coin>[];
             vector::for_each_ref(
                 &balances,
@@ -541,33 +511,15 @@ module initia_std::mstaking_mock {
                     );
                 },
             );
-            // reset staking ratio of shares and amounts
-            vector::enumerate_ref(
-                &shares,
-                |idx, s| {
-                    use_dec_coin(s);
-                    let share_amount = decimal128::ceil_u64(&s.amount);
-                    vector::push_back(
-                        &mut new_share,
-                        DecCoin {
-                            denom: s.denom,
-                            amount: decimal128::from_ratio_u64(share_amount, 1)
-                        },
-                    );
-                    let reserve_amount = vector::borrow(&new_balance, idx).amount;
-                    staking::set_staking_share_ratio(
-                        *string::bytes(&validator_addr),
-                        &coin::denom_to_metadata(s.denom),
-                        share_amount,
-                        reserve_amount,
-                    );
-                },
-            );
+            
+            total_shares = add_dec_coins(total_shares, inner.delegation.shares);
+            new_total_balances = add_coins(new_total_balances, new_balance);
+
             let delegation_response = DelegationResponseInner {
                 delegation: Delegation {
                     delegator_address: delegation_req.delegator_addr,
                     validator_address: delegation_req.validator_addr,
-                    shares: new_share
+                    shares: inner.delegation.shares
                 },
                 balance: new_balance,
             };
@@ -606,7 +558,27 @@ module initia_std::mstaking_mock {
             set_delegator_delegations(
                 &delegator_delegations_req, &delegator_delegations
             );
-        }
+        };
+
+        // reset staking ratio of shares and amounts
+        vector::for_each_ref(
+            &total_shares,
+            |s| {
+                use_dec_coin(s);
+                let total_share_amount = decimal128::ceil_u64(&s.amount);
+                let (_, idx) = vector::find(&new_total_balances, |new_total_balance| {
+                    use_coin(new_total_balance);
+                    new_total_balance.denom == s.denom
+                });
+                let total_balance = vector::borrow(&new_total_balances,idx);
+                staking::set_staking_share_ratio(
+                    *string::bytes(&validator_addr),
+                    &coin::denom_to_metadata(s.denom),
+                    total_share_amount,
+                    total_balance.amount,
+                );
+            },
+        );
     }
 
     public fun slash(validator_addr: String, slash_factor: Decimal128) acquires TestState {
@@ -813,7 +785,6 @@ module initia_std::mstaking_mock {
             &mut delegation.delegation_response.balance, balance_index
         );
         balance.amount = balance.amount + amount;
-        let new_amount = balance.amount;
         // update share
         let (found, share_index) = vector::find(
             &delegation.delegation_response.delegation.shares,
@@ -846,13 +817,6 @@ module initia_std::mstaking_mock {
             ),
         );
 
-        // set staking ratio
-        staking::set_staking_share_ratio(
-            *string::bytes(&validator_addr),
-            &metadata,
-            decimal128::ceil_u64(&share.amount),
-            new_amount,
-        );
         // set delegation
         set_delegation(&delegation_req, &delegation);
 
@@ -961,21 +925,6 @@ module initia_std::mstaking_mock {
                 1,
             ),
         );
-        if (new_amount == 0) {
-            staking::set_staking_share_ratio(
-                *string::bytes(&validator_addr),
-                &metadata,
-                1,
-                1,
-            );
-        } else {
-            staking::set_staking_share_ratio(
-                *string::bytes(&validator_addr),
-                &metadata,
-                decimal128::ceil_u64(&share.amount),
-                new_amount,
-            );
-        };
 
         if (share.amount == decimal128::zero()) {
             vector::remove<DecCoin>(
@@ -1343,36 +1292,50 @@ module initia_std::mstaking_mock {
     // a - b
     // always a_c.amount > b_c.amount, otherwise make error
     fun sub_coins(a: vector<Coin>, b: vector<Coin>): vector<Coin> {
-        let results = vector<Coin>[];
+        let results = a;
         vector::for_each_ref(
-            &a,
-            |a_c| {
-                use_coin(a_c);
+            &b, |b_c| {
+                use_coin(b_c);
                 let (find, idx) = vector::find(
-                    &b,
-                    |b_c| {
-                        use_coin(b_c);
-                        b_c.denom == a_c.denom
-                    },
+                    &results,
+                    |r_c| {
+                        use_coin(r_c);
+                        b_c.denom == r_c.denom
+                    }
                 );
-                let amount =
-                    if (find) {
-                        let b_c = vector::borrow(&b, idx);
-                        a_c.amount - b_c.amount
-                    } else {
-                        a_c.amount
-                    };
-                vector::push_back(
-                    &mut results,
-                    Coin { denom: a_c.denom, amount, },
+                assert!(find, 1);
+                let res_c = vector::borrow_mut(&mut results, idx);
+                res_c.amount = res_c.amount - b_c.amount;
+            }
+        );
+        results
+    }
+
+    // a + b
+    fun add_coins(a: vector<Coin>, b: vector<Coin>): vector<Coin> {
+        let results = a;
+        vector::for_each_ref(
+            &b, |b_c| {
+                use_coin(b_c);
+                let (find, idx) = vector::find(
+                    &results,
+                    |r_c| {
+                        use_coin(r_c);
+                        b_c.denom == r_c.denom
+                    }
                 );
-            },
+                if(find) {
+                    let res_c = vector::borrow_mut(&mut results, idx);
+                    res_c.amount = res_c.amount + b_c.amount;
+                } else {
+                    vector::push_back(&mut results,*b_c);
+                }
+            }
         );
         results
     }
 
     fun is_zero_coins(coins: vector<Coin>): bool {
-
         let is_zero = true;
         vector::for_each_ref(
             &coins,
@@ -1393,6 +1356,28 @@ module initia_std::mstaking_mock {
 
     inline fun use_dec_coin(_V: &DecCoin) {}
 
+    fun add_dec_coins(a: vector<DecCoin>, b: vector<DecCoin>): vector<DecCoin> {
+        let results = a;
+        vector::for_each_ref(
+            &b, |b_c| {
+                use_dec_coin(b_c);
+                let (find, idx) = vector::find(
+                    &results,
+                    |r_c| {
+                        use_dec_coin(r_c);
+                        b_c.denom == r_c.denom
+                    }
+                );
+                if(find) {
+                    let res_c = vector::borrow_mut(&mut results, idx);
+                    res_c.amount = decimal128::add(&res_c.amount , &b_c.amount);
+                } else {
+                    vector::push_back(&mut results,*b_c);
+                }
+            }
+        );
+        results
+    }
     struct UnbondingDelegation has copy, drop, store {
         delegator_address: String,
         validator_address: String,
@@ -1587,6 +1572,25 @@ module initia_std::mstaking_mock {
             1000_000,
             1000_000,
         );
+        
+
+        let test_state = borrow_global_mut<TestState>(@initia_std);
+        let test_signer_addr = object::address_from_extend_ref(&test_state.extend_ref);
+        coin::transfer(
+            chain,
+            test_signer_addr,
+            get_lp_metadata(),
+            coin::balance(signer::address_of(chain), get_lp_metadata()) / 2,
+        );
+
+        // set pool "INIT-USDC" for bonded tokes
+        set_pool(vector[],vector[Coin{
+            denom: string::utf8(b"INIT-USDC"),
+            amount: 500_000
+        }],vector[]);
+        update_voting_power_weights(vector[string::utf8(b"INIT-USDC")], vector[decimal128::one()]);
+
+
         // set staking ratio of val1, val2
         staking::set_staking_share_ratio(
             *string::bytes(&get_validator1()),
@@ -1600,15 +1604,7 @@ module initia_std::mstaking_mock {
             1000_000,
             1000_000,
         );
-
-        let test_state = borrow_global_mut<TestState>(@initia_std);
-        let test_signer_addr = object::address_from_extend_ref(&test_state.extend_ref);
-        coin::transfer(
-            chain,
-            test_signer_addr,
-            get_lp_metadata(),
-            coin::balance(signer::address_of(chain), get_lp_metadata()) / 2,
-        );
+        
 
     }
 
@@ -2647,6 +2643,7 @@ module initia_std::mstaking_mock {
                 },
             1,
         );
+        
         assert!(
             delegation2
                 == DelegationResponse {
@@ -2658,7 +2655,7 @@ module initia_std::mstaking_mock {
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
                                     amount: decimal128::from_ratio_u64(
-                                        delegating_amount / 2, 1
+                                        450, 1
                                     )
                                 }]
                         },
@@ -2708,7 +2705,7 @@ module initia_std::mstaking_mock {
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
                                         amount: decimal128::from_ratio_u64(
-                                            delegating_amount / 2, 1
+                                            450, 1
                                         )
                                     }]
                             },
@@ -2722,13 +2719,21 @@ module initia_std::mstaking_mock {
             3,
         );
         // check share to amount
-        let share_to_amount =
+        let share_to_amount1 =
             staking::share_to_amount(
                 *string::bytes(&get_validator1()),
                 &metadata,
                 100000,
             );
-        assert!(share_to_amount == 90000, 3);
+        assert!(share_to_amount1 == 90000, 3);
+
+        let share_to_amount2 =
+            staking::share_to_amount(
+                *string::bytes(&get_validator1()),
+                &metadata,
+                100000,
+            );
+        assert!(share_to_amount2 == 90000, 4);
         let balance_before =
             coin::balance(signer::address_of(delegator), get_lp_metadata());
         increase_block(500, get_unbonding_period() + 1);
