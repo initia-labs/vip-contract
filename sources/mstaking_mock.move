@@ -25,6 +25,7 @@ module initia_std::mstaking_mock {
         unbonding_period: u64,
         unbonding_id: u64,
 
+        whitelisted_validators: Table<String, bool>,
         // for check query is set
         delegation: Table<DelegationRequest, bool>,
         delegator_delegations: Table<DelegatorDelegationsRequest, bool>,
@@ -37,6 +38,7 @@ module initia_std::mstaking_mock {
         // completion time => redelegation mapping
         completion_time_to_redelegations: Table<CompletionTimeKey, RedelegationsRequest>,
     }
+
 
     struct CompletionTimeKey has copy, drop {
         completion_time: vector<u8>,
@@ -53,6 +55,7 @@ module initia_std::mstaking_mock {
                 extend_ref,
                 unbonding_period,
                 unbonding_id: 0,
+                whitelisted_validators: table::new(),
                 delegation: table::new(),
                 delegator_delegations: table::new(),
                 unbonding_delegation: table::new(),
@@ -709,6 +712,44 @@ module initia_std::mstaking_mock {
                 unset_redelegations(&req);
             },
         );
+    }
+
+    public fun register_validators(
+        validators: vector<String>
+    )acquires TestState {
+        let test_state = borrow_global_mut<TestState>(@initia_std);
+        let pool = get_pool().pool;
+        vector::for_each(validators, |v| {
+            table::upsert(&mut test_state.whitelisted_validators, v, true);
+            vector::for_each_ref(&pool.not_bonded_tokens , |token| {
+                use_coin(token);
+                staking::set_staking_share_ratio(
+                    *string::bytes(&v),
+                    &coin::denom_to_metadata(token.denom),
+                    1,
+                    1
+                );
+            });
+            vector::for_each_ref(&pool.bonded_tokens , |token| {
+                use_coin(token);
+                staking::set_staking_share_ratio(
+                    *string::bytes(&v),
+                    &coin::denom_to_metadata(token.denom),
+                    1,
+                    1
+                );
+            });
+        })
+    }
+
+    public fun deregister_validators(
+        validators: vector<String>
+    )acquires TestState {
+        let test_state = borrow_global_mut<TestState>(@initia_std);
+
+        vector::for_each(validators, |v| {
+            table::upsert(&mut test_state.whitelisted_validators, v, false);
+        })
     }
 
     public fun update_voting_power_weights(
@@ -1548,7 +1589,7 @@ module initia_std::mstaking_mock {
     fun get_unbonding_period(): u64 {
         1000
     }
-
+    
     fun initialize(chain: &signer) acquires TestState {
         init_module(chain, get_unbonding_period());
         primary_fungible_store::init_module_for_test();
@@ -1592,20 +1633,7 @@ module initia_std::mstaking_mock {
 
 
         // set staking ratio of val1, val2
-        staking::set_staking_share_ratio(
-            *string::bytes(&get_validator1()),
-            &get_lp_metadata(),
-            1000_000,
-            1000_000,
-        );
-        staking::set_staking_share_ratio(
-            *string::bytes(&get_validator2()),
-            &get_lp_metadata(),
-            1000_000,
-            1000_000,
-        );
-        
-
+        register_validators(vector[get_validator1(),get_validator2()]);
     }
 
     #[test(chain = @initia_std, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37, delegator2 = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
