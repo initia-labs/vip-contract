@@ -85,7 +85,7 @@ module vip::lock_staking {
 
     public entry fun update_params(
         chain: &signer, max_lock_period: Option<u64>, max_delegation_slot: Option<u64>
-    ) {
+    ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
 
@@ -214,18 +214,17 @@ module vip::lock_staking {
             error::invalid_argument(ESMALL_RLEASE_TIME),
         );
 
-        let delegation =
-            get_locked_delegation(
-                staking_account_addr,
-                metadata,
-                src_release_time,
-                validator_src_address,
-            );
-
         // get redelegate amount and share before
         let (amount, share_before) =
             if (option::is_none(&amount)) {
                 // redelegate all
+                let delegation =
+                    get_locked_delegation(
+                        staking_account_addr,
+                        metadata,
+                        src_release_time,
+                        validator_src_address,
+                    );
                 let share = floor(&delegation.share);
                 let amt =
                     staking::share_to_amount(
@@ -263,7 +262,7 @@ module vip::lock_staking {
         let msg = MsgBeginRedelegate {
             _type_: string::utf8(b"/initia.mstaking.v1.MsgBeginRedelegate"),
             delegator_address: to_sdk(staking_account_addr),
-            validator_src_address: delegation.validator,
+            validator_src_address,
             validator_dst_address,
             amount: vector[coin]
         };
@@ -305,18 +304,17 @@ module vip::lock_staking {
             error::invalid_state(ENOT_RELEASE),
         );
 
-        let delegation =
-            get_locked_delegation(
-                staking_account_addr,
-                metadata,
-                release_time,
-                validator,
-            );
-
         // get undelegate amount and share before
         let (amount, share_before) =
             if (option::is_none(&amount)) {
                 // undelegate all
+                let delegation =
+                    get_locked_delegation(
+                        staking_account_addr,
+                        metadata,
+                        release_time,
+                        validator,
+                    );
                 let share = floor(&delegation.share);
                 let amt =
                     staking::share_to_amount(
@@ -353,7 +351,7 @@ module vip::lock_staking {
         let msg = MsgUndelegate {
             _type_: string::utf8(b"/initia.mstaking.v1.MsgUndelegate"),
             delegator_address: to_sdk(staking_account_addr),
-            validator_address: delegation.validator,
+            validator_address: validator,
             amount: vector[coin]
         };
 
@@ -381,7 +379,7 @@ module vip::lock_staking {
         release_time: u64,
         validator: String,
         new_release_time: u64,
-    ) acquires StakingAccount {
+    ) acquires StakingAccount, ModuleStore {
         let staking_account_signer = register(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
         assert_height(staking_account_addr);
@@ -527,7 +525,7 @@ module vip::lock_staking {
         release_time: u64,
         validator: String,
         share_before: Decimal128,
-    ) acquires StakingAccount {
+    ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
         assert_staking_account(staking_account_addr);
 
@@ -571,7 +569,7 @@ module vip::lock_staking {
         dst_release_time: u64,
         validator_dst_address: String,
         share_before: Option<Decimal128>, // if none, redelegate all
-    ) acquires StakingAccount {
+    ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
         assert_staking_account(staking_account_addr);
         let (height, _) = block::get_block_info();
@@ -1025,13 +1023,13 @@ module vip::lock_staking {
         addr: address,
         delegation: LockedDelegation,
         release_time: u64,
-    ) acquires StakingAccount {
+    ) acquires StakingAccount, ModuleStore {
         let LockedDelegation { metadata, validator, share } = delegation;
         let staking_account = borrow_global_mut<StakingAccount>(addr);
         let module_store = borrow_global<ModuleStore>(@vip);
         let key = generate_delegation_key(metadata, release_time, validator);
 
-        let (height, curr_time) = block::get_block_info();
+        let (_, curr_time) = block::get_block_info();
         assert!(
             release_time <= curr_time + module_store.max_lock_period,
             error::invalid_argument(EMAX_LOCK_PERIOD),
@@ -1041,7 +1039,7 @@ module vip::lock_staking {
             let count =
                 table::borrow_mut_with_default(
                     &mut staking_account.validators,
-                    delegation.validator,
+                    validator,
                     0,
                 );
             *count = *count + 1;
@@ -1142,9 +1140,6 @@ module vip::lock_staking {
     }
 
     #[test_only]
-    use initia_std::query::set_query_response;
-
-    #[test_only]
     struct MstakingState has key {
         extend_ref: ExtendRef,
         delegations: Table<DelegationRequest, DelegationResponse>,
@@ -1175,102 +1170,6 @@ module vip::lock_staking {
     public fun set_unbonding_period(period: u64) acquires MstakingState {
         let state = borrow_global_mut<MstakingState>(@0x1);
         state.unbonding_period = period;
-    }
-
-    #[test_only]
-    public fun delegate_for_test(
-        account: &signer,
-        fa: FungibleAsset,
-        release_time: u64,
-        validator_addr: String
-    ) acquires StakingAccount, MstakingState {
-        let state = borrow_global_mut<MstakingState>(@0x1);
-        let addr = signer::address_of(account);
-        let staking_account_addr = get_staking_address(addr);
-        let delegator_addr = to_sdk(staking_account_addr);
-        let metadata = fungible_asset::metadata_from_asset(&fa);
-        let amount = fungible_asset::amount(&fa);
-        delegate_internal(
-            account,
-            fa,
-            release_time,
-            validator_addr,
-        );
-
-        // transfer token to state
-        let staking_account_signer = &register(account);
-        coin::transfer(
-            staking_account_signer,
-            object::address_from_extend_ref(&state.extend_ref),
-            metadata,
-            amount,
-        );
-
-        // update query
-        let denom = coin::metadata_to_denom(metadata);
-        let delegation = get_delegation(
-            validator_addr,
-            staking_account_addr,
-            false,
-        );
-        let (find, found_index) = vector::find<DecCoin>(
-            &delegation.delegation.shares,
-            |share| { compare_denom(share, denom) },
-        );
-        let share_before =
-            if (find) {
-                let share = vector::borrow(
-                    &delegation.delegation.shares,
-                    found_index,
-                );
-                share.amount
-            } else {
-                decimal128::zero()
-            };
-
-        let req = DelegationRequest { delegator_addr, validator_addr };
-        let dec_amount = decimal128::from_ratio_u64(amount, 1);
-        if (!find) {
-            vector::push_back(
-                &mut delegation.delegation.shares,
-                DecCoin { denom, amount: dec_amount },
-            );
-            vector::push_back(
-                &mut delegation.balance,
-                Coin { denom, amount },
-            );
-        } else {
-            let share = vector::borrow_mut(
-                &mut delegation.delegation.shares,
-                found_index,
-            );
-            share.amount = decimal128::add(&share.amount, &dec_amount);
-            let balance = vector::borrow_mut(
-                &mut delegation.balance,
-                found_index,
-            );
-            balance.amount = balance.amount + amount;
-        };
-        set_query_response(
-            b"/initia.mstaking.v1.Query/Delegation",
-            marshal(&req),
-            marshal(&delegation),
-        );
-        table::upsert(
-            &mut state.delegations,
-            req,
-            DelegationResponse { delegation_response: delegation },
-        );
-
-        // execute hook
-        delegate_hook(
-            staking_account_signer,
-            metadata,
-            release_time,
-            validator_addr,
-            share_before,
-        );
-        finalize_unbonding();
     }
 
     #[test_only]
