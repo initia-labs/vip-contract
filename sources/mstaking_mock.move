@@ -423,7 +423,7 @@ module initia_std::mstaking_mock {
                                 |idx, s| {
                                     use_dec_coin(s);
                                     let share_amount =
-                                        decimal128::round_up_u64(&s.amount);
+                                        decimal128::ceil_u64(&s.amount);
                                     vector::push_back(
                                         &mut new_shares,
                                         DecCoin {
@@ -469,7 +469,7 @@ module initia_std::mstaking_mock {
                                 get_delegator_delegations(delegator_delegations_req);
 
                             // update delegator delegations
-                            let (found, delegation_index) = vector::find(
+                            let (_, delegation_index) = vector::find(
                                 &delegator_delegations.delegation_responses,
                                 |delegation| {
                                     let DelegationResponseInner { delegation, balance: _ } =
@@ -546,7 +546,7 @@ module initia_std::mstaking_mock {
                 &shares,
                 |idx, s| {
                     use_dec_coin(s);
-                    let share_amount = decimal128::round_up_u64(&s.amount);
+                    let share_amount = decimal128::ceil_u64(&s.amount);
                     vector::push_back(
                         &mut new_share,
                         DecCoin {
@@ -850,7 +850,7 @@ module initia_std::mstaking_mock {
         staking::set_staking_share_ratio(
             *string::bytes(&validator_addr),
             &metadata,
-            decimal128::round_up_u64(&share.amount),
+            decimal128::ceil_u64(&share.amount),
             new_amount,
         );
         // set delegation
@@ -972,7 +972,7 @@ module initia_std::mstaking_mock {
             staking::set_staking_share_ratio(
                 *string::bytes(&validator_addr),
                 &metadata,
-                decimal128::round_up_u64(&share.amount),
+                decimal128::ceil_u64(&share.amount),
                 new_amount,
             );
         };
@@ -2624,15 +2624,6 @@ module initia_std::mstaking_mock {
                     delegator_addr: to_sdk(signer::address_of(delegator))
                 },
             );
-        let redelegations =
-            get_redelegations(
-                RedelegationsRequest {
-                    delegator_addr: to_sdk(signer::address_of(delegator)),
-                    src_validator_addr: get_validator1(),
-                    dst_validator_addr: get_validator2()
-                },
-            );
-
         assert!(
             delegation1
                 == DelegationResponse {
@@ -2745,7 +2736,7 @@ module initia_std::mstaking_mock {
         clear_completed_entries();
         let balance_after =
             coin::balance(signer::address_of(delegator), get_lp_metadata());
-        assert!(balance_after == balance_after, 4);
+        assert!(balance_before == balance_after, 4);
     }
 
     // slash the delegation and unbonding dst val
@@ -2797,15 +2788,6 @@ module initia_std::mstaking_mock {
                 UnbondingDelegationRequest {
                     delegator_addr: to_sdk(signer::address_of(delegator)),
                     validator_addr: get_validator2()
-                },
-            );
-
-        let redelegations =
-            get_redelegations(
-                RedelegationsRequest {
-                    delegator_addr: to_sdk(signer::address_of(delegator)),
-                    src_validator_addr: get_validator1(),
-                    dst_validator_addr: get_validator2()
                 },
             );
 
