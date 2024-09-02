@@ -368,11 +368,8 @@ module vip::vesting {
         vector::for_each_ref<OperatorVestingClaimInfo>(
             &claim_infos,
             |claim_info| {
-                let OperatorVestingClaimInfo {
-                    start_stage,
-                    end_stage: _,
-                    funded_reward
-                } = *claim_info;
+                let OperatorVestingClaimInfo { start_stage, end_stage: _, funded_reward } =
+                    *claim_info;
                 let initial_reward = funded_reward;
 
                 assert!(

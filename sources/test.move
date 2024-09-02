@@ -2280,14 +2280,12 @@ module vip::test {
             &mut bridge2_merkle_proofs,
             &mut bridge2_l2_scores,
         );
-        let user_distributed_reward1 =
-            vip::get_user_distributed_reward(get_bridge_id(), 2);
-        let user_distributed_reward2 =
-            vip::get_user_distributed_reward(get_bridge2_id(), 2);
+        let user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 2);
+        let user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 2);
         let operator_distributed_reward1 =
-            vip::get_operator_distributed_reward(get_bridge_id(), 2);
+            vip::get_operator_funded_reward(get_bridge_id(), 2);
         let operator_distributed_reward2 =
-            vip::get_operator_distributed_reward(get_bridge2_id(), 2);
+            vip::get_operator_funded_reward(get_bridge2_id(), 2);
         // same weight and same tvl
         assert!(user_distributed_reward1 == user_distributed_reward2, 1);
         assert!(operator_distributed_reward1 == operator_distributed_reward2, 1);
@@ -2329,12 +2327,12 @@ module vip::test {
         // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
         // total pool reward (bridge 1) : (bridge 2) =  50 : 45
         // reward1: reward2 = 25: 22.5
-        user_distributed_reward1 = vip::get_user_distributed_reward(get_bridge_id(), 3);
-        user_distributed_reward2 = vip::get_user_distributed_reward(get_bridge2_id(), 3);
-        operator_distributed_reward1 = vip::get_operator_distributed_reward(
+        user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 3);
+        user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 3);
+        operator_distributed_reward1 = vip::get_operator_funded_reward(
             get_bridge_id(), 3
         );
-        operator_distributed_reward2 = vip::get_operator_distributed_reward(
+        operator_distributed_reward2 = vip::get_operator_funded_reward(
             get_bridge2_id(), 3
         );
         assert!(user_distributed_reward1 * 45 == user_distributed_reward2 * 50, 2);
@@ -2346,7 +2344,9 @@ module vip::test {
         vip::update_vip_weights(
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(3, 10), decimal256::from_ratio_u64(7, 10)],
+            vector[
+                decimal256::from_ratio_u64(3, 10),
+                decimal256::from_ratio_u64(7, 10)],
         );
         submit_snapshot_and_fund_reward(
             vip,
@@ -2377,12 +2377,12 @@ module vip::test {
         // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
         // total pool reward (bridge 1) : (bridge 2) =  40 : 50
         // reward1 : reward2 = 20: 25
-        user_distributed_reward1 = vip::get_user_distributed_reward(get_bridge_id(), 4);
-        user_distributed_reward2 = vip::get_user_distributed_reward(get_bridge2_id(), 4);
-        operator_distributed_reward1 = vip::get_operator_distributed_reward(
+        user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 4);
+        user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 4);
+        operator_distributed_reward1 = vip::get_operator_funded_reward(
             get_bridge_id(), 4
         );
-        operator_distributed_reward2 = vip::get_operator_distributed_reward(
+        operator_distributed_reward2 = vip::get_operator_funded_reward(
             get_bridge2_id(), 4
         );
         assert!(user_distributed_reward1 * 25 == user_distributed_reward2 * 20, 2);
