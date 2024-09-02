@@ -38,6 +38,7 @@ module vip::lock_staking {
     const ENOT_ENOUGH_DELEGATION: u64 = 11;
     const EMAX_LOCK_PERIOD: u64 = 12;
     const EMAX_SLOT: u64 = 13;
+    const EZERO_AMOUNT: u64 = 14;
 
     struct LockedDelegation has store {
         metadata: Object<Metadata>,
@@ -171,6 +172,7 @@ module vip::lock_staking {
                 balance
             } else {
                 let withdraw_amount = *option::borrow(&amount);
+                assert!(withdraw_amount > 0, error::invalid_argument(EZERO_AMOUNT));
                 assert!(
                     withdraw_amount <= balance,
                     error::invalid_argument(ENOT_ENOUGH_BALANCE),
@@ -222,27 +224,31 @@ module vip::lock_staking {
             dst_release_time >= src_release_time,
             error::invalid_argument(ESMALL_RLEASE_TIME),
         );
+        let locked_delegation =
+            get_locked_delegation(
+                staking_account_addr,
+                metadata,
+                src_release_time,
+                validator_src_address,
+            );
+        let share = floor(&locked_delegation.share);
+        let locked_amount =
+            staking::share_to_amount(
+                *string::bytes(&locked_delegation.validator),
+                &metadata,
+                share,
+            );
+
 
         // get redelegate amount and share before
         let (amount, share_before) =
             if (option::is_none(&amount)) {
                 // redelegate all
-                let delegation =
-                    get_locked_delegation(
-                        staking_account_addr,
-                        metadata,
-                        src_release_time,
-                        validator_src_address,
-                    );
-                let share = floor(&delegation.share);
-                let amt =
-                    staking::share_to_amount(
-                        *string::bytes(&delegation.validator),
-                        &metadata,
-                        share,
-                    );
-                (amt, option::none())
+                (locked_amount, option::none())
             } else {
+                let redelegate_amount = option::extract(&mut amount);
+                assert!(redelegate_amount > 0, error::invalid_argument(EZERO_AMOUNT));
+                assert!(locked_amount >= redelegate_amount, error::invalid_argument(ENOT_ENOUGH_DELEGATION));
                 // get current delegation share
                 let delegation =
                     get_delegation(
@@ -250,20 +256,10 @@ module vip::lock_staking {
                         staking_account_addr,
                         false,
                     );
-                let (find, found_index) = vector::find<DecCoin>(
-                    &delegation.delegation.shares,
-                    |share| { compare_denom(share, coin::metadata_to_denom(metadata)) },
-                );
 
-                // always src delegation exists
-                assert!(find, error::not_found(EDELEGATION_NOT_FOUND));
+                let share_before = get_share(&delegation.delegation.shares, coin::metadata_to_denom(metadata), true);
 
-                let share_before = vector::borrow(
-                    &delegation.delegation.shares,
-                    found_index,
-                ).amount;
-
-                (option::extract(&mut amount), option::some(share_before))
+                (redelegate_amount, option::some(share_before))
             };
 
         // execute begin redelegate
@@ -312,47 +308,40 @@ module vip::lock_staking {
             curr_time > release_time,
             error::invalid_state(ENOT_RELEASE),
         );
+        let locked_delegation =
+            get_locked_delegation(
+                staking_account_addr,
+                metadata,
+                release_time,
+                validator,
+            );
+        let share = floor(&locked_delegation.share);
+        let locked_amount =
+            staking::share_to_amount(
+                *string::bytes(&locked_delegation.validator),
+                &metadata,
+                share,
+            );
 
         // get undelegate amount and share before
         let (amount, share_before) =
             if (option::is_none(&amount)) {
                 // undelegate all
-                let delegation =
-                    get_locked_delegation(
-                        staking_account_addr,
-                        metadata,
-                        release_time,
-                        validator,
-                    );
-                let share = floor(&delegation.share);
-                let amt =
-                    staking::share_to_amount(
-                        *string::bytes(&delegation.validator),
-                        &metadata,
-                        share,
-                    );
-                (amt, option::none())
+                (locked_amount, option::none())
             } else {
+                let undelegate_amount = option::extract(&mut amount);
+                assert!(undelegate_amount > 0, error::invalid_argument(EZERO_AMOUNT));
+                assert!(locked_amount >= undelegate_amount, error::invalid_argument(ENOT_ENOUGH_DELEGATION));
                 // get current delegation share
                 let delegation = get_delegation(
                     validator,
                     staking_account_addr,
                     false,
                 );
-                let (find, found_index) = vector::find<DecCoin>(
-                    &delegation.delegation.shares,
-                    |share| { compare_denom(share, coin::metadata_to_denom(metadata)) },
-                );
 
-                // always delegation exists
-                assert!(find, error::not_found(EDELEGATION_NOT_FOUND));
+                let share_before = get_share(&delegation.delegation.shares, coin::metadata_to_denom(metadata), true);
 
-                let share_before = vector::borrow(
-                    &delegation.delegation.shares,
-                    found_index,
-                ).amount;
-
-                (option::extract(&mut amount), option::some(share_before))
+                (undelegate_amount, option::some(share_before))
             };
 
         // execute undelegate
@@ -405,11 +394,13 @@ module vip::lock_staking {
                 // extend all
                 option::none()
             } else {
+                let extend_amount = option::extract(&mut amount);
+                assert!(extend_amount > 0, error::invalid_argument(EZERO_AMOUNT));
                 let share =
                     staking::amount_to_share(
                         *string::bytes(&validator),
                         &metadata,
-                        *option::borrow(&amount),
+                        extend_amount,
                     );
                 option::some(decimal128::from_ratio_u64(share, 1))
             };
@@ -499,20 +490,9 @@ module vip::lock_staking {
             staking_account_addr,
             false,
         );
-        let (find, found_index) = vector::find<DecCoin>(
-            &delegation.delegation.shares,
-            |share| { compare_denom(share, denom) },
-        );
-        let share_before =
-            if (find) {
-                let share = vector::borrow(
-                    &delegation.delegation.shares,
-                    found_index,
-                );
-                share.amount
-            } else {
-                decimal128::zero()
-            };
+
+        let share_before = get_share(&delegation.delegation.shares, denom, false);
+
         move_execute(
             &staking_account_signer,
             @vip,
@@ -546,23 +526,19 @@ module vip::lock_staking {
             staking_account_addr,
             true,
         );
-        let (find, found_index) = vector::find<DecCoin>(
-            &delegation.delegation.shares,
-            |share| { compare_denom(share, denom) },
-        );
-        assert!(find, error::not_found(EDELEGATION_NOT_FOUND));
-        let share_after = vector::borrow(&delegation.delegation.shares, found_index);
+
+        let share_after = get_share(&delegation.delegation.shares, denom, true);
         let share =
             decimal128::new(
-                decimal128::val(&share_after.amount) - decimal128::val(&share_before)
+                decimal128::val(&share_after) - decimal128::val(&share_before)
             );
 
         // store delegation
-        let delegation = LockedDelegation { metadata, validator, share };
+        let locked_delegation = LockedDelegation { metadata, validator, share };
 
         deposit_delegation(
             staking_account_addr,
-            delegation,
+            locked_delegation,
             release_time,
         );
 
@@ -636,17 +612,8 @@ module vip::lock_staking {
                         staking_account_addr,
                         false,
                     );
-                let (find, found_index) = vector::find<DecCoin>(
-                    &delegation.delegation.shares,
-                    |share| { compare_denom(share, denom) },
-                );
 
-                let share_after =
-                    if (find) {
-                        vector::borrow(&delegation.delegation.shares, found_index).amount
-                    } else {
-                        decimal128::zero()
-                    };
+                let share_after = get_share(&delegation.delegation.shares, denom, false);
 
                 let share_diff =
                     decimal128::new(
@@ -733,17 +700,8 @@ module vip::lock_staking {
                     staking_account_addr,
                     false,
                 );
-                let (find, found_index) = vector::find<DecCoin>(
-                    &delegation.delegation.shares,
-                    |share| { compare_denom(share, denom) },
-                );
 
-                let share_after =
-                    if (find) {
-                        vector::borrow(&delegation.delegation.shares, found_index).amount
-                    } else {
-                        decimal128::zero()
-                    };
+                let share_after = get_share(&delegation.delegation.shares, denom, false);
 
                 let share_diff =
                     decimal128::new(
@@ -1083,6 +1041,21 @@ module vip::lock_staking {
             table::length(&staking_account.delegations) <= module_store.max_delegation_slot,
             error::invalid_state(EMAX_SLOT),
         );
+    }
+
+    fun get_share(shares: &vector<DecCoin>, denom: String, must_exists: bool): Decimal128 {
+        let (find, found_index) = vector::find<DecCoin>(
+            shares,
+            |share| { compare_denom(share, denom) },
+        );
+
+        assert!(!must_exists || find, error::not_found(EDELEGATION_NOT_FOUND));
+
+        if (find) {
+            vector::borrow(shares, found_index).amount
+        } else {
+            decimal128::zero()
+        }
     }
 
     inline fun get_locked_delegation(
