@@ -664,6 +664,9 @@ module vip::lock_staking {
             delegation,
             dst_release_time,
         );
+
+        // withdraw uinit from staking account
+        withdraw_uinit(staking_account_signer);
     }
 
     public entry fun undelegate_hook(
@@ -979,7 +982,7 @@ module vip::lock_staking {
     fun assert_height(staking_account_addr: address) acquires StakingAccount {
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
         let (height, _) = block::get_block_info();
-        assert!(staking_account.last_height == height, error::invalid_state(ESAME_HEIGHT));
+        assert!(staking_account.last_height != height, error::invalid_state(ESAME_HEIGHT));
         staking_account.last_height = height;
     }
 
@@ -1015,6 +1018,8 @@ module vip::lock_staking {
                     validator,
                 );
             };
+        } else {
+            delegation.share = decimal128::sub(&delegation.share, &share);
         };
         LockedDelegation { metadata, validator, share }
     }
