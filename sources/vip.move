@@ -3898,34 +3898,38 @@ module vip::vip {
             vip,
             decimal256::from_string(&string::utf8(b"0.7")),
         );
-        // add_tvl_snapshot();
-        fund_reward_script(vip);
-        skip_period(DEFAULT_STAGE_INTERVAL);
-        assert!(
-            get_expected_reward(
-                1,
-                DEFAULT_REWARD_PER_STAGE_FOR_TEST,
-            ) == 35_000_000_000,
-            0,
-        ); // 0.7 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * (2/4) + 0.3 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * 0
-        assert!(
-            get_expected_reward(
-                2,
-                DEFAULT_REWARD_PER_STAGE_FOR_TEST,
-            ) == 17_500_000_000,
-            0,
-        ); // 0.7 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * (1/4) + 0.3 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * 0
-        assert!(
-            get_expected_reward(
-                3,
-                DEFAULT_REWARD_PER_STAGE_FOR_TEST,
-            ) == 17_500_000_000,
-            0,
-        ); // 0.7 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * (1/4) + 0.3 * DEFAULT_REWARD_PER_STAGE_FOR_TEST * 0
 
+        update_vip_weights(
+            chain,
+            vector[1, 2, 3],
+            vector[
+                decimal256::from_ratio_u64(1, 4),
+                decimal256::from_ratio_u64(1, 4),
+                decimal256::from_ratio_u64(2, 4)],
+        );
         // add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
+
+        // check the balances splited
+        assert!(
+            get_user_funded_reward(1, 1)
+                == get_expected_reward(1, DEFAULT_REWARD_PER_STAGE_FOR_TEST),
+            4,
+        );
+        assert!(
+            get_user_funded_reward(2, 1)
+                == get_expected_reward(2, DEFAULT_REWARD_PER_STAGE_FOR_TEST),
+            5,
+        );
+        assert!(
+            get_user_funded_reward(3, 1)
+                == get_expected_reward(3, DEFAULT_REWARD_PER_STAGE_FOR_TEST),
+            6,
+        );
+        assert!(get_operator_funded_reward(1, 1) == 0, 7);
+        assert!(get_operator_funded_reward(2, 1) == 0, 8);
+        assert!(get_operator_funded_reward(3, 1) == 0, 9);
 
         update_operator_commission(
             operator,
@@ -3939,9 +3943,69 @@ module vip::vip {
             1,
             decimal256::from_string(&string::utf8(b"0.5")),
         );
+
         // add_tvl_snapshot();
         fund_reward_script(vip);
         skip_period(DEFAULT_STAGE_INTERVAL);
+
+        // check the balances splited
+        assert!(
+            get_user_funded_reward(1, 2)
+                == get_expected_reward(1, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            10,
+        );
+        assert!(
+            get_user_funded_reward(2, 2)
+                == get_expected_reward(2, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            11,
+        );
+        assert!(
+            get_user_funded_reward(3, 2)
+                == get_expected_reward(3, DEFAULT_REWARD_PER_STAGE_FOR_TEST),
+            12,
+        );
+        assert!(
+            get_operator_funded_reward(1, 2)
+                == get_expected_reward(1, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            13,
+        );
+        assert!(
+            get_operator_funded_reward(2, 2)
+                == get_expected_reward(2, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            14,
+        );
+        assert!(get_operator_funded_reward(3, 2) == 0, 15);
+
+        fund_reward_script(vip);
+        skip_period(DEFAULT_STAGE_INTERVAL);
+
+        assert!(
+            get_user_funded_reward(1, 3)
+                == get_expected_reward(1, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            15,
+        );
+        assert!(
+            get_user_funded_reward(2, 3)
+                == get_expected_reward(2, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            16,
+        );
+        assert!(
+            get_user_funded_reward(3, 3)
+                == get_expected_reward(3, DEFAULT_REWARD_PER_STAGE_FOR_TEST),
+            17,
+        );
+        assert!(
+            get_operator_funded_reward(1, 3)
+                == get_expected_reward(1, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            18,
+        );
+        assert!(
+            get_operator_funded_reward(2, 3)
+                == get_expected_reward(2, DEFAULT_REWARD_PER_STAGE_FOR_TEST) / 2,
+            19,
+        );
+        assert!(get_operator_funded_reward(3, 3) == 0, 20);
+
     }
 
     #[test(chain = @0x1, vip = @vip, agent = @0x2, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
