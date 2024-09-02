@@ -99,7 +99,7 @@ module vip::lock_staking {
     }
 
     public entry fun withdraw_delegator_reward(account: &signer) acquires StakingAccount {
-        let staking_account_signer = register(account);
+        let staking_account_signer = get_staking_account_signer(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
 
@@ -129,7 +129,16 @@ module vip::lock_staking {
         };
 
         // withdraw uinit from staking account
-        withdraw_uinit(&staking_account_signer);
+        move_execute(
+            &staking_account_signer,
+            @vip,
+            string::utf8(b"lock_staking"),
+            string::utf8(b"withdraw_asset_for_staking_account"),
+            vector[],
+            vector[
+                to_bytes(&coin::metadata(@initia_std, string::utf8(b"uinit"))),
+                to_bytes(&option::none<u64>())],
+        )
     }
 
     public entry fun withdraw_asset(
@@ -137,7 +146,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         amount: Option<u64>,
     ) acquires StakingAccount {
-        let staking_account_signer = register(account);
+        let staking_account_signer = get_staking_account_signer(account);
         withdraw_asset_for_staking_account(
             &staking_account_signer,
             metadata,
@@ -205,7 +214,7 @@ module vip::lock_staking {
         dst_release_time: u64,
         validator_dst_address: String,
     ) acquires StakingAccount {
-        let staking_account_signer = register(account);
+        let staking_account_signer = get_staking_account_signer(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
 
         assert_height(staking_account_addr);
@@ -293,7 +302,7 @@ module vip::lock_staking {
         release_time: u64,
         validator: String,
     ) acquires StakingAccount {
-        let staking_account_signer = register(account);
+        let staking_account_signer = get_staking_account_signer(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
         assert_height(staking_account_addr);
 
@@ -380,7 +389,7 @@ module vip::lock_staking {
         validator: String,
         new_release_time: u64,
     ) acquires StakingAccount, ModuleStore {
-        let staking_account_signer = register(account);
+        let staking_account_signer = get_staking_account_signer(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
         assert_height(staking_account_addr);
 
@@ -464,7 +473,7 @@ module vip::lock_staking {
             error::invalid_argument(ESMALL_RLEASE_TIME),
         );
 
-        let staking_account_signer = register(account);
+        let staking_account_signer = get_staking_account_signer(account);
         let staking_account_addr = signer::address_of(&staking_account_signer);
         assert_height(staking_account_addr);
         let metadata = fungible_asset::metadata_from_asset(&fa);
@@ -558,7 +567,11 @@ module vip::lock_staking {
         );
 
         // withdraw uinit from staking account
-        withdraw_uinit(staking_account_signer);
+        withdraw_asset_for_staking_account(
+            staking_account_signer,
+            coin::metadata(@initia_std, string::utf8(b"uinit")),
+            option::none(),
+        );
     }
 
     public entry fun redelegate_hook(
@@ -666,7 +679,11 @@ module vip::lock_staking {
         );
 
         // withdraw uinit from staking account
-        withdraw_uinit(staking_account_signer);
+        withdraw_asset_for_staking_account(
+            staking_account_signer,
+            coin::metadata(@initia_std, string::utf8(b"uinit")),
+            option::none(),
+        );
     }
 
     public entry fun undelegate_hook(
@@ -746,7 +763,11 @@ module vip::lock_staking {
             );
 
         // withdraw uinit from staking account
-        withdraw_uinit(staking_account_signer);
+        withdraw_asset_for_staking_account(
+            staking_account_signer,
+            coin::metadata(@initia_std, string::utf8(b"uinit")),
+            option::none(),
+        );
     }
 
     // stargate queries
@@ -919,7 +940,7 @@ module vip::lock_staking {
         )
     }
 
-    fun register(account: &signer): signer acquires StakingAccount {
+    fun get_staking_account_signer(account: &signer): signer acquires StakingAccount {
         let addr = signer::address_of(account);
         if (!is_registered(addr)) {
             let constructor_ref =
@@ -1081,19 +1102,6 @@ module vip::lock_staking {
 
     fun floor(val: &Decimal128): u64 {
         (decimal128::val(val) / decimal128::val(&decimal128::one()) as u64)
-    }
-
-    fun withdraw_uinit(staking_account_signer: &signer) {
-        move_execute(
-            staking_account_signer,
-            @vip,
-            string::utf8(b"lock_staking"),
-            string::utf8(b"withdraw_asset_for_staking_account"),
-            vector[],
-            vector[
-                to_bytes(&coin::metadata(@initia_std, string::utf8(b"uinit"))),
-                to_bytes(&option::none<u64>())],
-        )
     }
 
     #[view]
