@@ -767,14 +767,14 @@ module vip::lock_staking {
     fun get_delegation(
         validator_addr: String,
         delegator_addr: address,
-        query_force: bool,
+        must_exists: bool,
     ): DelegationResponseInner acquires StakingAccount {
         let staking_account = borrow_global<StakingAccount>(delegator_addr);
         let delegator_addr = to_sdk(delegator_addr);
         if (!table::contains(
                 &staking_account.validators,
                 validator_addr,
-            ) && !query_force) {
+            ) && !must_exists) {
             return DelegationResponseInner {
                 delegation: Delegation {
                     delegator_address: delegator_addr,
