@@ -1604,6 +1604,10 @@ module initia_std::mock_mstaking {
     public fun get_unbonding_period(): u64 {
         1000
     }
+
+    public fun get_slash_factor(): Decimal128 {
+        decimal128::from_ratio_u64(1, 10)
+    }
     
     public fun initialize(chain: &signer) acquires TestState {
         init_module(chain, get_unbonding_period());
@@ -1636,6 +1640,13 @@ module initia_std::mock_mstaking {
             test_signer_addr,
             get_lp_metadata(),
             coin::balance(signer::address_of(chain), get_lp_metadata()) / 2,
+        );
+
+        coin::transfer(
+            chain,
+            test_signer_addr,
+            get_init_metadata(),
+            coin::balance(signer::address_of(chain), get_init_metadata()) / 2,
         );
 
         // set pool "INIT-USDC" for bonded tokes
@@ -2370,10 +2381,13 @@ module initia_std::mock_mstaking {
     fun test_withdraw_reward(chain: &signer, delegator: &signer) acquires TestState {
         initialize(chain);
 
+        let test_state = borrow_global_mut<TestState>(@initia_std);
+        let test_signer = object::generate_signer_for_extending(&test_state.extend_ref);
+
         let delegating_amount = 1000;
         let reward = 100;
         coin::transfer(
-            chain,
+            &test_signer,
             signer::address_of(delegator),
             get_lp_metadata(),
             delegating_amount,
@@ -2439,7 +2453,7 @@ module initia_std::mock_mstaking {
             2,
         );
         // val1 slash 10%
-        slash(get_validator1(), decimal128::from_ratio_u64(1, 10));
+        slash(get_validator1(), get_slash_factor());
         // check delegations
         response = get_delegation(
             DelegationRequest {
@@ -2539,7 +2553,7 @@ module initia_std::mock_mstaking {
         // undelegate val1 half of delegating amount
         undelegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount / 2);
         // val1 slash 10%
-        slash(get_validator1(), decimal128::from_ratio_u64(1, 10));
+        slash(get_validator1(), get_slash_factor());
         // check delegations
         let delegation =
             get_delegation(
@@ -2647,7 +2661,7 @@ module initia_std::mock_mstaking {
             delegating_amount / 2,
         );
         // val1 slash 10%
-        slash(get_validator1(), decimal128::from_ratio_u64(1, 10));
+        slash(get_validator1(), get_slash_factor());
         // check delegations
         let delegation1 =
             get_delegation(
@@ -2809,7 +2823,7 @@ module initia_std::mock_mstaking {
         undelegate(delegator, get_validator2(), get_lp_metadata(), delegating_amount / 4);
         // undelegate val2 quarter of delegating amount
         // val1 slash 10%
-        slash(get_validator1(), decimal128::from_ratio_u64(1, 10));
+        slash(get_validator1(), get_slash_factor());
         // check delegations
         let delegation1 =
             get_delegation(

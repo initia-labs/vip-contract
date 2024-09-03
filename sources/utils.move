@@ -262,6 +262,7 @@ module vip::utils {
         denom: String,
         amount: Decimal128,
     }
+
     #[test_only]
     use initia_std::block;
 

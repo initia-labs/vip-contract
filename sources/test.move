@@ -136,7 +136,7 @@ module vip::test {
 
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
-        block::set_block_info(height + period / 2 , curr_time + period);
+        block::set_block_info(height + period / 2, curr_time + period);
     }
 
     fun reward_balance(addr: address): u64 {

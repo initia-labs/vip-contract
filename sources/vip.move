@@ -473,24 +473,24 @@ module vip::vip {
             version: version_vec
         };
         let is_registered = table::contains(
-            &imut_module_store.bridges,
-            registered_key,
+            &imut_module_store.bridges, registered_key
         );
-        let key = if (is_registered) {
-            registered_key
-        } else {
-            registered_key.is_registered = false;
+        let key =
+            if (is_registered) {
+                registered_key
+            } else {
+                registered_key.is_registered = false;
 
-            assert!(
-                table::contains(
-                    &imut_module_store.bridges,
-                    registered_key,
-                ),
-                error::not_found(EBRIDGE_NOT_FOUND),
-            );
+                assert!(
+                    table::contains(
+                        &imut_module_store.bridges,
+                        registered_key,
+                    ),
+                    error::not_found(EBRIDGE_NOT_FOUND),
+                );
 
-            registered_key
-        };
+                registered_key
+            };
         // if current stage is init stage of bridge, then skip this check
         let bridge_info = table::borrow(&imut_module_store.bridges, key);
         let init_stage = bridge_info.init_stage;
@@ -510,7 +510,10 @@ module vip::vip {
         };
 
         // check end stage
-        assert!(bridge_info.end_stage == 0 || bridge_info.end_stage >= stage, error::unavailable(EBRIDGE_NOT_REGISTERED)); 
+        assert!(
+            bridge_info.end_stage == 0 || bridge_info.end_stage >= stage,
+            error::unavailable(EBRIDGE_NOT_REGISTERED),
+        );
     }
 
     fun lock_stake(

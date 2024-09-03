@@ -763,7 +763,8 @@ module vip::lock_staking {
             );
 
         // get total delegation share before redelegation
-        let dst_share_before = decimal128::sub(&mut current_total_share, &redelegation_share.amount);
+        let dst_share_before =
+            decimal128::sub(&mut current_total_share, &redelegation_share.amount);
 
         // get new locked share
         let new_locked_share =
