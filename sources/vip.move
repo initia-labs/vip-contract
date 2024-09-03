@@ -476,7 +476,6 @@ module vip::vip {
             &imut_module_store.bridges,
             registered_key,
         );
-        // std::debug::print(&is_registered);
         let key = if (is_registered) {
             registered_key
         } else {
@@ -505,7 +504,6 @@ module vip::vip {
                     &imut_module_store.stage_data,
                     table_key::encode_u64(stage - 1),
                 );
-            // std::debug::print(prev_stage_data);
             assert!(
                 table::contains(
                     &prev_stage_data.snapshots,
