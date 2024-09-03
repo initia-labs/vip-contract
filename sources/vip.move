@@ -476,7 +476,7 @@ module vip::vip {
             &imut_module_store.bridges,
             registered_key,
         );
-
+        // std::debug::print(&is_registered);
         let key = if (is_registered) {
             registered_key
         } else {
@@ -505,6 +505,7 @@ module vip::vip {
                     &imut_module_store.stage_data,
                     table_key::encode_u64(stage - 1),
                 );
+            // std::debug::print(prev_stage_data);
             assert!(
                 table::contains(
                     &prev_stage_data.snapshots,
@@ -2384,7 +2385,7 @@ module vip::vip {
     #[test_only]
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
-        block::set_block_info(height, curr_time + period);
+        block::set_block_info(height + period / 2, curr_time + period);
     }
 
     #[test_only]
@@ -4423,6 +4424,7 @@ module vip::vip {
         primary_fungible_store::init_module_for_test();
         vesting::init_module_for_test(vip);
         tvl_manager::init_module_for_test(vip);
+        lock_staking::init_module_for_test(vip);
         init_module_for_test(vip);
 
         let (_burn_cap, _freeze_cap, mint_cap, _) =

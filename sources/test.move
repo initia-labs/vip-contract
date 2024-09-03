@@ -17,6 +17,7 @@ module vip::test {
     use initia_std::staking;
     use initia_std::primary_fungible_store;
 
+    use vip::lock_staking;
     use vip::vip;
     use vip::tvl_manager;
     use vip::vault;
@@ -135,7 +136,7 @@ module vip::test {
 
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
-        block::set_block_info(height, curr_time + period);
+        block::set_block_info(height + period / 2 , curr_time + period);
     }
 
     fun reward_balance(addr: address): u64 {
@@ -221,6 +222,8 @@ module vip::test {
         vector::push_back(stages, stage);
         vector::push_back(merkle_proofs, merkle_proof);
         vector::push_back(l2_scores, l2_score);
+
+        skip_period(2);
     }
 
     fun get_merkle_root_and_proof(
@@ -277,6 +280,7 @@ module vip::test {
     public fun initialize(
         chain: &signer, vip: &signer, operator: &signer
     ) {
+        lock_staking::init_module_for_test(vip);
         primary_fungible_store::init_module_for_test();
         dex::init_module_for_test();
         let init_metadata =
@@ -1077,8 +1081,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xD0007, location = vip)]
-    fun fail_submit_snapshot_and_fund_reward_with_deregistered_bridge(
+    fun test_submit_snapshot_and_fund_reward_with_deregistered_bridge(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1096,7 +1099,7 @@ module vip::test {
                 100,
                 1000,
             );
-        vip::submit_snapshot(// stage 1 snapshot submitted; but fail because the corresponding bridge is deregistered
+        vip::submit_snapshot(
             vip,
             get_bridge_id(),
             get_version(),
@@ -1260,6 +1263,7 @@ module vip::test {
             vesting5_remaining_reward, // lock staking amount
             option::none(),
         );
+        skip_period(2);
         // lock stake position of stage 5
         vip::lock_stake_script(
             receiver,
@@ -1805,7 +1809,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
-            get_version(),
+            get_version() + 1,
             receiver_addr,
             100,
             1000,

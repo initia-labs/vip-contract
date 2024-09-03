@@ -1404,38 +1404,12 @@ module vip::lock_staking {
 
         res
     }
-
-    #[test_only]
-    struct MstakingState has key {
-        extend_ref: ExtendRef,
-        delegations: Table<DelegationRequest, DelegationResponse>,
-        unbonding_delegations: Table<UnbondingDelegationRequest, UnbondingDelegationResponse>,
-        redelegations: Table<RedelegationsRequest, RedelegationsResponse>,
-        unbonding_period: u64,
-    }
-
-    // must be execute by @0x1
+    
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
-        assert!(signer::address_of(chain) == @0x1, 1);
-        let constructor_ref = object::create_object(@0x1, false);
-        let extend_ref = object::generate_extend_ref(&constructor_ref);
-        move_to(
-            chain,
-            MstakingState {
-                extend_ref,
-                delegations: table::new(),
-                unbonding_delegations: table::new(),
-                redelegations: table::new(),
-                unbonding_period: 0,
-            },
-        );
-    }
+        assert!(signer::address_of(chain) == @vip, 1);
+        init_module(chain);
 
-    #[test_only]
-    public fun set_unbonding_period(period: u64) acquires MstakingState {
-        let state = borrow_global_mut<MstakingState>(@0x1);
-        state.unbonding_period = period;
     }
 
     #[test_only]
