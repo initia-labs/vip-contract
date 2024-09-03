@@ -262,4 +262,12 @@ module vip::utils {
         denom: String,
         amount: Decimal128,
     }
+    #[test_only]
+    use initia_std::block;
+
+    #[test_only]
+    public fun increase_block(height_diff: u64, time_diff: u64) {
+        let (curr_height, curr_time) = block::get_block_info();
+        block::set_block_info(curr_height + height_diff, curr_time + time_diff);
+    }
 }

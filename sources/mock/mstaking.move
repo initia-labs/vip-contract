@@ -19,7 +19,7 @@ module initia_std::mock_mstaking {
     use initia_std::query::query_stargate;
     use initia_std::table::{Self, Table};
     use initia_std::table_key::{encode_u64, decode_u64};
-
+    use vip::utils;
     struct TestState has key {
         extend_ref: ExtendRef, // for store asset
         unbonding_period: u64,
@@ -1506,9 +1506,9 @@ module initia_std::mock_mstaking {
     public fun set_reward(
         delegator_addr: String,
         validator_addr: String,
-        metadata: Object<Metadata>,
         amount: u64
     ) acquires TestState {
+        let metadata = get_init_metadata();
         let test_state = borrow_global_mut<TestState>(@initia_std);
         let key = DelegationRequest { validator_addr, delegator_addr, };
         assert!(table::contains(&test_state.delegation, key), 1);
@@ -1527,11 +1527,6 @@ module initia_std::mock_mstaking {
     ) acquires TestState {
         // mock up function supports only lp(USDC-INIT)
         withdraw_delegations_reward(account, validator_addr);
-    }
-
-    fun increase_block(height_diff: u64, time_diff: u64) {
-        let (curr_height, curr_time) = block::get_block_info();
-        block::set_block_info(curr_height + height_diff, curr_time + time_diff);
     }
 
     fun init_and_mint_coin(creator: &signer, symbol: String, amount: u64): Object<Metadata> {
@@ -1586,31 +1581,31 @@ module initia_std::mock_mstaking {
         }
     }
 
-    fun get_validator1(): String {
+    public fun get_validator1(): String {
         std::string::utf8(b"validator")
     }
 
-    fun get_validator2(): String {
+    public fun get_validator2(): String {
         std::string::utf8(b"validator2")
     }
 
-    fun get_usdc_metadata(): Object<Metadata> {
+    public fun get_usdc_metadata(): Object<Metadata> {
         coin::metadata(@initia_std, string::utf8(b"uusdc"))
     }
 
-    fun get_init_metadata(): Object<Metadata> {
+    public fun get_init_metadata(): Object<Metadata> {
         coin::metadata(@initia_std, string::utf8(b"uinit"))
     }
 
-    fun get_lp_metadata(): Object<Metadata> {
+    public fun get_lp_metadata(): Object<Metadata> {
         coin::metadata(@initia_std, string::utf8(b"INIT-USDC"))
     }
 
-    fun get_unbonding_period(): u64 {
+    public fun get_unbonding_period(): u64 {
         1000
     }
-
-    fun initialize(chain: &signer) acquires TestState {
+    
+    public fun initialize(chain: &signer) acquires TestState {
         init_module(chain, get_unbonding_period());
         primary_fungible_store::init_module_for_test();
         dex::init_module_for_test();
@@ -2331,7 +2326,7 @@ module initia_std::mock_mstaking {
             );
 
         // block height and timestamp increases to clear completed entries
-        increase_block(500, get_unbonding_period() + 1);
+        utils::increase_block(500, get_unbonding_period() + 1);
         clear_completed_entries();
 
         // check state of redelegation and unbonding_delegation
@@ -2377,11 +2372,10 @@ module initia_std::mock_mstaking {
 
         let delegating_amount = 1000;
         let reward = 100;
-        let metadata = get_lp_metadata();
         coin::transfer(
             chain,
             signer::address_of(delegator),
-            metadata,
+            get_lp_metadata(),
             delegating_amount,
         );
         // delegator delegate
@@ -2390,13 +2384,12 @@ module initia_std::mock_mstaking {
         set_reward(
             to_sdk(signer::address_of(delegator)),
             get_validator1(),
-            metadata,
             reward,
         );
 
         withdraw_delegations_reward(delegator, get_validator1());
 
-        assert!(coin::balance(signer::address_of(delegator), metadata) == 100, 1);
+        assert!(coin::balance(signer::address_of(delegator), get_init_metadata()) == 100, 1);
     }
 
     // slash
@@ -2542,7 +2535,7 @@ module initia_std::mock_mstaking {
             delegating_amount,
         );
         delegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount);
-        increase_block(1, 1);
+        utils::increase_block(1, 1);
         // undelegate val1 half of delegating amount
         undelegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount / 2);
         // val1 slash 10%
@@ -2620,7 +2613,7 @@ module initia_std::mock_mstaking {
                 100000,
             );
         assert!(share_to_amount == 90000, 3);
-        increase_block(500, get_unbonding_period() + 1);
+        utils::increase_block(500, get_unbonding_period() + 1);
         let balance_before =
             coin::balance(signer::address_of(delegator), get_lp_metadata());
         // clear completed entries
@@ -2644,7 +2637,7 @@ module initia_std::mock_mstaking {
             delegating_amount,
         );
         delegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount);
-        increase_block(1, 1);
+        utils::increase_block(1, 1);
         // redelegate half of delegating amount from val1 to val2
         redelegate(
             delegator,
@@ -2782,7 +2775,7 @@ module initia_std::mock_mstaking {
         assert!(share_to_amount2 == 90000, 4);
         let balance_before =
             coin::balance(signer::address_of(delegator), get_lp_metadata());
-        increase_block(500, get_unbonding_period() + 1);
+        utils::increase_block(500, get_unbonding_period() + 1);
         // clear completed entries
         clear_completed_entries();
         let balance_after =
@@ -2803,7 +2796,7 @@ module initia_std::mock_mstaking {
             delegating_amount,
         );
         delegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount);
-        increase_block(1, 1);
+        utils::increase_block(1, 1);
         // redelegate half of delegating amount from val1 to val2
         redelegate(
             delegator,
@@ -2812,7 +2805,7 @@ module initia_std::mock_mstaking {
             get_lp_metadata(),
             delegating_amount / 2,
         );
-        increase_block(1, 1);
+        utils::increase_block(1, 1);
         undelegate(delegator, get_validator2(), get_lp_metadata(), delegating_amount / 4);
         // undelegate val2 quarter of delegating amount
         // val1 slash 10%
@@ -2987,7 +2980,7 @@ module initia_std::mock_mstaking {
         assert!(share_to_amount1 == 90000, 4);
         assert!(share_to_amount2 == 100000, 5);
 
-        increase_block(500, get_unbonding_period() + 1);
+        utils::increase_block(500, get_unbonding_period() + 1);
         let balance_before =
             coin::balance(signer::address_of(delegator), get_lp_metadata());
         // clear completed entries
