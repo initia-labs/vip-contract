@@ -9,7 +9,7 @@ module vip::lock_staking {
     use initia_std::address::to_sdk;
     use initia_std::block;
     use initia_std::coin;
-    use initia_std::cosmos::{stargate, move_execute};
+    use initia_std::cosmos::{stargate, stargate_vote, move_execute};
     use initia_std::decimal128::{Self, Decimal128};
     use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
     use initia_std::json::{marshal, unmarshal};
@@ -142,6 +142,22 @@ module vip::lock_staking {
         )
     }
 
+    public entry fun vote_gov_proposal(
+        account: &signer, proposal_id: u64, option: u64, metadata: String
+    ) acquires StakingAccount {
+        let addr = signer::address_of(account);
+        if (!is_registered(addr)) { return };
+
+        let staking_account_signer = get_staking_account_signer(account);
+        stargate_vote(
+            &staking_account_signer,
+            proposal_id,
+            to_sdk(addr),
+            option,
+            metadata,
+        );
+    }
+
     public entry fun withdraw_asset(
         account: &signer,
         metadata: Object<Metadata>,
@@ -239,7 +255,6 @@ module vip::lock_staking {
                 share,
             );
 
-
         // get redelegate amount and share before
         let (amount, share_before) =
             if (option::is_none(&amount)) {
@@ -248,7 +263,10 @@ module vip::lock_staking {
             } else {
                 let redelegate_amount = option::extract(&mut amount);
                 assert!(redelegate_amount > 0, error::invalid_argument(EZERO_AMOUNT));
-                assert!(locked_amount >= redelegate_amount, error::invalid_argument(ENOT_ENOUGH_DELEGATION));
+                assert!(
+                    locked_amount >= redelegate_amount,
+                    error::invalid_argument(ENOT_ENOUGH_DELEGATION),
+                );
                 // get current delegation share
                 let delegation =
                     get_delegation(
@@ -257,7 +275,12 @@ module vip::lock_staking {
                         false,
                     );
 
-                let share_before = get_share(&delegation.delegation.shares, coin::metadata_to_denom(metadata), true);
+                let share_before =
+                    get_share(
+                        &delegation.delegation.shares,
+                        coin::metadata_to_denom(metadata),
+                        true,
+                    );
 
                 (redelegate_amount, option::some(share_before))
             };
@@ -331,7 +354,10 @@ module vip::lock_staking {
             } else {
                 let undelegate_amount = option::extract(&mut amount);
                 assert!(undelegate_amount > 0, error::invalid_argument(EZERO_AMOUNT));
-                assert!(locked_amount >= undelegate_amount, error::invalid_argument(ENOT_ENOUGH_DELEGATION));
+                assert!(
+                    locked_amount >= undelegate_amount,
+                    error::invalid_argument(ENOT_ENOUGH_DELEGATION),
+                );
                 // get current delegation share
                 let delegation = get_delegation(
                     validator,
@@ -339,7 +365,12 @@ module vip::lock_staking {
                     false,
                 );
 
-                let share_before = get_share(&delegation.delegation.shares, coin::metadata_to_denom(metadata), true);
+                let share_before =
+                    get_share(
+                        &delegation.delegation.shares,
+                        coin::metadata_to_denom(metadata),
+                        true,
+                    );
 
                 (undelegate_amount, option::some(share_before))
             };
@@ -1043,7 +1074,9 @@ module vip::lock_staking {
         );
     }
 
-    fun get_share(shares: &vector<DecCoin>, denom: String, must_exists: bool): Decimal128 {
+    fun get_share(
+        shares: &vector<DecCoin>, denom: String, must_exists: bool
+    ): Decimal128 {
         let (find, found_index) = vector::find<DecCoin>(
             shares,
             |share| { compare_denom(share, denom) },
