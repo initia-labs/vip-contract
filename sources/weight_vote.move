@@ -2,6 +2,7 @@ module vip::weight_vote {
     use std::error;
     use std::option::{Self, Option};
     use std::signer;
+    use std::string;
     use std::vector;
 
     use initia_std::block::get_block_info;
@@ -18,6 +19,8 @@ module vip::weight_vote {
     use vip::lock_staking;
     use vip::utils;
     use vip::vip;
+
+    use vesting::vesting;
 
     //
     // Errors
@@ -52,6 +55,8 @@ module vip::weight_vote {
         voting_period: u64,
         // pair weight
         pair_weights: Table<Object<Metadata>, Decimal128>,
+        // core vesting creator
+        core_vesting_creator: address,
     }
 
     struct Proposal has store {
@@ -152,6 +157,7 @@ module vip::weight_vote {
                 proposals: table::new(),
                 voting_period,
                 pair_weights: table::new(),
+                core_vesting_creator: @vesting_creator,
             },
         )
     }
@@ -160,6 +166,7 @@ module vip::weight_vote {
         chain: &signer,
         cycle_interval: Option<u64>,
         voting_period: Option<u64>,
+        core_vesting_creator: Option<address>,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -170,6 +177,10 @@ module vip::weight_vote {
 
         if (option::is_some(&voting_period)) {
             module_store.voting_period = option::extract(&mut voting_period);
+        };
+
+        if (option::is_some(&core_vesting_creator)) {
+            module_store.core_vesting_creator = option::extract(&mut core_vesting_creator);
         };
 
         // voting period must be less than cycle interval
@@ -295,6 +306,51 @@ module vip::weight_vote {
                 weights: weight_vector,
             },
         )
+    }
+
+    public entry fun create_proposal() acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let (_, time) = get_block_info();
+
+        // cycle not end
+        if (module_store.cycle_end_time >= time) { return };
+
+        // get the last voted proposal
+        // execute proposal not executed
+        if (module_store.current_cycle != 0) {
+            let proposal =
+                table::borrow_mut(
+                    &mut module_store.proposals,
+                    table_key::encode_u64(module_store.current_cycle),
+                );
+            if (!proposal.executed && proposal.voting_end_time < time) {
+                execute_proposal_internal(
+                    proposal,
+                    module_store.current_cycle,
+                );
+            };
+        };
+        // update cycle
+        module_store.current_cycle = module_store.current_cycle + 1;
+        module_store.cycle_start_time = calculate_cycle_start_time(module_store);
+        let voting_end_time = module_store.cycle_start_time + module_store.voting_period;
+
+        // set cycle end time
+        module_store.cycle_end_time = module_store.cycle_start_time
+            + module_store.cycle_interval;
+
+        // initiate weight vote
+        table::add(
+            &mut module_store.proposals,
+            table_key::encode_u64(module_store.current_cycle),
+            Proposal {
+                votes: table::new(),
+                total_tally: 0,
+                tallies: table::new(),
+                voting_end_time,
+                executed: false,
+            },
+        );
     }
 
     // it will be executed by agent; but there is no permission to execute proposal
@@ -486,54 +542,33 @@ module vip::weight_vote {
             },
         );
 
-        // TODO: add vesting
+        let vesting_voting_power = get_vesting_voting_power(module_store.core_vesting_creator, addr);
+        // mul weight
+        let init_weight = simple_map::borrow(&weight_map, &string::utf8(b"uinit"));
+        vesting_voting_power = decimal128::mul_u64(init_weight, vesting_voting_power);
 
-        cosmos_voting_power + lock_staking_voting_power
+        cosmos_voting_power + lock_staking_voting_power + vesting_voting_power
     }
 
-    public entry fun create_proposal() acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+    fun get_vesting_voting_power(creator: address, addr: address): u64 {
+        if (!vesting::has_vesting(creator, addr)) {
+            return 0
+        };
+
+        // https://github.com/initia-labs/initia/blob/937dacd87704437e0713f913d9c468a0a92dae60/x/move/keeper/vesting.go#L133
+        let vesting_info = vesting::vesting_info(creator, addr);
+        let (allocation, claimed_amount, start_time, vesting_period, _, _) = vesting::lookup_vesting(&vesting_info);
         let (_, time) = get_block_info();
 
-        // cycle not end
-        if (module_store.cycle_end_time >= time) { return };
-
-        // get the last voted proposal
-        // execute proposal not executed
-        if (module_store.current_cycle != 0) {
-            let proposal =
-                table::borrow_mut(
-                    &mut module_store.proposals,
-                    table_key::encode_u64(module_store.current_cycle),
-                );
-            if (!proposal.executed && proposal.voting_end_time < time) {
-                execute_proposal_internal(
-                    proposal,
-                    module_store.current_cycle,
-                );
-            };
+        if (time < start_time) {
+            return 0
         };
-        // update cycle
-        module_store.current_cycle = module_store.current_cycle + 1;
-        module_store.cycle_start_time = calculate_cycle_start_time(module_store);
-        let voting_end_time = module_store.cycle_start_time + module_store.voting_period;
 
-        // set cycle end time
-        module_store.cycle_end_time = module_store.cycle_start_time
-            + module_store.cycle_interval;
+        if (time >= start_time + vesting_period) {
+            return allocation - claimed_amount
+        };
 
-        // initiate weight vote
-        table::add(
-            &mut module_store.proposals,
-            table_key::encode_u64(module_store.current_cycle),
-            Proposal {
-                votes: table::new(),
-                total_tally: 0,
-                tallies: table::new(),
-                voting_end_time,
-                executed: false,
-            },
-        );
+        allocation * (time - start_time) / vesting_period - claimed_amount
     }
 
     //
