@@ -508,7 +508,7 @@ module vip::lock_staking {
     }
 
     // hook functions
-    public entry fun delegate_hook(
+    entry fun delegate_hook(
         staking_account_signer: &signer,
         metadata: Object<Metadata>,
         release_time: u64,
@@ -528,13 +528,13 @@ module vip::lock_staking {
         );
 
         let share_after = get_share(&delegation.delegation.shares, denom, true);
-        let share =
+        let share_diff =
             decimal128::new(
                 decimal128::val(&share_after) - decimal128::val(&share_before)
             );
 
         // store delegation
-        let locked_delegation = LockedDelegation { metadata, validator, share };
+        let locked_delegation = LockedDelegation { metadata, validator, share: share_diff };
 
         deposit_delegation(
             staking_account_addr,
@@ -550,7 +550,7 @@ module vip::lock_staking {
         );
     }
 
-    public entry fun redelegate_hook(
+    entry fun redelegate_hook(
         staking_account_signer: &signer,
         metadata: Object<Metadata>,
         src_release_time: u64,
@@ -653,7 +653,7 @@ module vip::lock_staking {
         );
     }
 
-    public entry fun undelegate_hook(
+    entry fun undelegate_hook(
         staking_account_signer: &signer,
         metadata: Object<Metadata>,
         release_time: u64,
