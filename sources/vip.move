@@ -168,6 +168,7 @@ module vip::vip {
 
     struct Bridge has store, drop {
         init_stage: u64, // stage to start scoring and distribution reward
+        end_stage: u64, // if 0, registered else deregistered bridge.
         bridge_addr: address,
         operator_addr: address,
         vip_l2_score_contract: string::String,
@@ -466,18 +467,35 @@ module vip::vip {
     ) {
         let bridge_vec = table_key::encode_u64(bridge_id);
         let version_vec = table_key::encode_u64(version);
-        let key = BridgeInfoKey {
+        let registered_key = BridgeInfoKey {
             is_registered: true,
             bridge_id: bridge_vec,
             version: version_vec
         };
-        assert!(
-            table::contains(
-                &imut_module_store.bridges,
-                key,
-            ),
-            error::not_found(EBRIDGE_NOT_FOUND),
+        let is_registered = table::contains(
+            &imut_module_store.bridges,
+            registered_key,
         );
+
+        let key = if (is_registered) {
+            registered_key
+        } else {
+            let key = BridgeInfoKey {
+                is_registered: false,
+                bridge_id: bridge_vec,
+                version: version_vec
+            };
+
+            assert!(
+                table::contains(
+                    &imut_module_store.bridges,
+                    key,
+                ),
+                error::not_found(EBRIDGE_NOT_FOUND),
+            );
+
+            key
+        };
         // if current stage is init stage of bridge, then skip this check
         let bridge_info = table::borrow(&imut_module_store.bridges, key);
         let init_stage = bridge_info.init_stage;
@@ -495,6 +513,9 @@ module vip::vip {
                 error::not_found(EPREV_STAGE_SNAPSHOT_NOT_FOUND),
             );
         };
+
+        // check end stage
+        assert!(bridge_info.end_stage == 0 || bridge_info.end_stage >= stage, error::unavailable(EBRIDGE_NOT_REGISTERED)); 
     }
 
     fun lock_stake(
@@ -1140,6 +1161,7 @@ module vip::vip {
             },
             Bridge {
                 init_stage: module_store.stage + 1,
+                end_stage: 0,
                 bridge_addr: bridge_address,
                 operator_addr: operator,
                 vip_l2_score_contract,
@@ -1175,6 +1197,7 @@ module vip::vip {
             },
             Bridge {
                 init_stage: bridge.init_stage,
+                end_stage: module_store.stage,
                 bridge_addr: bridge.bridge_addr,
                 operator_addr: bridge.operator_addr,
                 vip_l2_score_contract: bridge.vip_l2_score_contract,
@@ -1305,14 +1328,13 @@ module vip::vip {
     public entry fun submit_snapshot(
         agent: &signer,
         bridge_id: u64,
+        version: u64,
         stage: u64,
         merkle_root: vector<u8>,
         total_l2_score: u64,
     ) acquires ModuleStore {
         check_agent_permission(agent);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
 
         // submitted snapshot under the current stage
         assert!(
@@ -2829,6 +2851,7 @@ module vip::vip {
             submit_snapshot(
                 agent,
                 bridge_id,
+                1,
                 idx,
                 merkle_root,
                 total_l2_score,
@@ -2860,6 +2883,7 @@ module vip::vip {
             submit_snapshot(
                 agent,
                 bridge_id,
+                1,
                 idx,
                 merkle_root,
                 total_l2_score,
@@ -2944,6 +2968,7 @@ module vip::vip {
             vip,
             bridge_id,
             1,
+            1,
             *simple_map::borrow(&merkle_root_map, &1),
             *simple_map::borrow(&total_score_map, &1),
         );
@@ -2953,6 +2978,7 @@ module vip::vip {
         submit_snapshot(
             vip,
             bridge_id,
+            1,
             2,
             *simple_map::borrow(&merkle_root_map, &2),
             *simple_map::borrow(&total_score_map, &2),
@@ -2997,6 +3023,7 @@ module vip::vip {
         submit_snapshot(
             vip,
             bridge_id,
+            1,
             3,
             *simple_map::borrow(&merkle_root_map, &3),
             *simple_map::borrow(&total_score_map, &3),
@@ -3033,6 +3060,7 @@ module vip::vip {
         submit_snapshot(
             vip,
             bridge_id,
+            1,
             4,
             *simple_map::borrow(&merkle_root_map, &4),
             *simple_map::borrow(&total_score_map, &4),
@@ -4121,6 +4149,7 @@ module vip::vip {
             agent,
             bridge_id1,
             1,
+            1,
             *simple_map::borrow(&merkle_root_map, &1),
             *simple_map::borrow(&total_score_map, &1),
         );
@@ -4164,6 +4193,7 @@ module vip::vip {
         submit_snapshot(
             agent,
             bridge_id1,
+            2,
             5,
             *simple_map::borrow(&merkle_root_map, &5),
             *simple_map::borrow(&total_score_map, &5),
@@ -4220,6 +4250,7 @@ module vip::vip {
         submit_snapshot(
             vip,
             bridge_id,
+            1,
             1,
             x"8888888888888888888888888888888888888888888888888888888888888888",
             0,
