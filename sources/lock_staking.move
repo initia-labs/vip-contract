@@ -288,7 +288,13 @@ module vip::lock_staking {
             );
         let locked_share = locked_delegation.locked_share;
         let locked_amount =
-            locked_share_to_amount(staking_account, validator_src_address, metadata, &share_before,  &locked_share);
+            locked_share_to_amount(
+                staking_account,
+                validator_src_address,
+                metadata,
+                &share_before,
+                &locked_share,
+            );
 
         // get redelegate amount and share before
         let (amount, share_before) =
@@ -377,7 +383,9 @@ module vip::lock_staking {
             );
         let locked_share = locked_delegation.locked_share;
         let locked_amount =
-            locked_share_to_amount(staking_account, validator, metadata, &share_before,  &locked_share);
+            locked_share_to_amount(
+                staking_account, validator, metadata, &share_before, &locked_share
+            );
 
         // get undelegate amount and share before
         let (amount, share_before) =
@@ -610,7 +618,9 @@ module vip::lock_staking {
                 decimal128::val(&share_after) - decimal128::val(&share_before)
             );
         let new_locked_share =
-            share_to_locked_share(staking_account, validator, metadata, &share_before, &share_diff);
+            share_to_locked_share(
+                staking_account, validator, metadata, &share_before, &share_diff
+            );
 
         // store delegation
         let locked_delegation = LockedDelegation {
@@ -705,7 +715,14 @@ module vip::lock_staking {
                         decimal128::val(&share_before) - decimal128::val(&share_after)
                     );
 
-                let locked_share = share_to_locked_share(staking_account, validator_src_address, metadata, &share_before, &share_diff);
+                let locked_share =
+                    share_to_locked_share(
+                        staking_account,
+                        validator_src_address,
+                        metadata,
+                        &share_before,
+                        &share_diff,
+                    );
                 option::some(locked_share)
             };
 
@@ -729,7 +746,7 @@ module vip::lock_staking {
             );
 
         // total delegation share after redelegation
-        let current_total_share = 
+        let current_total_share =
             get_share(
                 &delegation.delegation.shares,
                 redelegation_share.denom,
@@ -742,7 +759,13 @@ module vip::lock_staking {
 
         // get new locked share
         let new_locked_share =
-            share_to_locked_share(staking_account, validator_dst_address, metadata, &dst_share_before, &redelegation_share.amount);
+            share_to_locked_share(
+                staking_account,
+                validator_dst_address,
+                metadata,
+                &dst_share_before,
+                &redelegation_share.amount,
+            );
         let locked_delegation = LockedDelegation {
             metadata,
             validator: validator_dst_address,
@@ -1268,7 +1291,9 @@ module vip::lock_staking {
         locked_share: &Decimal128
     ): u64 {
         let share =
-            locked_share_to_share(staking_account, validator, metadata, total_share, locked_share);
+            locked_share_to_share(
+                staking_account, validator, metadata, total_share, locked_share
+            );
         staking::share_to_amount(*string::bytes(&validator), &metadata, floor(&share))
     }
 
@@ -1355,11 +1380,12 @@ module vip::lock_staking {
                 simple_map::add(&mut delegations, validator, delegation);
             };
             let delegation = simple_map::borrow(&delegations, &validator);
-            let total_share = get_share(
-                &delegation.delegation.shares,
-                coin::metadata_to_denom(metadata),
-                true,
-            );
+            let total_share =
+                get_share(
+                    &delegation.delegation.shares,
+                    coin::metadata_to_denom(metadata),
+                    true,
+                );
             let amount =
                 locked_share_to_amount(
                     staking_account,
