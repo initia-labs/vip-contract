@@ -39,6 +39,7 @@ module vip::lock_staking {
     const EMAX_LOCK_PERIOD: u64 = 12;
     const EMAX_SLOT: u64 = 13;
     const EZERO_AMOUNT: u64 = 14;
+    const EINVALID_MIN_MAX: u64 = 15;
 
     struct LockedDelegation has store {
         metadata: Object<Metadata>,
@@ -67,6 +68,7 @@ module vip::lock_staking {
     }
 
     struct ModuleStore has key {
+        min_lock_period: u64,
         max_lock_period: u64,
         max_delegation_slot: u64,
     }
@@ -76,6 +78,7 @@ module vip::lock_staking {
         move_to(
             vip,
             ModuleStore {
+                min_lock_period: 0,
                 max_lock_period: 126230400u64, // 60 * 60 * 24 * 365.25 * 4 (4 years)
                 max_delegation_slot: 18_446_744_073_709_551_615u64 // u64 max at first
             },
@@ -85,10 +88,17 @@ module vip::lock_staking {
     // entry functions
 
     public entry fun update_params(
-        chain: &signer, max_lock_period: Option<u64>, max_delegation_slot: Option<u64>
+        chain: &signer,
+        min_lock_period: Option<u64>,
+        max_lock_period: Option<u64>,
+        max_delegation_slot: Option<u64>
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
+
+        if (option::is_some(&min_lock_period)) {
+            module_store.min_lock_period = option::extract(&mut min_lock_period);
+        };
 
         if (option::is_some(&max_lock_period)) {
             module_store.max_lock_period = option::extract(&mut max_lock_period);
@@ -97,6 +107,11 @@ module vip::lock_staking {
         if (option::is_some(&max_delegation_slot)) {
             module_store.max_delegation_slot = option::extract(&mut max_delegation_slot);
         };
+
+        assert!(
+            module_store.max_lock_period > module_store.min_lock_period,
+            error::invalid_argument(EINVALID_MIN_MAX),
+        );
     }
 
     public entry fun withdraw_delegator_reward(account: &signer) acquires StakingAccount {
@@ -488,10 +503,11 @@ module vip::lock_staking {
         fa: FungibleAsset,
         release_time: u64,
         validator_address: String
-    ) acquires StakingAccount {
+    ) acquires StakingAccount, ModuleStore {
         let (_, curr_time) = block::get_block_info();
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
-            release_time > curr_time,
+            release_time > curr_time + module_store.min_lock_period,
             error::invalid_argument(ESMALL_RLEASE_TIME),
         );
 
