@@ -542,7 +542,8 @@ module vip::weight_vote {
             },
         );
 
-        let vesting_voting_power = get_vesting_voting_power(module_store.core_vesting_creator, addr);
+        let vesting_voting_power =
+            get_vesting_voting_power(module_store.core_vesting_creator, addr);
         // mul weight
         let init_weight = simple_map::borrow(&weight_map, &string::utf8(b"uinit"));
         vesting_voting_power = decimal128::mul_u64(init_weight, vesting_voting_power);
@@ -557,7 +558,8 @@ module vip::weight_vote {
 
         // https://github.com/initia-labs/initia/blob/937dacd87704437e0713f913d9c468a0a92dae60/x/move/keeper/vesting.go#L133
         let vesting_info = vesting::vesting_info(creator, addr);
-        let (allocation, claimed_amount, start_time, vesting_period, _, _) = vesting::lookup_vesting(&vesting_info);
+        let (allocation, claimed_amount, start_time, vesting_period, _, _) =
+            vesting::lookup_vesting(&vesting_info);
         let (_, time) = get_block_info();
 
         if (time < start_time) {
