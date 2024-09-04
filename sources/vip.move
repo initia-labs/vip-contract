@@ -479,21 +479,17 @@ module vip::vip {
         let key = if (is_registered) {
             registered_key
         } else {
-            let key = BridgeInfoKey {
-                is_registered: false,
-                bridge_id: bridge_vec,
-                version: version_vec
-            };
+            registered_key.is_registerd = false;
 
             assert!(
                 table::contains(
                     &imut_module_store.bridges,
-                    key,
+                    registered_key,
                 ),
                 error::not_found(EBRIDGE_NOT_FOUND),
             );
 
-            key
+            registered_key
         };
         // if current stage is init stage of bridge, then skip this check
         let bridge_info = table::borrow(&imut_module_store.bridges, key);
