@@ -1190,7 +1190,7 @@ module vip::lock_staking {
                 LockedShareKey { metadata, validator },
                 decimal128::zero(),
             );
-        decimal128::add(total_locked_share, &locked_share);
+        *total_locked_share = decimal128::add(total_locked_share, &locked_share);
 
         // update locked delegation
         if (!table::contains(&staking_account.delegations, key)) {

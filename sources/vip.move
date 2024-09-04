@@ -479,7 +479,7 @@ module vip::vip {
         let key = if (is_registered) {
             registered_key
         } else {
-            registered_key.is_registerd = false;
+            registered_key.is_registered = false;
 
             assert!(
                 table::contains(
