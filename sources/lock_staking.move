@@ -472,7 +472,7 @@ module vip::lock_staking {
                         true,
                     );
                 option::some(
-                    amount_locked_share(
+                    amount_to_locked_share(
                         staking_account,
                         validator,
                         metadata,
@@ -1297,7 +1297,7 @@ module vip::lock_staking {
         staking::share_to_amount(*string::bytes(&validator), &metadata, floor(&share))
     }
 
-    fun amount_locked_share(
+    fun amount_to_locked_share(
         staking_account: &StakingAccount,
         validator: String,
         metadata: Object<Metadata>,
