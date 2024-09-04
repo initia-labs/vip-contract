@@ -1252,7 +1252,7 @@ module vip::lock_staking {
         };
 
         let ratio =
-            decimal128::from_ratio(
+            utils::safe_from_ratio_decimal128(
                 decimal128::val(total_share), decimal128::val(total_locked_share)
             );
 
@@ -1277,7 +1277,7 @@ module vip::lock_staking {
         };
 
         let ratio =
-            decimal128::from_ratio(
+            utils::safe_from_ratio_decimal128(
                 decimal128::val(total_locked_share), decimal128::val(total_share)
             );
 
