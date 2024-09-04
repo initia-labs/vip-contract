@@ -71,10 +71,8 @@ module vip::utils {
         ((a as u128) * (b as u128) / (c as u128) as u64)
     }
 
-    public fun safe_from_ratio_decimal128(a: u128, b: u128): Decimal128 {
-        let decimal_fractional = decimal128::val(&decimal128::one());
-        let val = (a as u256) * (decimal_fractional as u256) / (b as u256);
-        decimal128::new((val as u128))
+    public fun mul_div_u128(a: u128, b: u128, c: u128): u128 {
+        ((a as u256) * (b as u256) / (c as u256) as u128)
     }
 
     // stargate queries

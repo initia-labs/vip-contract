@@ -384,7 +384,11 @@ module vip::lock_staking {
         let locked_share = locked_delegation.locked_share;
         let locked_amount =
             locked_share_to_amount(
-                staking_account, validator, metadata, &share_before, &locked_share
+                staking_account,
+                validator,
+                metadata,
+                &share_before,
+                &locked_share,
             );
 
         // get undelegate amount and share before
@@ -619,7 +623,11 @@ module vip::lock_staking {
             );
         let new_locked_share =
             share_to_locked_share(
-                staking_account, validator, metadata, &share_before, &share_diff
+                staking_account,
+                validator,
+                metadata,
+                &share_before,
+                &share_diff,
             );
 
         // store delegation
@@ -1251,12 +1259,15 @@ module vip::lock_staking {
             return *locked_share
         };
 
-        let ratio =
-            utils::safe_from_ratio_decimal128(
-                decimal128::val(total_share), decimal128::val(total_locked_share)
+        // locked_share * total_share / total_locekd_share
+        let val =
+            utils::mul_div_u128(
+                decimal128::val(locked_share),
+                decimal128::val(total_share),
+                decimal128::val(total_locked_share),
             );
 
-        decimal128::mul(locked_share, &ratio)
+        decimal128::new(val)
     }
 
     fun share_to_locked_share(
@@ -1276,12 +1287,15 @@ module vip::lock_staking {
             return *share
         };
 
-        let ratio =
-            utils::safe_from_ratio_decimal128(
-                decimal128::val(total_locked_share), decimal128::val(total_share)
+        // share * total_locekd_share / total_share
+        let val =
+            utils::mul_div_u128(
+                decimal128::val(share),
+                decimal128::val(total_locked_share),
+                decimal128::val(total_share),
             );
 
-        decimal128::mul(share, &ratio)
+        decimal128::new(val)
     }
 
     fun locked_share_to_amount(
@@ -1293,7 +1307,11 @@ module vip::lock_staking {
     ): u64 {
         let share =
             locked_share_to_share(
-                staking_account, validator, metadata, total_share, locked_share
+                staking_account,
+                validator,
+                metadata,
+                total_share,
+                locked_share,
             );
         staking::share_to_amount(*string::bytes(&validator), &metadata, floor(&share))
     }
@@ -1405,7 +1423,7 @@ module vip::lock_staking {
 
         res
     }
-    
+
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
         assert!(signer::address_of(chain) == @vip, 1);
