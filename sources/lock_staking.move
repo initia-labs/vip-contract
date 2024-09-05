@@ -33,7 +33,7 @@ module vip::lock_staking {
     const ENOT_SINGLE_COIN: u64 = 5;
     const EDENOM_MISMATCH: u64 = 6;
     const ENOT_ENOUGH_BALANCE: u64 = 7;
-    const ESMALL_RLEASE_TIME: u64 = 8;
+    const ESMALL_RELEASE_TIME: u64 = 8;
     const ENOT_RELEASE: u64 = 9;
     const ESAME_HEIGHT: u64 = 10;
     const ENOT_ENOUGH_DELEGATION: u64 = 11;
@@ -263,7 +263,7 @@ module vip::lock_staking {
         assert_height(staking_account);
         assert!(
             dst_release_time >= src_release_time,
-            error::invalid_argument(ESMALL_RLEASE_TIME),
+            error::invalid_argument(ESMALL_RELEASE_TIME),
         );
         // get current delegation share
         let delegation =
@@ -450,7 +450,7 @@ module vip::lock_staking {
         // check release time
         assert!(
             new_release_time > release_time,
-            error::invalid_argument(ESMALL_RLEASE_TIME),
+            error::invalid_argument(ESMALL_RELEASE_TIME),
         );
 
         // get locked_share amount to extend
@@ -543,7 +543,7 @@ module vip::lock_staking {
         let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
             release_time > curr_time + module_store.min_lock_period,
-            error::invalid_argument(ESMALL_RLEASE_TIME),
+            error::invalid_argument(ESMALL_RELEASE_TIME),
         );
 
         let staking_account_signer = get_staking_account_signer(account);
@@ -920,13 +920,13 @@ module vip::lock_staking {
         staking_account: &StakingAccount,
         validator_addr: String,
         delegator_addr: address,
-        must_exists: bool,
+        must_exist: bool,
     ): DelegationResponseInner {
         let delegator_addr = to_sdk(delegator_addr);
         if (!table::contains(
                 &staking_account.validators,
                 validator_addr,
-            ) && !must_exists) {
+            ) && !must_exist) {
             return DelegationResponseInner {
                 delegation: Delegation {
                     delegator_address: delegator_addr,
@@ -1225,14 +1225,14 @@ module vip::lock_staking {
     }
 
     fun get_share(
-        shares: &vector<DecCoin>, denom: String, must_exists: bool
+        shares: &vector<DecCoin>, denom: String, must_exist: bool
     ): Decimal128 {
         let (found, idx) = vector::find<DecCoin>(
             shares,
             |share| { compare_denom(share, denom) },
         );
 
-        assert!(!must_exists || found, error::not_found(EDELEGATION_NOT_FOUND));
+        assert!(!must_exist || found, error::not_found(EDELEGATION_NOT_FOUND));
 
         if (found) {
             vector::borrow(shares, idx).amount

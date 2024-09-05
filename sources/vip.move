@@ -39,7 +39,7 @@ module vip::vip {
     // NOT FOUND ERROR
     const ESTAGE_DATA_NOT_FOUND: u64 = 4;
     const EBRIDGE_NOT_FOUND: u64 = 5;
-    const ESNAPSHOT_NOT_EXISTS: u64 = 6;
+    const ESNAPSHOT_NOT_FOUND: u64 = 6;
     const EBRIDGE_NOT_REGISTERED: u64 = 7;
     const EPREV_STAGE_SNAPSHOT_NOT_FOUND: u64 = 8;
     const EFUNDED_REWARD_NOT_FOUND: u64 = 9;
@@ -968,7 +968,7 @@ module vip::vip {
     ) acquires ModuleStore {
         // check if it is already finalized
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 account_addr, bridge_id, version, stage
             ),
             error::invalid_state(EALREADY_FINALIZED),
@@ -1539,7 +1539,7 @@ module vip::vip {
                         version: table_key::encode_u64(version)
                     },
                 ),
-                error::not_found(ESNAPSHOT_NOT_EXISTS),
+                error::not_found(ESNAPSHOT_NOT_FOUND),
             );
             vector::push_back(
                 &mut claim_infos,
@@ -1903,7 +1903,7 @@ module vip::vip {
                 &mut stage_data.snapshots,
                 key,
             ),
-            error::not_found(ESNAPSHOT_NOT_EXISTS),
+            error::not_found(ESNAPSHOT_NOT_FOUND),
         );
 
         table::borrow_mut(&mut stage_data.snapshots, key)
@@ -1928,7 +1928,7 @@ module vip::vip {
         };
         assert!(
             table::contains(&stage_data.snapshots, key),
-            error::not_found(ESNAPSHOT_NOT_EXISTS),
+            error::not_found(ESNAPSHOT_NOT_FOUND),
         );
 
         table::borrow(&stage_data.snapshots, key)
@@ -3354,7 +3354,7 @@ module vip::vip {
         );
 
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 signer::address_of(receiver),
                 bridge_id,
                 1,
@@ -3363,7 +3363,7 @@ module vip::vip {
             0,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 signer::address_of(receiver),
                 bridge_id,
                 1,

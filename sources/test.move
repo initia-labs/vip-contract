@@ -721,11 +721,11 @@ module vip::test {
             5,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 3),
+            !vesting::has_user_vesting_position(receiver_addr, 1, 1, 3),
             6,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 3),
+            !vesting::has_user_vesting_position(receiver_addr, 1, 1, 3),
             7,
         );
         let vesting1_initial_reward =
@@ -908,7 +908,7 @@ module vip::test {
             option::none(),
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             5,
@@ -991,7 +991,7 @@ module vip::test {
             option::none(),
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             5,
@@ -1226,7 +1226,7 @@ module vip::test {
             2,
         );
         assert!(
-            vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 2),
+            vesting::has_user_vesting_position(receiver_addr, 1, 1, 2),
             3,
         );
         let vesting1_initial_reward =
@@ -1426,7 +1426,7 @@ module vip::test {
         );
         // stage 1 vesting position lock staked but not finalized yet
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             2,
@@ -1459,7 +1459,7 @@ module vip::test {
         );
         // stage 1 vesting position finalized
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             5,
@@ -1559,7 +1559,7 @@ module vip::test {
         );
         // stage 1 vesting position lock staked but not finalized yet
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             1,
@@ -1592,7 +1592,7 @@ module vip::test {
 
         // stage 1 vesting position finalized not yet
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             2,
@@ -1620,7 +1620,7 @@ module vip::test {
         );
         // stage 1 vesting position finalized
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             3,
@@ -1833,7 +1833,7 @@ module vip::test {
             1,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 1),
+            !vesting::has_user_vesting_position(receiver_addr, 1, 1, 1),
             2,
         );
 
@@ -1962,7 +1962,7 @@ module vip::test {
         stage = 1;
         while (stage < 5) {
             assert!(
-                !vesting::is_user_vesting_position_exists(
+                !vesting::has_user_vesting_position(
                     receiver_addr,
                     get_bridge_id(),
                     1,
