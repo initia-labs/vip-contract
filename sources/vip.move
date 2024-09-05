@@ -1383,34 +1383,6 @@ module vip::vip {
         )
     }
 
-    public entry fun update_snapshot(
-        agent: &signer,
-        bridge_id: u64,
-        stage: u64,
-        merkle_root: vector<u8>,
-        total_l2_score: u64,
-    ) acquires ModuleStore {
-        check_agent_permission(agent);
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
-
-        let snapshot = load_snapshot_mut(module_store, stage, bridge_id, version);
-        snapshot.merkle_root = merkle_root;
-        snapshot.total_l2_score = total_l2_score;
-    }
-
-    fun is_after_challenge_period(
-        module_store: &ModuleStore, bridge_id: u64, version: u64, stage: u64
-    ): bool {
-        let (_, curr_time) = block::get_block_info();
-        let challenge_period = module_store.challenge_period;
-        let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
-        let snapshot_create_time = snapshot.create_time;
-
-        curr_time > snapshot_create_time + challenge_period
-    }
-
     public entry fun batch_claim_user_reward_script(
         account: &signer,
         bridge_id: u64,
