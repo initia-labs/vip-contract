@@ -472,9 +472,7 @@ module vip::vip {
             bridge_id: bridge_vec,
             version: version_vec
         };
-        let is_registered = table::contains(
-            &imut_module_store.bridges, registered_key
-        );
+        let is_registered = table::contains(&imut_module_store.bridges, registered_key);
         let key =
             if (is_registered) {
                 registered_key
