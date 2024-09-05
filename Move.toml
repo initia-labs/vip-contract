@@ -8,5 +8,5 @@ vip = "0xfa5f07319724580ef16dcef6ce4d3b0bd0348e48"
 vesting_creator = "0x2"
 
 [dependencies]
-InitiaStdlib = { git = "https://github.com/initia-labs/move-natives.git", subdir = "initia_stdlib", rev = "0a6aa67b41087c56b6fe7ae54e75c0ecceb388a8" }
+InitiaStdlib = { git = "https://github.com/initia-labs/movevm.git", subdir = "precompile/modules/initia_stdlib", rev = "b6320db6def0aa9438abdb0e7f3f5bda711c8081" }
 initia-vesting = { git = "https://github.com/initia-labs/vesting.git", rev = "c4224390ce20d908062ffd6b0966ab65d12e0dc4" }

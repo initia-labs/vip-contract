@@ -10,7 +10,7 @@ module initia_std::mock_mstaking {
     use initia_std::block;
     use initia_std::coin;
     use initia_std::json::{marshal, unmarshal};
-    use initia_std::decimal128::{Self, Decimal128};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::Metadata;
     use initia_std::object::{Self, Object, ExtendRef};
     use initia_std::option::{Self, Option};
@@ -159,10 +159,7 @@ module initia_std::mock_mstaking {
                 creation_height: (height as u32),
                 completion_time: string::utf8(b""),
                 initial_balance: vector[Coin { denom, amount }],
-                shares_dst: vector[DecCoin {
-                        denom,
-                        amount: decimal128::from_ratio_u64(amount, 1)
-                    }],
+                shares_dst: vector[DecCoin { denom, amount: bigdecimal::from_u64(amount) }],
                 unbonding_id: (test_state.unbonding_id as u32),
             },
             balance: vector[Coin { denom, amount }],
@@ -193,7 +190,7 @@ module initia_std::mock_mstaking {
     }
 
     fun slash_unbonding_delegation(
-        test_state: &TestState, validator_addr: String, slash_factor: Decimal128
+        test_state: &TestState, validator_addr: String, slash_factor: BigDecimal
     ) {
         // iterate through unbonding delegations from slashed validator
         let iter =
@@ -228,7 +225,9 @@ module initia_std::mock_mstaking {
                             use_coin(initial_coin);
                             let coin = vector::borrow_mut(&mut new_balance, i);
                             let slashing_amount =
-                                decimal128::mul_u64(&slash_factor, initial_coin.amount);
+                                bigdecimal::mul_by_u64_truncate(
+                                    slash_factor, initial_coin.amount
+                                );
 
                             if (coin.amount > slashing_amount) {
                                 coin.amount = coin.amount - slashing_amount;
@@ -266,7 +265,7 @@ module initia_std::mock_mstaking {
     }
 
     fun slash_redelegations(
-        test_state: &TestState, validator_addr: String, slash_factor: Decimal128
+        test_state: &TestState, validator_addr: String, slash_factor: BigDecimal
     ) {
         // iterate through redelegations from slashed source validator
         let iter =
@@ -304,7 +303,9 @@ module initia_std::mock_mstaking {
                         |i, initial_balance| {
                             use_coin(initial_balance);
                             let slashing_amount =
-                                decimal128::mul_u64(&slash_factor, initial_balance.amount);
+                                bigdecimal::mul_by_u64_truncate(
+                                    slash_factor, initial_balance.amount
+                                );
                             vector::push_back(
                                 &mut slashing_coins,
                                 Coin {
@@ -408,16 +409,13 @@ module initia_std::mock_mstaking {
                                         &mut new_shares,
                                         DecCoin {
                                             denom: new_balance.denom,
-                                            amount: decimal128::from_ratio_u64(
-                                                staking::amount_to_share(
-                                                    *string::bytes(&dst_validator_addr),
-                                                    &coin::denom_to_metadata(
-                                                        new_balance.denom
-                                                    ),
-                                                    new_balance.amount,
+                                            amount: staking::amount_to_share(
+                                                *string::bytes(&dst_validator_addr),
+                                                &coin::denom_to_metadata(
+                                                    new_balance.denom
                                                 ),
-                                                1,
-                                            )
+                                                new_balance.amount,
+                                            ),
                                         },
                                     );
                                 },
@@ -487,7 +485,7 @@ module initia_std::mock_mstaking {
     }
 
     fun slash_delegations(
-        test_state: &TestState, validator_addr: String, slash_factor: Decimal128
+        test_state: &TestState, validator_addr: String, slash_factor: BigDecimal
     ) {
         let iter = table::iter(
             &test_state.delegation,
@@ -511,7 +509,7 @@ module initia_std::mock_mstaking {
                 |balance| {
                     use_coin(balance);
                     let slashing_amount =
-                        decimal128::mul_u64(&slash_factor, balance.amount);
+                        bigdecimal::mul_by_u64_truncate(slash_factor, balance.amount);
                     let reserve = balance.amount - slashing_amount;
                     vector::push_back(
                         &mut new_balance,
@@ -573,7 +571,7 @@ module initia_std::mock_mstaking {
             &total_shares,
             |s| {
                 use_dec_coin(s);
-                let total_share_amount = decimal128::ceil_u64(&s.amount);
+                let total_share_amount = bigdecimal::ceil_u64(s.amount);
                 let (_, idx) = vector::find(
                     &new_total_balances,
                     |new_total_balance| {
@@ -592,7 +590,7 @@ module initia_std::mock_mstaking {
         );
     }
 
-    public fun slash(validator_addr: String, slash_factor: Decimal128) acquires TestState {
+    public fun slash(validator_addr: String, slash_factor: BigDecimal) acquires TestState {
         let test_state = borrow_global<TestState>(@initia_std);
         slash_unbonding_delegation(
             test_state,
@@ -769,7 +767,7 @@ module initia_std::mock_mstaking {
     }
 
     public fun update_voting_power_weights(
-        denoms: vector<String>, weights: vector<Decimal128>
+        denoms: vector<String>, weights: vector<BigDecimal>
     ) {
         assert!(vector::length(&denoms) == vector::length(&weights), 1);
         let voting_power_weights = vector[];
@@ -856,21 +854,18 @@ module initia_std::mock_mstaking {
             );
             vector::push_back(
                 &mut delegation.delegation_response.delegation.shares,
-                DecCoin { denom, amount: decimal128::zero() },
+                DecCoin { denom, amount: bigdecimal::zero() },
             );
         };
         let share = vector::borrow_mut(
             &mut delegation.delegation_response.delegation.shares, share_index
         );
-        share.amount = decimal128::add(
-            &share.amount,
-            &decimal128::from_ratio_u64(
-                staking::amount_to_share(
-                    *string::bytes(&validator_addr),
-                    &metadata,
-                    amount,
-                ),
-                1,
+        share.amount = bigdecimal::add(
+            share.amount,
+            staking::amount_to_share(
+                *string::bytes(&validator_addr),
+                &metadata,
+                amount,
             ),
         );
 
@@ -971,19 +966,16 @@ module initia_std::mock_mstaking {
         let share = vector::borrow_mut(
             &mut delegation.delegation_response.delegation.shares, share_index
         );
-        share.amount = decimal128::sub(
-            &share.amount,
-            &decimal128::from_ratio_u64(
-                staking::amount_to_share(
-                    *string::bytes(&validator_addr),
-                    &metadata,
-                    amount,
-                ),
-                1,
+        share.amount = bigdecimal::sub(
+            share.amount,
+            staking::amount_to_share(
+                *string::bytes(&validator_addr),
+                &metadata,
+                amount,
             ),
         );
 
-        if (share.amount == decimal128::zero()) {
+        if (share.amount == bigdecimal::zero()) {
             vector::remove<DecCoin>(
                 &mut delegation.delegation_response.delegation.shares, share_index
             );
@@ -1410,7 +1402,7 @@ module initia_std::mock_mstaking {
 
     struct DecCoin has copy, drop, store {
         denom: String,
-        amount: Decimal128,
+        amount: BigDecimal,
     }
 
     inline fun use_dec_coin(_V: &DecCoin) {}
@@ -1430,7 +1422,7 @@ module initia_std::mock_mstaking {
                 );
                 if (find) {
                     let res_c = vector::borrow_mut(&mut results, idx);
-                    res_c.amount = decimal128::add(&res_c.amount, &b_c.amount);
+                    res_c.amount = bigdecimal::add(res_c.amount, b_c.amount);
                 } else {
                     vector::push_back(&mut results, *b_c);
                 }
@@ -1504,9 +1496,7 @@ module initia_std::mock_mstaking {
     inline fun use_response(_response: &RedelegationEntryResponse) {}
 
     public fun set_reward(
-        delegator_addr: String,
-        validator_addr: String,
-        amount: u64
+        delegator_addr: String, validator_addr: String, amount: u64
     ) acquires TestState {
         let metadata = get_init_metadata();
         let test_state = borrow_global_mut<TestState>(@initia_std);
@@ -1605,10 +1595,10 @@ module initia_std::mock_mstaking {
         1000
     }
 
-    public fun get_slash_factor(): Decimal128 {
-        decimal128::from_ratio_u64(1, 10)
+    public fun get_slash_factor(): BigDecimal {
+        bigdecimal::from_ratio_u64(1, 10)
     }
-    
+
     public fun initialize(chain: &signer) acquires TestState {
         init_module(chain, get_unbonding_period());
         primary_fungible_store::init_module_for_test();
@@ -1624,9 +1614,9 @@ module initia_std::mock_mstaking {
             chain,
             string::utf8(b"pair"),
             string::utf8(b"INIT-USDC"),
-            decimal128::from_ratio(3, 1000),
-            decimal128::from_ratio(5, 10),
-            decimal128::from_ratio(5, 10),
+            bigdecimal::from_ratio_u64(3, 1000),
+            bigdecimal::from_ratio_u64(5, 10),
+            bigdecimal::from_ratio_u64(5, 10),
             init_metadata,
             usdc_metadata,
             1000_000,
@@ -1657,7 +1647,7 @@ module initia_std::mock_mstaking {
         );
         update_voting_power_weights(
             vector[string::utf8(b"INIT-USDC")],
-            vector[decimal128::one()],
+            vector[bigdecimal::one()],
         );
 
         // set staking ratio of val1, val2
@@ -1692,8 +1682,8 @@ module initia_std::mock_mstaking {
             staking::amount_to_share(
                 *string::bytes(&get_validator1()), &metadata, 2 * delegating_amount
             );
-        assert!(share1 == delegating_amount, 1);
-        assert!(share2 == 2 * delegating_amount, 2);
+        assert!(share1 == bigdecimal::from_u64(delegating_amount), 1);
+        assert!(share2 == bigdecimal::from_u64(2 * delegating_amount), 2);
 
         let response1 =
             get_delegation(
@@ -1712,7 +1702,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount, 1
                                     )
                                 }]
@@ -1743,7 +1733,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         2 * delegating_amount, 1
                                     )
                                 }]
@@ -1785,7 +1775,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount, 1
                                         )
                                     }]
@@ -1811,7 +1801,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             2 * delegating_amount, 1
                                         )
                                     }]
@@ -1844,7 +1834,7 @@ module initia_std::mock_mstaking {
             staking::amount_to_share(
                 *string::bytes(&get_validator1()), &metadata, delegating_amount
             );
-        assert!(share1 == delegating_amount, 1);
+        assert!(share1 == bigdecimal::from_u64(delegating_amount), 1);
         let response =
             get_delegation(
                 DelegationRequest {
@@ -1862,7 +1852,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount, 1
                                     )
                                 }]
@@ -1881,7 +1871,7 @@ module initia_std::mock_mstaking {
         share1 = staking::amount_to_share(
             *string::bytes(&get_validator1()), &metadata, 1
         );
-        assert!(share1 == 1, 2);
+        assert!(share1 == bigdecimal::from_u64(1), 2);
         response = get_delegation(
             DelegationRequest {
                 validator_addr: get_validator1(),
@@ -1898,7 +1888,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount / 2, 1
                                     )
                                 }]
@@ -1916,7 +1906,7 @@ module initia_std::mock_mstaking {
         share1 = staking::amount_to_share(
             *string::bytes(&get_validator1()), &metadata, 0
         );
-        assert!(share1 == 0, 1);
+        assert!(share1 == bigdecimal::from_u64(0), 1);
         response = get_delegation(
             DelegationRequest {
                 validator_addr: get_validator1(),
@@ -2008,7 +1998,7 @@ module initia_std::mock_mstaking {
         delegate(delegator, get_validator1(), get_lp_metadata(), delegating_amount);
         let share =
             staking::amount_to_share(*string::bytes(&get_validator1()), &metadata, 1);
-        assert!(share == 1, 1);
+        assert!(share == bigdecimal::from_u64(1), 1);
         let response =
             get_delegation(
                 DelegationRequest {
@@ -2028,7 +2018,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount, 1
                                     )
                                 }]
@@ -2053,10 +2043,10 @@ module initia_std::mock_mstaking {
         );
         let share1 =
             staking::amount_to_share(*string::bytes(&get_validator1()), &metadata, 1);
-        assert!(share1 == 1, 1);
+        assert!(share1 == bigdecimal::from_u64(1), 1);
         let share2 =
             staking::amount_to_share(*string::bytes(&get_validator2()), &metadata, 1);
-        assert!(share2 == 1, 1);
+        assert!(share2 == bigdecimal::from_u64(1), 1);
         // check the delegation state of src validator
         response = get_delegation(
             DelegationRequest {
@@ -2083,7 +2073,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount, 1
                                     )
                                 }]
@@ -2130,7 +2120,7 @@ module initia_std::mock_mstaking {
                                         shares_dst: vector[
                                             DecCoin {
                                                 denom: string::utf8(b"INIT-USDC"),
-                                                amount: decimal128::from_ratio_u64(
+                                                amount: bigdecimal::from_ratio_u64(
                                                     delegating_amount, 1
                                                 )
                                             }],
@@ -2167,7 +2157,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount, 1
                                         )
                                     }]
@@ -2250,7 +2240,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount, 1
                                         )
                                     }]
@@ -2269,7 +2259,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             2 * delegating_amount, 1
                                         )
                                     }]
@@ -2310,7 +2300,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             2 * delegating_amount, 1
                                         )
                                     }]
@@ -2403,7 +2393,10 @@ module initia_std::mock_mstaking {
 
         withdraw_delegations_reward(delegator, get_validator1());
 
-        assert!(coin::balance(signer::address_of(delegator), get_init_metadata()) == 100, 1);
+        assert!(
+            coin::balance(signer::address_of(delegator), get_init_metadata()) == 100,
+            1,
+        );
     }
 
     // slash
@@ -2438,7 +2431,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount, 1
                                     )
                                 }]
@@ -2471,7 +2464,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount, 1
                                     )
                                 }]
@@ -2504,7 +2497,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount, 1
                                         )
                                     }]
@@ -2524,7 +2517,7 @@ module initia_std::mock_mstaking {
             staking::share_to_amount(
                 *string::bytes(&get_validator1()),
                 &metadata,
-                100000,
+                &bigdecimal::from_u64(100000),
             );
         assert!(share_to_amount == 90000, 3);
     }
@@ -2580,7 +2573,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount / 2, 1
                                     )
                                 }]
@@ -2624,7 +2617,7 @@ module initia_std::mock_mstaking {
             staking::share_to_amount(
                 *string::bytes(&get_validator1()),
                 &metadata,
-                100000,
+                &bigdecimal::from_u64(100000),
             );
         assert!(share_to_amount == 90000, 3);
         utils::increase_block(500, get_unbonding_period() + 1);
@@ -2687,7 +2680,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount / 2, 1
                                     )
                                 }]
@@ -2711,7 +2704,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(450, 1)
+                                    amount: bigdecimal::from_ratio_u64(450, 1)
                                 }]
                         },
                         balance: vector[Coin {
@@ -2742,7 +2735,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount / 2, 1
                                         )
                                     }]
@@ -2759,7 +2752,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(450, 1)
+                                        amount: bigdecimal::from_ratio_u64(450, 1)
                                     }]
                             },
                             balance: vector[Coin {
@@ -2776,7 +2769,7 @@ module initia_std::mock_mstaking {
             staking::share_to_amount(
                 *string::bytes(&get_validator1()),
                 &metadata,
-                100000,
+                &bigdecimal::from_u64(100000),
             );
         assert!(share_to_amount1 == 90000, 3);
 
@@ -2784,7 +2777,7 @@ module initia_std::mock_mstaking {
             staking::share_to_amount(
                 *string::bytes(&get_validator1()),
                 &metadata,
-                100000,
+                &bigdecimal::from_u64(100000),
             );
         assert!(share_to_amount2 == 90000, 4);
         let balance_before =
@@ -2859,7 +2852,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount / 2, 1
                                     )
                                 }]
@@ -2884,7 +2877,7 @@ module initia_std::mock_mstaking {
                             shares: vector[
                                 DecCoin {
                                     denom: string::utf8(b"INIT-USDC"),
-                                    amount: decimal128::from_ratio_u64(
+                                    amount: bigdecimal::from_ratio_u64(
                                         delegating_amount / 4, 1
                                     )
                                 }]
@@ -2945,7 +2938,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount / 2, 1
                                         )
                                     }]
@@ -2962,7 +2955,7 @@ module initia_std::mock_mstaking {
                                 shares: vector[
                                     DecCoin {
                                         denom: string::utf8(b"INIT-USDC"),
-                                        amount: decimal128::from_ratio_u64(
+                                        amount: bigdecimal::from_ratio_u64(
                                             delegating_amount / 4, 1
                                         )
                                     }]
@@ -2982,14 +2975,14 @@ module initia_std::mock_mstaking {
             staking::share_to_amount(
                 *string::bytes(&get_validator1()),
                 &metadata,
-                100000,
+                &bigdecimal::from_u64(100000),
             );
         // slash only on unbonding delegation; there are no changes on the share_to_amount of val2
         let share_to_amount2 =
             staking::share_to_amount(
                 *string::bytes(&get_validator2()),
                 &metadata,
-                100000,
+                &bigdecimal::from_u64(100000),
             );
         assert!(share_to_amount1 == 90000, 4);
         assert!(share_to_amount2 == 100000, 5);

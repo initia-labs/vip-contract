@@ -6,7 +6,7 @@ module vip::vesting {
     use std::signer;
     use std::vector;
 
-    use initia_std::decimal256::{Self, Decimal256};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::{FungibleAsset};
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
@@ -65,7 +65,7 @@ module vip::vesting {
         end_stage: u64,
         l2_score: u64,
         total_l2_score: u64,
-        minimum_score_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
         funded_reward: u64,
     }
 
@@ -523,7 +523,7 @@ module vip::vesting {
         start_stage: u64,
         end_stage: u64,
         l2_score: u64,
-        minimum_score_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
         total_l2_score: u64,
         funded_reward: u64,
     ): UserVestingClaimInfo {
@@ -677,8 +677,8 @@ module vip::vesting {
         vesting_reward_amount: u64
     ) {
         let minimum_score =
-            decimal256::mul_u64(
-                &claim_info.minimum_score_ratio,
+            bigdecimal::mul_by_u64_truncate(
+                claim_info.minimum_score_ratio,
                 claim_info.l2_score,
             );
 

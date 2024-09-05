@@ -7,8 +7,7 @@ module vip::weight_vote {
 
     use initia_std::block::get_block_info;
     use initia_std::coin;
-    use initia_std::decimal128::{Self, Decimal128};
-    use initia_std::decimal256::{Self, Decimal256};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::event;
     use initia_std::fungible_asset::Metadata;
     use initia_std::object::Object;
@@ -54,7 +53,7 @@ module vip::weight_vote {
         // voting period
         voting_period: u64,
         // pair weight
-        pair_weights: Table<Object<Metadata>, Decimal128>,
+        pair_weights: Table<Object<Metadata>, BigDecimal>,
         // core vesting creator
         core_vesting_creator: address,
     }
@@ -75,7 +74,7 @@ module vip::weight_vote {
 
     struct Weight has copy, drop, store {
         bridge_id: u64,
-        weight: Decimal128,
+        weight: BigDecimal,
     }
 
     struct Vote has store {
@@ -127,7 +126,7 @@ module vip::weight_vote {
     struct ExecuteProposalEvent has drop, store {
         cycle: u64,
         bridge_ids: vector<u64>,
-        weights: vector<Decimal256>,
+        weights: vector<BigDecimal>,
     }
 
     // initialize function
@@ -193,7 +192,7 @@ module vip::weight_vote {
     public entry fun update_pair_weight(
         chain: &signer,
         metadata: Object<Metadata>,
-        weight: Decimal128,
+        weight: BigDecimal,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -214,7 +213,7 @@ module vip::weight_vote {
         account: &signer,
         cycle: u64,
         bridge_ids: vector<u64>,
-        weights: vector<Decimal128>,
+        weights: vector<BigDecimal>,
     ) acquires ModuleStore {
         create_proposal();
         vip::add_tvl_snapshot();
@@ -235,18 +234,19 @@ module vip::weight_vote {
                 );
             },
         );
-        let weight_sum = decimal128::new(0);
+        let weight_sum = bigdecimal::zero();
         vector::for_each_ref(
             &weights,
             |weight| {
-                weight_sum = decimal128::add(&weight_sum, weight);
+                weight_sum = bigdecimal::add(weight_sum, *weight);
             },
         );
         assert!(
-            decimal128::val(&weight_sum) <= decimal128::val(&decimal128::one()),
+            bigdecimal::le(weight_sum, bigdecimal::one()),
             error::invalid_argument(EINVALID_PARAMETER),
         );
-        let voting_power_used = decimal128::mul_u64(&weight_sum, max_voting_power);
+        let voting_power_used =
+            bigdecimal::mul_by_u64_truncate(weight_sum, max_voting_power);
         // check vote condition
         let cycle_key = table_key::encode_u64(cycle);
         assert!(
@@ -385,7 +385,7 @@ module vip::weight_vote {
 
         let index = 0;
         let len = vector::length(&bridge_ids);
-        let weights: vector<Decimal256> = vector[];
+        let weights: vector<BigDecimal> = vector[];
         while (index < len) {
             let bridge_id = *vector::borrow(&bridge_ids, index);
             let tally =
@@ -396,11 +396,11 @@ module vip::weight_vote {
                 );
             let weight =
                 if (proposal.total_tally == 0) {
-                    decimal256::from_ratio(1, (len as u256))
+                    bigdecimal::from_ratio_u64(1, len)
                 } else {
-                    decimal256::from_ratio(
-                        (*tally as u256),
-                        (proposal.total_tally as u256),
+                    bigdecimal::from_ratio_u64(
+                        *tally,
+                        proposal.total_tally,
                     )
                 };
             vector::push_back(&mut weights, weight);
@@ -456,7 +456,8 @@ module vip::weight_vote {
             weights,
             |w| {
                 use_weight(w);
-                let bridge_vp = decimal128::mul_u64(&w.weight, max_voting_power);
+                let bridge_vp =
+                    bigdecimal::mul_by_u64_truncate(w.weight, max_voting_power);
                 voting_power_removed = voting_power_removed + bridge_vp;
                 let tally =
                     table::borrow_mut_with_default(
@@ -478,7 +479,8 @@ module vip::weight_vote {
             weights,
             |w| {
                 use_weight(w);
-                let bridge_vp = decimal128::mul_u64(&w.weight, max_voting_power);
+                let bridge_vp =
+                    bigdecimal::mul_by_u64_truncate(w.weight, max_voting_power);
                 voting_power_used = voting_power_used + bridge_vp;
                 let tally =
                     table::borrow_mut_with_default(
@@ -513,9 +515,9 @@ module vip::weight_vote {
                         table::borrow_with_default(
                             &module_store.pair_weights,
                             metadata,
-                            &decimal128::one(),
+                            &bigdecimal::one(),
                         );
-                    decimal128::mul_u64(weight, voting_power)
+                    bigdecimal::mul_by_u64_truncate(*weight, voting_power)
                 },
             );
 
@@ -530,15 +532,16 @@ module vip::weight_vote {
                     lock_staking::unpack_locked_delegation(delegation);
                 let denom = coin::metadata_to_denom(metadata);
                 let voting_power_weight = simple_map::borrow(&weight_map, &denom);
-                let voting_power = decimal128::mul_u64(voting_power_weight, amount);
+                let voting_power =
+                    bigdecimal::mul_by_u64_truncate(*voting_power_weight, amount);
                 let pair_weight =
                     table::borrow_with_default(
                         &module_store.pair_weights,
                         metadata,
-                        &decimal128::one(),
+                        &bigdecimal::one(),
                     );
                 lock_staking_voting_power = lock_staking_voting_power
-                    + decimal128::mul_u64(pair_weight, voting_power);
+                    + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
             },
         );
 
@@ -546,7 +549,9 @@ module vip::weight_vote {
             get_vesting_voting_power(module_store.core_vesting_creator, addr);
         // mul weight
         let init_weight = simple_map::borrow(&weight_map, &string::utf8(b"uinit"));
-        vesting_voting_power = decimal128::mul_u64(init_weight, vesting_voting_power);
+        vesting_voting_power = bigdecimal::mul_by_u64_truncate(
+            *init_weight, vesting_voting_power
+        );
 
         cosmos_voting_power + lock_staking_voting_power + vesting_voting_power
     }
@@ -733,7 +738,7 @@ module vip::weight_vote {
     //         50,
     //         1,
     //         100,
-    //         decimal128::from_ratio(3, 10),
+    //         bigdecimal::from_ratio_u64(3, 10),
     //         100,
     //     );
     //     set_block_info(100, 101);
@@ -755,9 +760,9 @@ module vip::weight_vote {
     //         1,
     //         @0x12,
     //         string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-    //         decimal256::zero(),
-    //         decimal256::zero(),
-    //         decimal256::zero(),
+    //         bigdecimal::zero(),
+    //         bigdecimal::zero(),
+    //         bigdecimal::zero(),
     //     );
     //     vip::register(
     //         vip,
@@ -765,9 +770,9 @@ module vip::weight_vote {
     //         2,
     //         @0x12,
     //         string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-    //         decimal256::zero(),
-    //         decimal256::zero(),
-    //         decimal256::zero(),
+    //         bigdecimal::zero(),
+    //         bigdecimal::zero(),
+    //         bigdecimal::zero(),
     //     );
     //     mint_cap
     // }
@@ -834,7 +839,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 0),
     //         10,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(1, 5), decimal128::from_ratio(4, 5)], // 2, 8
+    //         vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)], // 2, 8
     //     );
 
     //     vote(
@@ -843,7 +848,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 1),
     //         20,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(2, 5), decimal128::from_ratio(3, 5)], // 8, 12
+    //         vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)], // 8, 12
     //     );
 
     //     vote(
@@ -852,7 +857,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 2),
     //         30,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(2, 5), decimal128::from_ratio(2, 5)], // 12, 12
+    //         vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(2, 5)], // 12, 12
     //     );
 
     //     vote(
@@ -861,7 +866,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 3),
     //         40,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(3, 5), decimal128::from_ratio(1, 5)], // 24, 8 // user can vote with
+    //         vector[bigdecimal::from_ratio_u64(3, 5), bigdecimal::from_ratio_u64(1, 5)], // 24, 8 // user can vote with
     //     );
 
     //     let proposal = get_proposal(1);
@@ -885,7 +890,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 3),
     //         40,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(4, 5), decimal128::from_ratio(1, 5)], // 32, 8 // user can vote with
+    //         vector[bigdecimal::from_ratio_u64(4, 5), bigdecimal::from_ratio_u64(1, 5)], // 32, 8 // user can vote with
     //     );
 
     //     vote1 = get_tally(1, 1);
@@ -902,7 +907,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 2),
     //         30,
     //         vector[1, 2],
-    //         vector[decimal128::zero(), decimal128::zero()], // 0, 0
+    //         vector[bigdecimal::zero(), bigdecimal::zero()], // 0, 0
     //     );
 
     //     vote1 = get_tally(1, 1);
@@ -967,7 +972,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 0),
     //         10,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(1, 5), decimal128::from_ratio(4, 5)], // 2, 8
+    //         vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)], // 2, 8
     //     );
 
     //     vote(
@@ -976,7 +981,7 @@ module vip::weight_vote {
     //         get_proofs(tree, 1),
     //         20,
     //         vector[1, 2],
-    //         vector[decimal128::from_ratio(2, 5), decimal128::from_ratio(3, 5)], // 8, 12
+    //         vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)], // 8, 12
     //     );
 
     //     // execute
