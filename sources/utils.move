@@ -71,6 +71,10 @@ module vip::utils {
         ((a as u128) * (b as u128) / (c as u128) as u64)
     }
 
+    public fun mul_div_u128(a: u128, b: u128, c: u128): u128 {
+        ((a as u256) * (b as u256) / (c as u256) as u128)
+    }
+
     // stargate queries
     struct DelegatorDelegationsRequest has drop {
         delegator_addr: String,

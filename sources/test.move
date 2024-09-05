@@ -17,6 +17,7 @@ module vip::test {
     use initia_std::staking;
     use initia_std::primary_fungible_store;
 
+    use vip::lock_staking;
     use vip::vip;
     use vip::tvl_manager;
     use vip::vault;
@@ -135,7 +136,7 @@ module vip::test {
 
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
-        block::set_block_info(height, curr_time + period);
+        block::set_block_info(height + period / 2 , curr_time + period);
     }
 
     fun reward_balance(addr: address): u64 {
@@ -162,6 +163,7 @@ module vip::test {
     fun submit_snapshot(
         agent: &signer,
         bridge_id: u64,
+        version: u64,
         user: address,
         l2_score: u64,
         total_l2_score: u64,
@@ -178,6 +180,7 @@ module vip::test {
         vip::submit_snapshot(
             agent,
             bridge_id,
+            version,
             stage,
             merkle_root,
             total_l2_score,
@@ -190,6 +193,7 @@ module vip::test {
     fun submit_snapshot_and_fund_reward(
         agent: &signer,
         bridge_id: u64,
+        version: u64,
         user: address,
         l2_score: u64,
         total_l2_score: u64,
@@ -208,6 +212,7 @@ module vip::test {
         vip::submit_snapshot(
             agent,
             bridge_id,
+            version,
             stage,
             merkle_root,
             total_l2_score,
@@ -217,6 +222,8 @@ module vip::test {
         vector::push_back(stages, stage);
         vector::push_back(merkle_proofs, merkle_proof);
         vector::push_back(l2_scores, l2_score);
+
+        skip_period(2);
     }
 
     fun get_merkle_root_and_proof(
@@ -273,6 +280,7 @@ module vip::test {
     public fun initialize(
         chain: &signer, vip: &signer, operator: &signer
     ) {
+        lock_staking::init_module_for_test(vip);
         primary_fungible_store::init_module_for_test();
         dex::init_module_for_test();
         let init_metadata =
@@ -463,6 +471,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             user_addr,
             10,
             100,
@@ -473,6 +482,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             user_addr,
             20,
             100,
@@ -483,6 +493,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             user_addr,
             0,
             100,
@@ -493,6 +504,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             user_addr,
             40,
             100,
@@ -512,6 +524,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             user_addr,
             40,
             100,
@@ -563,6 +576,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -575,6 +589,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -587,6 +602,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -599,6 +615,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -653,6 +670,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -665,6 +683,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -677,6 +696,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             0,
             1000,
@@ -701,11 +721,11 @@ module vip::test {
             5,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 3),
+            !vesting::has_user_vesting_position(receiver_addr, 1, 1, 3),
             6,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 3),
+            !vesting::has_user_vesting_position(receiver_addr, 1, 1, 3),
             7,
         );
         let vesting1_initial_reward =
@@ -739,6 +759,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -751,6 +772,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -763,6 +785,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             0,
             0,
@@ -776,6 +799,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -833,6 +857,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -846,6 +871,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -882,7 +908,7 @@ module vip::test {
             option::none(),
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             5,
@@ -910,6 +936,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -939,6 +966,7 @@ module vip::test {
         vip::submit_snapshot(
             vip,
             get_bridge_id(),
+            get_version(),
             stage,
             merkle_root,
             1000,
@@ -963,7 +991,7 @@ module vip::test {
             option::none(),
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             5,
@@ -992,6 +1020,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1015,6 +1044,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -1051,8 +1081,7 @@ module vip::test {
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573, receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
-    #[expected_failure(abort_code = 0xD0007, location = vip)]
-    fun fail_submit_snapshot_and_fund_reward_with_deregistered_bridge(
+    fun test_submit_snapshot_and_fund_reward_with_deregistered_bridge(
         chain: &signer,
         vip: &signer,
         operator: &signer,
@@ -1070,9 +1099,10 @@ module vip::test {
                 100,
                 1000,
             );
-        vip::submit_snapshot(// stage 1 snapshot submitted; but fail because the corresponding bridge is deregistered
+        vip::submit_snapshot(
             vip,
             get_bridge_id(),
+            get_version(),
             1,
             stage1_merkle_root,
             1000,
@@ -1102,6 +1132,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1114,6 +1145,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -1170,6 +1202,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version() + 1,
             receiver_addr,
             100,
             1000,
@@ -1193,7 +1226,7 @@ module vip::test {
             2,
         );
         assert!(
-            vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 2),
+            vesting::has_user_vesting_position(receiver_addr, 1, 1, 2),
             3,
         );
         let vesting1_initial_reward =
@@ -1230,6 +1263,7 @@ module vip::test {
             vesting5_remaining_reward, // lock staking amount
             option::none(),
         );
+        skip_period(2);
         // lock stake position of stage 5
         vip::lock_stake_script(
             receiver,
@@ -1262,6 +1296,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1274,6 +1309,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -1325,6 +1361,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             20,
             100,
@@ -1336,6 +1373,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             20,
             100,
@@ -1388,7 +1426,7 @@ module vip::test {
         );
         // stage 1 vesting position lock staked but not finalized yet
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             2,
@@ -1397,6 +1435,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             5,
             100,
@@ -1420,7 +1459,7 @@ module vip::test {
         );
         // stage 1 vesting position finalized
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             5,
@@ -1463,6 +1502,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             10,
             100,
@@ -1474,6 +1514,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             20,
             100,
@@ -1518,7 +1559,7 @@ module vip::test {
         );
         // stage 1 vesting position lock staked but not finalized yet
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             1,
@@ -1527,6 +1568,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             40,
             100,
@@ -1550,7 +1592,7 @@ module vip::test {
 
         // stage 1 vesting position finalized not yet
         assert!(
-            vesting::is_user_vesting_position_exists(
+            vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             2,
@@ -1559,6 +1601,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             40,
             100,
@@ -1577,7 +1620,7 @@ module vip::test {
         );
         // stage 1 vesting position finalized
         assert!(
-            !vesting::is_user_vesting_position_exists(
+            !vesting::has_user_vesting_position(
                 receiver_addr, get_bridge_id(), 1, 1
             ),
             3,
@@ -1606,6 +1649,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1673,6 +1717,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1713,6 +1758,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -1763,6 +1809,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version() + 1,
             receiver_addr,
             100,
             1000,
@@ -1786,7 +1833,7 @@ module vip::test {
             1,
         );
         assert!(
-            !vesting::is_user_vesting_position_exists(receiver_addr, 1, 1, 1),
+            !vesting::has_user_vesting_position(receiver_addr, 1, 1, 1),
             2,
         );
 
@@ -1820,6 +1867,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1832,6 +1880,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -1844,6 +1893,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             200,
             1000,
@@ -1857,6 +1907,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1911,7 +1962,7 @@ module vip::test {
         stage = 1;
         while (stage < 5) {
             assert!(
-                !vesting::is_user_vesting_position_exists(
+                !vesting::has_user_vesting_position(
                     receiver_addr,
                     get_bridge_id(),
                     1,
@@ -1943,6 +1994,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -1955,6 +2007,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -1967,6 +2020,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             200,
             1000,
@@ -2025,6 +2079,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -2037,6 +2092,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -2080,6 +2136,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version() + 1,
             receiver_addr,
             100,
             1000,
@@ -2138,6 +2195,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -2150,6 +2208,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -2175,6 +2234,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             200,
             1000,
@@ -2188,6 +2248,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             200,
             1000,
@@ -2263,6 +2324,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -2273,6 +2335,7 @@ module vip::test {
         submit_snapshot(
             vip,
             get_bridge2_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -2302,6 +2365,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             500,
             1000,
@@ -2313,6 +2377,7 @@ module vip::test {
         submit_snapshot(
             vip,
             get_bridge2_id(),
+            get_version(),
             receiver_addr,
             100,
             1000,
@@ -2351,6 +2416,7 @@ module vip::test {
         submit_snapshot_and_fund_reward(
             vip,
             get_bridge_id(),
+            get_version(),
             receiver_addr,
             200,
             1000,
@@ -2362,6 +2428,7 @@ module vip::test {
         submit_snapshot(
             vip,
             get_bridge2_id(),
+            get_version(),
             receiver_addr,
             400,
             1000,

@@ -9,4 +9,4 @@ vesting_creator = "0x2"
 
 [dependencies]
 InitiaStdlib = { git = "https://github.com/initia-labs/move-natives.git", subdir = "initia_stdlib", rev = "0a6aa67b41087c56b6fe7ae54e75c0ecceb388a8" }
-initia-vesting = { local = "./vesting" }
+initia-vesting = { git = "https://github.com/initia-labs/vesting.git", rev = "c4224390ce20d908062ffd6b0966ab65d12e0dc4" }

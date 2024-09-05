@@ -567,7 +567,7 @@ module vip::vesting {
         )
     }
 
-    public fun is_user_vesting_position_exists(
+    public fun has_user_vesting_position(
         account_addr: address,
         bridge_id: u64,
         version: u64,
