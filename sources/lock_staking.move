@@ -751,7 +751,7 @@ module vip::lock_staking {
                 staking_account,
                 validator_dst_address,
                 staking_account_addr,
-                false,
+                true,
             );
 
         // total delegation share after redelegation
