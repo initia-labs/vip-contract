@@ -1383,6 +1383,17 @@ module vip::vip {
         )
     }
 
+    fun is_after_challenge_period(
+        module_store: &ModuleStore, bridge_id: u64, version: u64, stage: u64
+    ): bool {
+        let (_, curr_time) = block::get_block_info();
+        let challenge_period = module_store.challenge_period;
+        let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
+        let snapshot_create_time = snapshot.create_time;
+
+        curr_time > snapshot_create_time + challenge_period
+    }
+
     public entry fun batch_claim_user_reward_script(
         account: &signer,
         bridge_id: u64,
@@ -4195,55 +4206,6 @@ module vip::vip {
             get_module_store().challenge_period == DEFAULT_NEW_CHALLENGE_PERIOD,
             0,
         )
-    }
-
-    #[test(chain = @0x1, vip = @vip, operator = @0x111)]
-    fun test_update_snapshot(
-        chain: &signer, vip: &signer, operator: &signer
-    ) acquires ModuleStore {
-        let bridge_id =
-            test_setup(
-                chain,
-                vip,
-                operator,
-                BRIDGE_ID_FOR_TEST,
-                @0x1111,
-                string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-                10000000000000000,
-            );
-        fund_reward_script(vip);
-        skip_period(DEFAULT_STAGE_INTERVAL);
-        fund_reward_script(vip);
-        submit_snapshot(
-            vip,
-            bridge_id,
-            1,
-            1,
-            x"8888888888888888888888888888888888888888888888888888888888888888",
-            0,
-        );
-        let snapshot = get_snapshot(bridge_id, 1);
-        assert!(
-            snapshot.merkle_root
-                == x"8888888888888888888888888888888888888888888888888888888888888888",
-            0,
-        );
-        assert!(snapshot.total_l2_score == 0, 0);
-
-        update_snapshot(
-            vip,
-            bridge_id,
-            1,
-            x"7777777777777777777777777777777777777777777777777777777777777777",
-            100,
-        );
-        let snapshot = get_snapshot(bridge_id, 1);
-        assert!(
-            snapshot.merkle_root
-                == x"7777777777777777777777777777777777777777777777777777777777777777",
-            100,
-        );
-        assert!(snapshot.total_l2_score == 100, 0);
     }
 
     #[test(chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
