@@ -961,6 +961,14 @@ module vip::mock_lock_staking {
         exists<StakingAccount>(staking_account_addr)
     }
 
+    public fun unpack_delegation_key(key: DelegationKey ):(Object<Metadata>, vector<u8>, String) {
+        (key.metadata, key.release_time, key.validator)
+    }
+
+    public fun unpack_locked_share_key(key: LockedShareKey ):(Object<Metadata>, String) {
+        (key.metadata, key.validator)
+    }
+
     public fun unpack_locked_delegation(
         locked_delegation: &LockedDelegationResponse
     ): (Object<Metadata>, String, u64, u64) {
@@ -1004,6 +1012,8 @@ module vip::mock_lock_staking {
         let type_name = type_info::type_name<StakingAccount>();
         let seed = *string::bytes(&type_name);
         vector::append(&mut seed, to_bytes(&addr));
+        // add seed mock
+        vector::append(&mut seed, *string::bytes(&string::utf8(b"mock")));
         seed
     }
 
@@ -1335,6 +1345,51 @@ module vip::mock_lock_staking {
     public fun initialize(chain: &signer, vip: &signer) {
         init_module(vip);
         mock_mstaking::initialize(chain);
+    }
+
+    public fun get_staking_account_state(delegator: address): (/*last height*/ u64, /*validators*/ vector<String>, vector<u16>, /*delegations*/ vector<Object<Metadata>>,vector<vector<u8>>, vector<String>, vector<BigDecimal>, /*total_locked_shares*/  vector<Object<Metadata>>, vector<String>, vector<BigDecimal>) acquires StakingAccount{
+        let staking_account = borrow_global<StakingAccount>(get_staking_address(delegator));
+        let last_height = staking_account.last_height;
+
+        let validators = vector<String>[];
+        let delegation_nums = vector<u16>[];
+
+        utils::walk(&staking_account.validators, option::none(), option::none(), 1, 
+        |validator, num| {
+            vector::push_back(&mut validators, validator);
+            vector::push_back(&mut delegation_nums, *num);
+            false
+        });
+        let delegation_key_metadatas = vector<Object<Metadata>>[];
+        let delegation_key_release_times= vector<vector<u8>>[];
+        let delegation_key_validators = vector<String>[];
+        let locked_shares = vector<BigDecimal>[];
+
+        utils::walk(&staking_account.delegations, option::none(), option::none(), 1, 
+        |delegation_key, locked_share| {
+            let (metadata , release_time, validator) = unpack_delegation_key(delegation_key);
+            vector::push_back(&mut delegation_key_metadatas, metadata);
+            vector::push_back(&mut delegation_key_release_times, release_time);
+            vector::push_back(&mut delegation_key_validators, validator);
+            vector::push_back(&mut locked_shares, *locked_share);
+            false
+        });
+
+        let locked_share_key_metadata = vector<Object<Metadata>>[];
+        let locked_share_key_validator = vector<String>[];
+        let total_locked_shares = vector<BigDecimal>[];
+
+        utils::walk(&staking_account.total_locked_shares, option::none(), option::none(), 1, 
+        |locked_share_key, total_locked_share| {
+            let (metadata , validator) = unpack_locked_share_key(locked_share_key);
+            vector::push_back(&mut locked_share_key_metadata, metadata);
+            vector::push_back(&mut locked_share_key_validator, validator);
+            vector::push_back(&mut total_locked_shares, *total_locked_share);
+            false
+        });
+
+
+        (last_height,validators, delegation_nums ,delegation_key_metadatas,delegation_key_release_times,delegation_key_validators,locked_shares,locked_share_key_metadata,locked_share_key_validator,total_locked_shares)
     }
 
     #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37, delegator2 = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]

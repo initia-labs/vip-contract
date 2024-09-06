@@ -4381,7 +4381,7 @@ module vip::vip {
         staking::set_staking_share_ratio(
             *string::bytes(&validator),
             &lp_metadata,
-            1,
+            &bigdecimal::one(),
             1,
         );
         fund_reward_script(vip);

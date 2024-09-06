@@ -5,8 +5,10 @@ version = "0.0.1"
 [addresses]
 std = "0x1"
 vip = "0xfa5f07319724580ef16dcef6ce4d3b0bd0348e48"
-vesting_creator = "0x2"
+
+[dev-addresses]
+vesting = "0x2"
 
 [dependencies]
-InitiaStdlib = { git = "https://github.com/initia-labs/movevm.git", subdir = "precompile/modules/initia_stdlib", rev = "b6320db6def0aa9438abdb0e7f3f5bda711c8081" }
-initia-vesting = { git = "https://github.com/initia-labs/vesting.git", rev = "c4224390ce20d908062ffd6b0966ab65d12e0dc4" }
+InitiaStdlib = { git = "https://github.com/initia-labs/movevm.git", subdir = "precompile/modules/initia_stdlib", rev = "982838607179f425593f33638fb0967c93fdacdc" }
+initia-vesting = { git = "https://github.com/initia-labs/vesting.git", rev = "9f248af915a20343bc4eee8ab6c2aa598992bf11" }

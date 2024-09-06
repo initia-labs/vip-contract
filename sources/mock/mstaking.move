@@ -571,7 +571,7 @@ module initia_std::mock_mstaking {
             &total_shares,
             |s| {
                 use_dec_coin(s);
-                let total_share_amount = bigdecimal::ceil_u64(s.amount);
+                let total_share_amount = s.amount;
                 let (_, idx) = vector::find(
                     &new_total_balances,
                     |new_total_balance| {
@@ -583,7 +583,7 @@ module initia_std::mock_mstaking {
                 staking::set_staking_share_ratio(
                     *string::bytes(&validator_addr),
                     &coin::denom_to_metadata(s.denom),
-                    total_share_amount,
+                    &total_share_amount,
                     total_balance.amount,
                 );
             },
@@ -734,7 +734,7 @@ module initia_std::mock_mstaking {
                         staking::set_staking_share_ratio(
                             *string::bytes(&v),
                             &coin::denom_to_metadata(token.denom),
-                            1,
+                            &bigdecimal::one(),
                             1,
                         );
                     },
@@ -746,7 +746,7 @@ module initia_std::mock_mstaking {
                         staking::set_staking_share_ratio(
                             *string::bytes(&v),
                             &coin::denom_to_metadata(token.denom),
-                            1,
+                            &bigdecimal::one(),
                             1,
                         );
                     },
@@ -868,7 +868,6 @@ module initia_std::mock_mstaking {
                 amount,
             ),
         );
-
         // set delegation
         set_delegation(&delegation_req, &delegation);
 
@@ -914,7 +913,6 @@ module initia_std::mock_mstaking {
                 delegation.delegation_response,
             );
         };
-
         // set delegator delegations
         set_delegator_delegations(&delegator_delegations_req, &delegator_delegations);
     }
@@ -1121,6 +1119,7 @@ module initia_std::mock_mstaking {
     fun set_redelegations(
         req: &RedelegationsRequest, res: &RedelegationsResponse
     ) {
+        
         set_query_response(
             b"/initia.mstaking.v1.Query/Redelegations",
             marshal(req),
@@ -1137,6 +1136,21 @@ module initia_std::mock_mstaking {
     fun set_delegator_delegations(
         req: &DelegatorDelegationsRequest, res: &DelegatorDelegationsResponse
     ) {
+        let req = if(option::is_none(&req.pagination)) {
+            let new_req = &DelegatorDelegationsRequest{
+                delegator_addr: req.delegator_addr,
+                pagination: option::some(PageRequest {
+                    key: option::none(),
+                    offset: option::none(),
+                    limit: option::none(),
+                    count_total: option::none(),
+                    reverse: option::none(),
+                })
+            };
+            new_req
+        } else {
+            req
+        };
         set_query_response(
             b"/initia.mstaking.v1.Query/DelegatorDelegations",
             marshal(req),
@@ -1145,6 +1159,21 @@ module initia_std::mock_mstaking {
     }
 
     fun unset_delegator_delegations(req: &DelegatorDelegationsRequest) {
+        let req = if(option::is_none(&req.pagination)) {
+            let new_req = &DelegatorDelegationsRequest{
+                delegator_addr: req.delegator_addr,
+                pagination: option::some(PageRequest {
+                    key: option::none(),
+                    offset: option::none(),
+                    limit: option::none(),
+                    count_total: option::none(),
+                    reverse: option::none(),
+                })
+            };
+            new_req
+        } else {
+            req
+        };
         set_query_response(
             b"/initia.mstaking.v1.Query/DelegatorDelegations",
             marshal(req),
@@ -1197,6 +1226,21 @@ module initia_std::mock_mstaking {
 
     fun get_delegator_delegations(req: DelegatorDelegationsRequest)
         : DelegatorDelegationsResponse {
+        let req = if(option::is_none(&req.pagination)) {
+            let new_req = DelegatorDelegationsRequest{
+                delegator_addr: req.delegator_addr,
+                pagination: option::some(PageRequest {
+                    key: option::none(),
+                    offset: option::none(),
+                    limit: option::none(),
+                    count_total: option::none(),
+                    reverse: option::none(),
+                })
+            };
+            new_req
+        } else {
+            req
+        };
         let path = b"/initia.mstaking.v1.Query/DelegatorDelegations";
         let response = query_stargate(path, marshal(&req));
         if (response == b"") {
@@ -1629,29 +1673,29 @@ module initia_std::mock_mstaking {
             chain,
             test_signer_addr,
             get_lp_metadata(),
-            coin::balance(signer::address_of(chain), get_lp_metadata()) / 2,
+            coin::balance(signer::address_of(chain), get_lp_metadata()) / 3,
         );
 
         coin::transfer(
             chain,
             test_signer_addr,
             get_init_metadata(),
-            coin::balance(signer::address_of(chain), get_init_metadata()) / 2,
+            coin::balance(signer::address_of(chain), get_init_metadata()) / 3,
         );
 
         // set pool "INIT-USDC" for bonded tokes
         set_pool(
             vector[],
-            vector[Coin { denom: string::utf8(b"INIT-USDC"), amount: 500_000 }],
+            vector[Coin { denom: string::utf8(b"INIT-USDC"), amount: 500_000 }, Coin { denom: string::utf8(b"uinit"), amount: 500_000 }],
             vector[],
         );
         update_voting_power_weights(
-            vector[string::utf8(b"INIT-USDC")],
-            vector[bigdecimal::one()],
+            vector[string::utf8(b"INIT-USDC"),string::utf8(b"uinit")],
+            vector[bigdecimal::one(),bigdecimal::one()],
         );
-
         // set staking ratio of val1, val2
         register_validators(vector[get_validator1(), get_validator2()]);
+
     }
 
     #[test(chain = @initia_std, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37, delegator2 = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
@@ -1975,7 +2019,6 @@ module initia_std::mock_mstaking {
                     pagination: option::none()
                 },
             );
-
         assert!(
             delegator_delegations
                 == DelegatorDelegationsResponse {

@@ -209,7 +209,7 @@ module vip::utils {
         delegation_responses
     }
 
-    fun get_pool(): PoolResponse {
+    public fun get_pool(): PoolResponse {
         let path = b"/initia.mstaking.v1.Query/Pool";
         let response = query_stargate(path, b"{}");
         unmarshal<PoolResponse>(response)
@@ -273,4 +273,5 @@ module vip::utils {
         let (curr_height, curr_time) = block::get_block_info();
         block::set_block_info(curr_height + height_diff, curr_time + time_diff);
     }
+
 }

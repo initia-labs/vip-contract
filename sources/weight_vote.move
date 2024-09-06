@@ -136,6 +136,7 @@ module vip::weight_vote {
         cycle_start_time: u64,
         cycle_interval: u64,
         voting_period: u64,
+        vesting_creator: address,
     ) {
         assert!(
             signer::address_of(chain) == @vip,
@@ -156,7 +157,7 @@ module vip::weight_vote {
                 proposals: table::new(),
                 voting_period,
                 pair_weights: table::new(),
-                core_vesting_creator: @vesting_creator,
+                core_vesting_creator: vesting_creator,
             },
         )
     }
@@ -521,7 +522,6 @@ module vip::weight_vote {
                 },
             );
 
-        // TODO: adjust lock period
         let lock_staking_voting_power = 0;
         let locked_delegations = lock_staking::get_locked_delegations(addr);
         let weight_map = utils::get_weight_map();
@@ -544,6 +544,7 @@ module vip::weight_vote {
                     + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
             },
         );
+        // TODO: lock time weight multplier
 
         let vesting_voting_power =
             get_vesting_voting_power(module_store.core_vesting_creator, addr);
@@ -708,382 +709,516 @@ module vip::weight_vote {
 
     inline fun use_weight(_v: Weight) {}
 
-    // #[test_only]
-    // use initia_std::block::set_block_info;
+    #[test_only]
+    struct TestState has key {
+        capability: AdminCapability
+    }
 
-    // #[test_only]
-    // use initia_std::coin;
-    // #[test_only]
-    // use std::string;
+    #[test_only]
+    use initia_std::block;
 
-    // #[test_only]
-    // use initia_std::block;
-    // #[test_only]
-    // const DEFAULT_VIP_L2_CONTRACT_FOR_TEST: vector<u8> = (b"vip_l2_contract");
+    #[test_only]
+    use initia_std::mock_mstaking;
 
-    // #[test_only]
-    // fun skip_period(period: u64) {
-    //     let (height, curr_time) = block::get_block_info();
-    //     block::set_block_info(height, curr_time + period);
-    // }
+    #[test_only]
+    use vesting::vesting::{AdminCapability};
 
-    // #[test_only]
-    // fun init_test(chain: &signer, vip: &signer): coin::MintCapability {
-    //     initialize(
-    //         vip,
-    //         @0x2,
-    //         100,
-    //         100,
-    //         10,
-    //         50,
-    //         1,
-    //         100,
-    //         bigdecimal::from_ratio_u64(3, 10),
-    //         100,
-    //     );
-    //     set_block_info(100, 101);
-    //     primary_fungible_store::init_module_for_test();
-    //     let (mint_cap, _, _) =
-    //         coin::initialize(
-    //             chain,
-    //             option::none(),
-    //             string::utf8(b"uinit"),
-    //             string::utf8(b"uinit"),
-    //             6,
-    //             string::utf8(b""),
-    //             string::utf8(b""),
-    //         );
-    //     vip::init_module_for_test(vip);
-    //     vip::register(
-    //         vip,
-    //         @0x2,
-    //         1,
-    //         @0x12,
-    //         string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-    //         bigdecimal::zero(),
-    //         bigdecimal::zero(),
-    //         bigdecimal::zero(),
-    //     );
-    //     vip::register(
-    //         vip,
-    //         @0x2,
-    //         2,
-    //         @0x12,
-    //         string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-    //         bigdecimal::zero(),
-    //         bigdecimal::zero(),
-    //         bigdecimal::zero(),
-    //     );
-    //     mint_cap
-    // }
+    #[test_only]
+    use vip::tvl_manager;
 
-    // #[test_only]
-    // fun get_merkle_root(tree: vector<vector<vector<u8>>>): vector<u8> {
-    //     let len = vector::length(&tree);
-    //     *vector::borrow(vector::borrow(&tree, len - 1), 0)
-    // }
+    #[test_only]
+    use vip::mock_lock_staking;
 
-    // #[test_only]
-    // fun get_proofs(
-    //     tree: vector<vector<vector<u8>>>, idx: u64
-    // ): vector<vector<u8>> {
-    //     let len = vector::length(&tree);
-    //     let i = 0;
-    //     let proofs = vector[];
-    //     while (i < len - 1) {
-    //         let leaves = vector::borrow(&tree, i);
-    //         let leaf =
-    //             if (idx % 2 == 1) {
-    //                 *vector::borrow(leaves, idx - 1)
-    //             } else {
-    //                 *vector::borrow(leaves, idx + 1)
-    //             };
-    //         vector::push_back(&mut proofs, leaf);
-    //         idx = idx / 2;
-    //         i = i + 1;
-    //     };
+    #[test_only]
+    const DEFAULT_VIP_L2_CONTRACT_FOR_TEST: vector<u8> = (b"vip_l2_contract");
 
-    //     proofs
-    // }
+    #[test_only]
+    fun skip_period(period: u64) {
+        let (height, curr_time) = block::get_block_info();
+        block::set_block_info(height + period / 2, curr_time + period);
+    }
 
-    // #[test(chain = @0x1, vip = @vip, submitter = @0x2, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
-    // fun proposal_end_to_end(
-    //     chain: &signer,
-    //     vip: &signer,
-    //     submitter: &signer,
-    //     u1: &signer,
-    //     u2: &signer,
-    //     u3: &signer,
-    //     u4: &signer,
-    // ) acquires ModuleStore {
-    //     init_test(chain, vip);
-    //     let addresses = vector[
-    //         signer::address_of(u1),
-    //         signer::address_of(u2),
-    //         signer::address_of(u3),
-    //         signer::address_of(u4),];
-    //     let voting_powers = vector[10, 20, 30, 40];
-    //     let cycle = 1;
-    //     let tree = create_merkle_tree(cycle, addresses, voting_powers);
-    //     let merkle_root = get_merkle_root(tree);
+    #[test_only]
+    fun mock_vote(
+        account: &signer,
+        cycle: u64,
+        bridge_ids: vector<u64>,
+        weights: vector<BigDecimal>,
+    ) acquires ModuleStore {
+        create_proposal();
+        vip::add_tvl_snapshot();
+        let addr = signer::address_of(account);
+        let max_voting_power = mock_calculate_voting_power(addr); // mock vote using mock voting power decided by mock_lock_staking, mock_mstaking
+        assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
 
-    //     submit_snapshot(
-    //         submitter,
-    //         merkle_root,
-    //         string::utf8(b"https://abc.com"),
-    //         100,
-    //     );
-    //     vote(
-    //         u1,
-    //         cycle,
-    //         get_proofs(tree, 0),
-    //         10,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)], // 2, 8
-    //     );
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let (_, time) = get_block_info();
 
-    //     vote(
-    //         u2,
-    //         cycle,
-    //         get_proofs(tree, 1),
-    //         20,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)], // 8, 12
-    //     );
+        // check bridge valid
+        vector::for_each(
+            bridge_ids,
+            |bridge_id| {
+                assert!(
+                    vip::is_registered(bridge_id),
+                    error::invalid_argument(EINVALID_BRIDGE),
+                );
+            },
+        );
+        let weight_sum = bigdecimal::zero();
+        vector::for_each_ref(
+            &weights,
+            |weight| {
+                weight_sum = bigdecimal::add(weight_sum, *weight);
+            },
+        );
+        assert!(
+            bigdecimal::le(weight_sum, bigdecimal::one()),
+            error::invalid_argument(EINVALID_PARAMETER),
+        );
+        let voting_power_used =
+            bigdecimal::mul_by_u64_truncate(weight_sum, max_voting_power);
+        // check vote condition
+        let cycle_key = table_key::encode_u64(cycle);
+        assert!(
+            table::contains(&module_store.proposals, cycle_key),
+            error::not_found(ECYCLE_NOT_FOUND),
+        );
+        let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
+        assert!(
+            time < proposal.voting_end_time,
+            error::invalid_state(EVOTING_END),
+        );
+        // remove former vote
+        if (table::contains(&proposal.votes, addr)) {
+            let WeightVote { max_voting_power , voting_power: _, weights } =
+                table::remove(&mut proposal.votes, addr);
+            remove_vote(proposal, max_voting_power, weights);
+        };
+        let weight_vector = vector[];
+        vector::zip_reverse(
+            bridge_ids,
+            weights,
+            |bridge_id, weight| {
+                vector::push_back(
+                    &mut weight_vector,
+                    Weight { bridge_id, weight, },
+                );
+            },
+        );
 
-    //     vote(
-    //         u3,
-    //         cycle,
-    //         get_proofs(tree, 2),
-    //         30,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(2, 5)], // 12, 12
-    //     );
+        // apply vote
+        apply_vote(
+            proposal,
+            max_voting_power,
+            weight_vector,
+        );
 
-    //     vote(
-    //         u4,
-    //         cycle,
-    //         get_proofs(tree, 3),
-    //         40,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(3, 5), bigdecimal::from_ratio_u64(1, 5)], // 24, 8 // user can vote with
-    //     );
+        // store user votes
+        table::add(
+            &mut proposal.votes,
+            addr,
+            WeightVote {
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector
+            },
+        );
 
-    //     let proposal = get_proposal(1);
-    //     assert!(proposal.total_tally == 86, 0);
-    //     let vote1 = get_tally(1, 1);
-    //     let vote2 = get_tally(1, 2);
-    //     let total_tally = get_total_tally(1);
-    //     assert!(vote1 == 46, 1);
-    //     assert!(vote2 == 40, 2);
-    //     assert!(total_tally == 86, 3);
+        // emit event
+        event::emit(
+            VoteEvent {
+                account: addr,
+                cycle,
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector,
+            },
+        )
+    }
 
-    //     let weight_vote = get_weight_vote(1, signer::address_of(u1));
-    //     assert!(weight_vote.voting_power == 10, 4);
-    //     assert!(
-    //         vector::length(&weight_vote.weights) == 2, 5
-    //     );
-    //     // update vote of u4
-    //     vote(
-    //         u4,
-    //         cycle,
-    //         get_proofs(tree, 3),
-    //         40,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(4, 5), bigdecimal::from_ratio_u64(1, 5)], // 32, 8 // user can vote with
-    //     );
+    #[test_only]
+    fun mock_calculate_voting_power(addr: address): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let cosmos_voting_power =
+            utils::get_customized_voting_power(
+                addr,
+                |metadata, voting_power| {
+                    let weight =
+                        table::borrow_with_default(
+                            &module_store.pair_weights,
+                            metadata,
+                            &bigdecimal::one(),
+                        );
+                    bigdecimal::mul_by_u64_truncate(*weight, voting_power)
+                },
+            );
+        let lock_staking_voting_power = 0;
+        let locked_delegations = mock_lock_staking::get_locked_delegations(addr);
+        let weight_map = utils::get_weight_map();
+        vector::for_each_ref(
+            &locked_delegations,
+            |delegation| {
+                let (metadata, _, amount, _) =
+                    mock_lock_staking::unpack_locked_delegation(delegation);
+                let denom = coin::metadata_to_denom(metadata);
+                let voting_power_weight = simple_map::borrow(&weight_map, &denom);
+                let voting_power =
+                    bigdecimal::mul_by_u64_truncate(*voting_power_weight, amount);
+                let pair_weight =
+                    table::borrow_with_default(
+                        &module_store.pair_weights,
+                        metadata,
+                        &bigdecimal::one(),
+                    );
+                lock_staking_voting_power = lock_staking_voting_power
+                    + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
+            },
+        );
+        // TODO: lock time weight multplier
+        let vesting_voting_power =
+            get_vesting_voting_power(module_store.core_vesting_creator, addr);
+        // mul weight
+        let init_weight = simple_map::borrow(&weight_map, &string::utf8(b"uinit"));
+        vesting_voting_power = bigdecimal::mul_by_u64_truncate(
+            *init_weight, vesting_voting_power
+        );
 
-    //     vote1 = get_tally(1, 1);
-    //     vote2 = get_tally(1, 2);
-    //     total_tally = get_total_tally(1);
-    //     assert!(vote1 == 54, 6);
-    //     assert!(vote2 == 40, 7);
-    //     assert!(total_tally == 94, 8);
+        cosmos_voting_power + lock_staking_voting_power + vesting_voting_power
+    }
 
-    //     // update vote of u3
-    //     vote(
-    //         u3,
-    //         cycle,
-    //         get_proofs(tree, 2),
-    //         30,
-    //         vector[1, 2],
-    //         vector[bigdecimal::zero(), bigdecimal::zero()], // 0, 0
-    //     );
+    #[test_only]
+    fun init_test(chain: &signer, vip: &signer, vesting_creator: &signer) {
+        let cycle_start_time = 100;
+        let cycle_interval = 100;
+        let voting_period = 80;
+        let vm_type = 0; // move
+        initialize(
+            vip,
+            cycle_start_time,
+            cycle_interval,
+            voting_period,
+            signer::address_of(vesting_creator)
+        );
+        lock_staking::init_module_for_test(vip);
+        mock_lock_staking::initialize(chain, vip);
+        vesting::test_init(vesting_creator);
+        let capability = vesting::create_vesting_store(vesting_creator,mock_mstaking::get_init_metadata());
+        vesting::disable_claim(&capability);
+        move_to(
+            vip,
+            TestState {
+                capability
+            }
+        );
+        block::set_block_info(100, 101);
+        tvl_manager::init_module_for_test(vip);
+        vip::init_module_for_test(vip);
+        vip::register(
+            vip,
+            @0x2,
+            1,
+            @0x12,
+            string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
+            bigdecimal::zero(),
+            bigdecimal::zero(),
+            bigdecimal::zero(),
+            vm_type
+        );
+        vip::register(
+            vip,
+            @0x2,
+            2,
+            @0x12,
+            string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
+            bigdecimal::zero(),
+            bigdecimal::zero(),
+            bigdecimal::zero(),
+            vm_type
+        );
 
-    //     vote1 = get_tally(1, 1);
-    //     vote2 = get_tally(1, 2);
-    //     total_tally = get_total_tally(1);
-    //     assert!(vote1 == 42, 9);
-    //     assert!(vote2 == 28, 10);
-    //     assert!(total_tally == 70, 11);
-    //     let weight_vote = get_weight_vote(1, signer::address_of(u1));
-    //     assert!(weight_vote.voting_power == 10, 12);
-    //     assert!(
-    //         vector::length(&weight_vote.weights) == 2, 13
-    //     );
+        let init_metadata = mock_mstaking::get_init_metadata();
+        let lp_metadata = mock_mstaking::get_lp_metadata();
 
-    //     skip_period(60);
-    //     execute_proposal();
-    // }
+        coin::transfer(
+            chain,
+            @0x101,
+            init_metadata,
+            200
+        );
+        coin::transfer(
+            chain,
+            @0x102,
+            init_metadata,
+            200
+        );
 
-    // #[test(chain = @0x1, vip = @vip, submitter = @0x2, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
-    // fun challenge_end_to_end(
-    //     chain: &signer,
-    //     vip: &signer,
-    //     submitter: &signer,
-    //     u1: &signer,
-    //     u2: &signer,
-    //     u3: &signer,
-    //     u4: &signer,
-    // ) acquires ModuleStore {
-    //     // fund
-    //     let mint_cap = init_test(chain, vip);
-    //     coin::mint_to(
-    //         &mint_cap,
-    //         signer::address_of(u1),
-    //         100,
-    //     );
-    //     coin::mint_to(
-    //         &mint_cap,
-    //         signer::address_of(u2),
-    //         100,
-    //     );
+        coin::transfer(
+            chain,
+            @0x103,
+            init_metadata,
+            200
+        );
+        coin::transfer(
+            chain,
+            @0x104,
+            init_metadata,
+            200
+        );
+        coin::transfer(
+            chain,
+            @0x101,
+            lp_metadata,
+            200
+        );
+        coin::transfer(
+            chain,
+            @0x102,
+            lp_metadata,
+            200
+        );
+        coin::transfer(
+            chain,
+            @0x103,
+            lp_metadata,
+            200
+        );
+        coin::transfer(
+            chain,
+            @0x104,
+            lp_metadata,
+            200
+        );
+    }
 
-    //     // submit root
-    //     let cycle = 1;
-    //     let addresses = vector[
-    //         signer::address_of(u1),
-    //         signer::address_of(u2),
-    //         signer::address_of(u3),
-    //         signer::address_of(u4),];
-    //     let voting_powers = vector[10, 20, 30, 40];
-    //     let tree = create_merkle_tree(cycle, addresses, voting_powers);
-    //     let merkle_root = get_merkle_root(tree);
-    //     submit_snapshot(
-    //         submitter,
-    //         merkle_root,
-    //         string::utf8(b"https://abc.com"),
-    //         100,
-    //     );
-    //     // votes
-    //     vote(
-    //         u1,
-    //         cycle,
-    //         get_proofs(tree, 0),
-    //         10,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)], // 2, 8
-    //     );
+    // test calculate voting power by comsos staking(mstaking), lock staking
+    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102)]
+    fun test_calculate_voting_power(
+        chain: &signer,
+        vip: &signer,
+        vesting_creator: &signer,
+        u1: &signer,
+        u2: &signer,) acquires ModuleStore {
+        init_test(chain, vip, vesting_creator);
+        let validator = mock_mstaking::get_validator1();
+        let init_metadata = mock_mstaking::get_init_metadata();
+        let lp_metadata = mock_mstaking::get_lp_metadata();
 
-    //     vote(
-    //         u2,
-    //         cycle,
-    //         get_proofs(tree, 1),
-    //         20,
-    //         vector[1, 2],
-    //         vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)], // 8, 12
-    //     );
+        // check the mstaking delegation makes the voting power
+        mock_mstaking::delegate(u1, validator,init_metadata, 10);
+        mock_mstaking::delegate(u2, validator,init_metadata, 30);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 10 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 30 , 1);
 
-    //     // execute
-    //     skip_period(60); // skip voting period(60)
-    //     execute_proposal();
+        mock_mstaking::delegate(u1, validator,init_metadata, 30);
+        mock_mstaking::delegate(u2, validator,init_metadata, 10);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 40 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 40 , 1);
+        
+        mock_mstaking::undelegate(u1, validator,init_metadata, 10);
+        mock_mstaking::undelegate(u2, validator,init_metadata, 10);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 30 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 30 , 1);
 
-    //     // after grace period
-    //     skip_period(50); // skip voting period(50)
+        // check the lock staking delegation makes the voting power
+        mock_lock_staking::delegate(u1, lp_metadata, 30, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        mock_lock_staking::delegate(u2, lp_metadata, 80, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
 
-    //     // create challenge
-    //     let voting_powers = vector[15, 25, 35, 45];
-    //     let tree = create_merkle_tree(cycle, addresses, voting_powers);
-    //     create_challenge(
-    //         u1,
-    //         string::utf8(b"challenge"),
-    //         string::utf8(b"challenge"),
-    //         get_merkle_root(tree),
-    //         string::utf8(b"https://abc2.com"),
-    //         100u64,
-    //     );
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 60 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 110 , 1);
 
-    //     // vote proposal
-    //     vote_challenge(u1, 1, true);
+        mock_lock_staking::delegate(u1, lp_metadata, 90, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        mock_lock_staking::delegate(u2, lp_metadata, 40, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 150 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 150 , 1);
 
-    //     // after min_voting_period
-    //     skip_period(10);
+        mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 135 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 135 , 1);
+        
 
-    //     // execute challenge
-    //     execute_challenge(1);
+    }
 
-    //     let module_response = get_module_store();
-    //     let vote = get_proposal(2);
+    #[test(chain = @0x1, vip = @vip,vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102)]
+    fun mock_vote_with_dynamic_voting_power(
+        chain: &signer,
+        vip: &signer,
+        vesting_creator: &signer,
+        u1: &signer,
+        u2: &signer
+    ) acquires ModuleStore {
+        init_test(chain, vip, vesting_creator);
+        let cycle = 1;
+        let validator = mock_mstaking::get_validator1();
+        let init_metadata = mock_mstaking::get_init_metadata();
+        let lp_metadata = mock_mstaking::get_lp_metadata();
+        mock_mstaking::delegate(u1, validator,init_metadata, 5);
+        mock_lock_staking::delegate(u1, lp_metadata, 5, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        mock_mstaking::delegate(u2, validator,init_metadata, 10);
+        mock_lock_staking::delegate(u2, lp_metadata, 10, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        mock_vote(
+            u1,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)], // 2, 8
+        );
 
-    //     assert!(module_response.current_cycle == 2, 1);
-    //     assert!(
-    //         module_response.submitter == signer::address_of(u1),
-    //         2,
-    //     );
-    //     assert!(
-    //         vote.merkle_root == get_merkle_root(tree), 3
-    //     );
-    //     assert!(
-    //         vote.api_uri == string::utf8(b"https://abc2.com"),
-    //         4,
-    //     );
+        mock_vote(
+            u2,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)], // 8, 12
+        );
 
-    //     set_block_info(100, 251);
+        let proposal = get_proposal(1);
+        assert!(proposal.total_tally == 30, 0);
+        let vote1 = get_tally(1, 1);
+        let vote2 = get_tally(1, 2);
+        let total_tally = get_total_tally(1);
+        assert!(vote1 == 10, 1);
+        assert!(vote2 == 20, 2);
+        assert!(total_tally ==30, 3);
 
-    //     // create challenge
-    //     let voting_powers = vector[10, 25, 35, 45];
-    //     let tree = create_merkle_tree(cycle, addresses, voting_powers);
-    //     create_challenge(
-    //         u2,
-    //         string::utf8(b"challenge"),
-    //         string::utf8(b"challenge"),
-    //         get_merkle_root(tree),
-    //         string::utf8(b"https://abc3.com"),
-    //         100u64,
-    //     );
+        mock_mstaking::delegate(u1,validator,init_metadata, 5);
+        mock_mstaking::undelegate(u2,validator,init_metadata, 5);
 
-    //     // vote proposal
-    //     vote_challenge(u2, 2, true);
+        mock_vote(
+            u1,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(1, 2), bigdecimal::from_ratio_u64(1, 2)], // 7 / 7
+        );
+        
 
-    //     // after min_voting_period
-    //     skip_period(10);
+        proposal = get_proposal(1);
+        assert!(proposal.total_tally == 34, 0);
+        vote1 = get_tally(1, 1);
+        vote2 = get_tally(1, 2);
+        total_tally = get_total_tally(1);
+        assert!(vote1 == 15, 4);
+        assert!(vote2 == 19, 5);
+        assert!(total_tally == 34, 6);
 
-    //     // execute proposal
-    //     execute_challenge(2);
+        mock_vote(
+            u2,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(1, 3), bigdecimal::from_ratio_u64(1, 3)], // 4 / 4 -> truncate error?
+        );
 
-    //     module_response = get_module_store();
-    //     vote = get_proposal(2);
+        proposal = get_proposal(1);
+        assert!(proposal.total_tally == 22, 7);
+        vote1 = get_tally(1, 1);
+        vote2 = get_tally(1, 2);
+        total_tally = get_total_tally(1);
+        assert!(vote1 == 11, 8);
+        assert!(vote2 == 11, 9);
+        assert!(total_tally == 22, 10);
+    }
 
-    //     assert!(module_response.current_cycle == 2, 5);
-    //     assert!(
-    //         module_response.submitter == signer::address_of(u2),
-    //         6,
-    //     );
-    //     assert!(
-    //         vote.merkle_root == get_merkle_root(tree), 7
-    //     );
-    //     assert!(
-    //         vote.api_uri == string::utf8(b"https://abc3.com"),
-    //         8,
-    //     );
 
-    //     let challenge = get_challenge(2);
-    //     assert!(
-    //         challenge.title == string::utf8(b"challenge"),
-    //         9,
-    //     );
-    //     assert!(
-    //         challenge.summary == string::utf8(b"challenge"),
-    //         10,
-    //     );
-    //     assert!(
-    //         challenge.api_uri == string::utf8(b"https://abc3.com"),
-    //         11,
-    //     );
-    //     assert!(challenge.cycle == 2, 12);
-    //     assert!(challenge.yes_tally == 20, 13);
-    //     assert!(challenge.no_tally == 0, 14);
-    //     assert!(challenge.quorum == 9, 15);
-    //     assert!(challenge.is_executed == true, 16);
-    // }
+    #[test(chain = @0x1, vip = @vip,vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
+    fun proposal_end_to_end(
+        chain: &signer,
+        vip: &signer,
+        vesting_creator: &signer,
+        u1: &signer,
+        u2: &signer,
+        u3: &signer,
+        u4: &signer,
+    ) acquires ModuleStore {
+        init_test(chain, vip, vesting_creator);
+        let cycle = 1;
+        let validator = mock_mstaking::get_validator1();
+        let init_metadata = mock_mstaking::get_init_metadata();
+        let lp_metadata = mock_mstaking::get_lp_metadata();
+        mock_mstaking::delegate(u1, validator,init_metadata, 5);
+        mock_lock_staking::delegate(u1, lp_metadata, 5, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        mock_mstaking::delegate(u2, validator,init_metadata, 10);
+        mock_lock_staking::delegate(u2, lp_metadata, 10, 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        mock_mstaking::delegate(u3, validator,init_metadata, 30);
+        mock_mstaking::delegate(u4, validator,init_metadata, 40);
+        mock_vote(
+            u1,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)], // 2, 8
+        );
+
+        mock_vote(
+            u2,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)], // 8, 12
+        );
+
+        mock_vote(
+            u3,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(2, 5)], // 12, 12
+        );
+
+        mock_vote(
+            u4,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(3, 5), bigdecimal::from_ratio_u64(1, 5)], // 24, 8 // user can vote with
+        );
+
+        let proposal = get_proposal(1);
+        assert!(proposal.total_tally == 86, 0);
+        let vote1 = get_tally(1, 1);
+        let vote2 = get_tally(1, 2);
+        let total_tally = get_total_tally(1);
+        assert!(vote1 == 46, 1);
+        assert!(vote2 == 40, 2);
+        assert!(total_tally == 86, 3);
+
+        let weight_vote = get_weight_vote(1, signer::address_of(u1));
+        assert!(weight_vote.voting_power == 10, 4);
+        assert!(vector::length(&weight_vote.weights) == 2, 5);
+        // update vote of u4
+        vote(
+            u4,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::from_ratio_u64(4, 5), bigdecimal::from_ratio_u64(1, 5)], // 32, 8 // user can vote with
+        );
+
+        vote1 = get_tally(1, 1);
+        vote2 = get_tally(1, 2);
+        total_tally = get_total_tally(1);
+        assert!(vote1 == 54, 6);
+        assert!(vote2 == 40, 7);
+        assert!(total_tally == 94, 8);
+
+        // update vote of u3
+        vote(
+            u3,
+            cycle,
+            vector[1, 2],
+            vector[bigdecimal::zero(), bigdecimal::zero()], // 0, 0
+        );
+
+        vote1 = get_tally(1, 1);
+        vote2 = get_tally(1, 2);
+        total_tally = get_total_tally(1);
+        assert!(vote1 == 42, 9);
+        assert!(vote2 == 28, 10);
+        assert!(total_tally == 70, 11);
+        let weight_vote = get_weight_vote(1, signer::address_of(u1));
+        assert!(weight_vote.voting_power == 10, 12);
+        assert!(vector::length(&weight_vote.weights) == 2, 13);
+
+        skip_period(300);
+        execute_proposal();
+    }
 }
