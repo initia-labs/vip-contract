@@ -209,7 +209,7 @@ module vip::utils {
         delegation_responses
     }
 
-    public fun get_pool(): PoolResponse {
+    fun get_pool(): PoolResponse {
         let path = b"/initia.mstaking.v1.Query/Pool";
         let response = query_stargate(path, b"{}");
         unmarshal<PoolResponse>(response)

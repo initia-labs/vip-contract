@@ -1395,45 +1395,4 @@ module vip::lock_staking {
         init_module(chain);
 
     }
-
-    // download the data from mock lock staking module
-    #[test_only]
-    public fun sync_staking_account_state(delegator: address) acquires StakingAccount{
-        let staking_account = borrow_global_mut<StakingAccount>(get_staking_address(delegator)); 
-        let(last_height,validators, delegation_nums ,delegation_key_metadatas,delegation_key_release_times,delegation_key_validators,locked_shares,locked_share_key_metadata,locked_share_key_validator,total_locked_shares) = mock_lock_staking::get_staking_account_state(delegator);
-
-        // sync last height
-        staking_account.last_height = last_height;
-
-        // sync validators 
-        vector::enumerate_ref(&validators, | i , validator|{
-            let delegation_num = *vector::borrow(&delegation_nums, i);
-            table::upsert(&mut staking_account.validators, *validator, delegation_num); 
-        });
-
-        // sync delegations 
-        vector::enumerate_ref(&locked_shares, | i , locked_share|{
-            let metadata = *vector::borrow(&delegation_key_metadatas, i);
-            let release_time = *vector::borrow(&delegation_key_release_times, i);
-            let validator = *vector::borrow(&delegation_key_validators, i);
-            let delegation_key = DelegationKey { 
-                metadata,
-                release_time,
-                validator
-            };
-            table::upsert(&mut staking_account.delegations, delegation_key, *locked_share); 
-        });
-
-        // sync total_locked_shares 
-        vector::enumerate_ref(&total_locked_shares, | i , total_locked_share|{
-            let metadata = *vector::borrow(&locked_share_key_metadata, i);
-            let validator = *vector::borrow(&locked_share_key_validator, i);
-            let delegation_key = LockedShareKey { 
-                metadata,
-                validator
-            };
-            table::upsert(&mut staking_account.total_locked_shares, delegation_key, *total_locked_share); 
-        });
-
-    }
 }
