@@ -1044,7 +1044,7 @@ module vip::weight_vote {
     }
 
     #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102)]
-    fun mock_vote_with_dynamic_voting_power(
+    fun test_vote_with_dynamic_voting_power(
         chain: &signer,
         vip: &signer,
         vesting_creator: &signer,
@@ -1122,7 +1122,7 @@ module vip::weight_vote {
     }
 
     #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
-    fun proposal_end_to_end(
+    fun test_proposal_end_to_end(
         chain: &signer,
         vip: &signer,
         vesting_creator: &signer,
