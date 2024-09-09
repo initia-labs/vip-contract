@@ -562,7 +562,7 @@ module vip::lock_staking {
             validator_address,
             amount: vector[coin]
         };
-        
+
         // execute hook
         let delegation =
             get_delegation(
@@ -1386,11 +1386,12 @@ module vip::lock_staking {
 
         res
     }
+
     #[test_only]
     use initia_std::mock_mstaking;
 
     #[test_only]
-    public fun init_module_for_test(vip:&signer) {
+    public fun init_module_for_test(vip: &signer) {
         init_module(vip)
     }
 

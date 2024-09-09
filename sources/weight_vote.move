@@ -756,10 +756,7 @@ module vip::weight_vote {
                 vesting_creator, mock_mstaking::get_init_metadata()
             );
         vesting::disable_claim(&capability);
-        move_to(
-            vip,
-            TestState { capability },
-        );
+        move_to(vip, TestState { capability });
         block::set_block_info(100, 101);
         tvl_manager::init_module_for_test(vip);
         vip::init_module_for_test(vip);
