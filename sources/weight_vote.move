@@ -882,10 +882,22 @@ module vip::weight_vote {
         skip_period(2);
         assert!(calculate_voting_power(signer::address_of(u1)) == 150, 1);
         assert!(calculate_voting_power(signer::address_of(u2)) == 150, 1);
+        
 
         mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
         assert!(calculate_voting_power(signer::address_of(u1)) == 135, 1);
         assert!(calculate_voting_power(signer::address_of(u2)) == 135, 1);
+        
+
+        // undelegate lock staking 108(120 * 0.9 ,by slash)
+        skip_period(60 * 60 * 24 * 26);
+        lock_staking::mock_undelegate(u1, lp_metadata, option::none(), 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+        lock_staking::mock_undelegate(u2, lp_metadata, option::none(), 60 * 60 * 24 * 26, validator);
+        skip_period(2);
+
+        assert!(calculate_voting_power(signer::address_of(u1)) == 27, 1);
+        assert!(calculate_voting_power(signer::address_of(u2)) == 27, 1);
 
     }
 
