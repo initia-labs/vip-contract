@@ -10,7 +10,7 @@ module vip::vip {
 
     use initia_std::block;
     use initia_std::coin;
-    use initia_std::decimal256::{Self, Decimal256};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::dex;
     use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
     use initia_std::object::{Self, Object};
@@ -77,13 +77,13 @@ module vip::vip {
     //  Constants
     //
     const PROOF_LENGTH: u64 = 32;
-    const DEFAULT_POOL_SPLIT_RATIO: vector<u8> = b"0.4";
-    const DEFAULT_MIN_SCORE_RATIO: vector<u8> = b"0.5";
+    const DEFAULT_POOL_SPLIT_RATIO: u64 = 4; // with 10 as the denominator
+    const DEFAULT_MIN_SCORE_RATIO: u64 = 5; // with 10 as the denominator
     const DEFAULT_VESTING_PERIOD: u64 = 26; // 26 stages
     const DEFAULT_STAGE_INTERVAL: u64 = 60 * 60 * 24 * 7 * 2; // 2 weeks
     const DEFAULT_MINIMUM_ELIGIBLE_TVL: u64 = 0;
-    const DEFAULT_MAXIMUM_TVL_RATIO: vector<u8> = b"1";
-    const DEFAULT_MAXIMUM_WEIGHT_RATIO: vector<u8> = b"1";
+    const DEFAULT_MAXIMUM_TVL_RATIO: u64 = 10; // with 10 as the denominator
+    const DEFAULT_MAXIMUM_WEIGHT_RATIO: u64 = 10; // with 10 as the denominator
     const DEFAULT_VIP_START_STAGE: u64 = 0;
     const DEFAULT_CHALLENGE_PERIOD: u64 = 60 * 60 * 24; // 1 day
     const DEFAULT_LOCK_STAKE_PERIOD: u64 = 60 * 60 * 24 * 7 * 26; // 26 weeks
@@ -113,16 +113,16 @@ module vip::vip {
         // governance-defined minimum_score_ratio to decrease overhead of keeping the L2 INIT balance.
         // a user only need to keep the `vesting.l2_score * minimum_score_ratio` amount of INIT token
         // to vest whole vesting rewards.
-        minimum_score_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
         // if pool_split_ratio is 0.4,
         // balance pool takes 0.4 and weight pool takes 0.6
-        pool_split_ratio: Decimal256,
+        pool_split_ratio: BigDecimal,
         // TVL cap of L2 INIT token to receive the reward. (% of total whitelisted l2 balance)
-        maximum_tvl_ratio: Decimal256,
+        maximum_tvl_ratio: BigDecimal,
         // minimum eligible TVL of L2 INIT token to receive the reward.
         minimum_eligible_tvl: u64,
         // maximum weight of VIP reward
-        maximum_weight_ratio: Decimal256,
+        maximum_weight_ratio: BigDecimal,
         // a set of stage data
         stage_data: Table<vector<u8> /* stage */, StageData>,
         // a set of bridge info
@@ -149,13 +149,13 @@ module vip::vip {
     struct StageData has store {
         stage_start_time: u64,
         stage_end_time: u64,
-        pool_split_ratio: Decimal256,
+        pool_split_ratio: BigDecimal,
         total_operator_funded_reward: u64,
         operator_funded_rewards: Table<u64 /* bridge id */, u64>,
         total_user_funded_reward: u64,
         user_funded_rewards: Table<u64 /* bridge id */, u64>,
         vesting_period: u64,
-        minimum_score_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
         snapshots: Table<SnapshotKey, Snapshot>
     }
 
@@ -172,7 +172,7 @@ module vip::vip {
         bridge_addr: address,
         operator_addr: address,
         vip_l2_score_contract: string::String,
-        vip_weight: Decimal256,
+        vip_weight: BigDecimal,
         vm_type: u64,
     }
 
@@ -197,11 +197,11 @@ module vip::vip {
         stage: u64,
         stage_interval: u64,
         agent_data: AgentData,
-        minimum_score_ratio: Decimal256,
-        pool_split_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
+        pool_split_ratio: BigDecimal,
         vesting_period: u64,
         minimum_eligible_tvl: u64,
-        maximum_tvl_ratio: Decimal256,
+        maximum_tvl_ratio: BigDecimal,
         challenge_period: u64,
     }
 
@@ -215,11 +215,11 @@ module vip::vip {
     struct StageDataResponse has drop {
         stage_start_time: u64,
         stage_end_time: u64,
-        pool_split_ratio: Decimal256,
+        pool_split_ratio: BigDecimal,
         total_operator_funded_reward: u64,
         total_user_funded_reward: u64,
         vesting_period: u64,
-        minimum_score_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
     }
 
     struct BridgeResponse has drop {
@@ -229,7 +229,7 @@ module vip::vip {
         bridge_addr: address,
         operator_addr: address,
         vip_l2_score_contract: string::String,
-        vip_weight: Decimal256,
+        vip_weight: BigDecimal,
         vm_type: u64,
     }
 
@@ -272,11 +272,11 @@ module vip::vip {
         stage: u64,
         stage_start_time: u64,
         stage_end_time: u64,
-        pool_split_ratio: Decimal256,
+        pool_split_ratio: BigDecimal,
         total_operator_funded_reward: u64,
         total_user_funded_reward: u64,
         vesting_period: u64,
-        minimum_score_ratio: Decimal256,
+        minimum_score_ratio: BigDecimal,
     }
 
     #[event]
@@ -327,19 +327,19 @@ module vip::vip {
                 vesting_period: DEFAULT_VESTING_PERIOD,
                 minimum_lock_staking_period: DEFAULT_LOCK_STAKE_PERIOD,
                 challenge_period: DEFAULT_CHALLENGE_PERIOD,
-                minimum_score_ratio: decimal256::from_string(
-                    &string::utf8(DEFAULT_MIN_SCORE_RATIO)
+                minimum_score_ratio: bigdecimal::from_ratio_u64(
+                    DEFAULT_MIN_SCORE_RATIO, 10
                 ),
-                pool_split_ratio: decimal256::from_string(
-                    &string::utf8(DEFAULT_POOL_SPLIT_RATIO)
+                pool_split_ratio: bigdecimal::from_ratio_u64(
+                    DEFAULT_POOL_SPLIT_RATIO, 10
                 ),
                 agent_data: AgentData { agent: agent, api_uri: api, },
-                maximum_tvl_ratio: decimal256::from_string(
-                    &string::utf8(DEFAULT_MAXIMUM_TVL_RATIO)
+                maximum_tvl_ratio: bigdecimal::from_ratio_u64(
+                    DEFAULT_MAXIMUM_TVL_RATIO, 10
                 ),
                 minimum_eligible_tvl: DEFAULT_MINIMUM_ELIGIBLE_TVL,
-                maximum_weight_ratio: decimal256::from_string(
-                    &string::utf8(DEFAULT_MAXIMUM_WEIGHT_RATIO)
+                maximum_weight_ratio: bigdecimal::from_ratio_u64(
+                    DEFAULT_MAXIMUM_WEIGHT_RATIO, 10
                 ),
                 stage_data: table::new<vector<u8>, StageData>(),
                 bridges: table::new<BridgeInfoKey, Bridge>(),
@@ -583,15 +583,16 @@ module vip::vip {
         bridge_id: u64, version: u64, reward_amount: u64,
     ): (u64, u64) {
         let commission_rate = operator::get_operator_commission(bridge_id, version);
-        let operator_reward_amount = decimal256::mul_u64(&commission_rate, reward_amount);
+        let operator_reward_amount =
+            bigdecimal::mul_by_u64_truncate(commission_rate, reward_amount);
         let user_reward_amount = reward_amount - operator_reward_amount;
         (operator_reward_amount, user_reward_amount)
     }
 
     fun split_reward(
         stage: u64,
-        balance_shares: &SimpleMap<u64, Decimal256>,
-        weight_shares: &SimpleMap<u64, Decimal256>,
+        balance_shares: &SimpleMap<u64, BigDecimal>,
+        weight_shares: &SimpleMap<u64, BigDecimal>,
         initial_balance_pool_reward_amount: u64,
         initial_weight_pool_reward_amount: u64,
         bridge_ids: vector<u64>,
@@ -660,12 +661,13 @@ module vip::vip {
     }
 
     fun split_reward_with_share_internal(
-        shares: &SimpleMap<u64, Decimal256>,
+        shares: &SimpleMap<u64, BigDecimal>,
         bridge_id: u64,
         total_reward_amount: u64,
     ): u64 {
         let share_ratio = *simple_map::borrow(shares, &bridge_id);
-        let split_amount = decimal256::mul_u64(&share_ratio, total_reward_amount);
+        let split_amount =
+            bigdecimal::mul_by_u64_truncate(share_ratio, total_reward_amount);
         split_amount
     }
 
@@ -718,8 +720,8 @@ module vip::vip {
 
         // fill the weight shares of bridges
         let balance_pool_reward_amount =
-            decimal256::mul_u64(
-                &module_store.pool_split_ratio,
+            bigdecimal::mul_by_u64_truncate(
+                module_store.pool_split_ratio,
                 initial_reward_amount,
             );
         let weight_pool_reward_amount = initial_reward_amount - balance_pool_reward_amount;
@@ -750,9 +752,9 @@ module vip::vip {
     // calculate balance share
     fun calculate_balance_share(
         module_store: &ModuleStore, bridge_ids: vector<u64>
-    ): SimpleMap<u64, Decimal256> {
+    ): SimpleMap<u64, BigDecimal> {
         let bridge_balances: SimpleMap<u64, u64> = simple_map::create();
-        let balance_shares = simple_map::create<u64, Decimal256>();
+        let balance_shares = simple_map::create<u64, BigDecimal>();
         let total_balance = 0;
         // sum total balance for calculating shares
         vector::for_each_ref(
@@ -777,8 +779,8 @@ module vip::vip {
             error::invalid_state(EINVALID_TOTAL_SHARE),
         );
         let max_effective_balance =
-            decimal256::mul_u64(
-                &module_store.maximum_tvl_ratio,
+            bigdecimal::mul_by_u64_truncate(
+                module_store.maximum_tvl_ratio,
                 total_balance,
             );
         // calculate balance share by total balance
@@ -798,7 +800,7 @@ module vip::vip {
                     };
 
                 let share =
-                    decimal256::from_ratio_u64(
+                    bigdecimal::from_ratio_u64(
                         effective_bridge_balance,
                         total_balance,
                     );
@@ -812,9 +814,9 @@ module vip::vip {
         balance_shares
     }
 
-    fun calculate_weight_share(module_store: &ModuleStore): SimpleMap<u64, Decimal256> {
-        let weight_shares: SimpleMap<u64, Decimal256> =
-            simple_map::create<u64, Decimal256>();
+    fun calculate_weight_share(module_store: &ModuleStore): SimpleMap<u64, BigDecimal> {
+        let weight_shares: SimpleMap<u64, BigDecimal> =
+            simple_map::create<u64, BigDecimal>();
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -831,8 +833,9 @@ module vip::vip {
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
                     let weight =
-                        if (decimal256::val(&bridge.vip_weight)
-                                > decimal256::val(&module_store.maximum_weight_ratio)) {
+                        if (bigdecimal::gt(
+                                bridge.vip_weight, module_store.maximum_weight_ratio
+                            )) {
                             module_store.maximum_weight_ratio
                         } else {
                             bridge.vip_weight
@@ -851,7 +854,7 @@ module vip::vip {
     }
 
     fun validate_vip_weights(module_store: &ModuleStore) {
-        let total_weight = decimal256::zero();
+        let total_weight = bigdecimal::zero();
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -865,13 +868,13 @@ module vip::vip {
             1,
             |key, bridge| {
                 use_bridge(bridge);
-                total_weight = decimal256::add(&total_weight, &bridge.vip_weight);
+                total_weight = bigdecimal::add(total_weight, bridge.vip_weight);
                 false
             },
         );
 
         assert!(
-            decimal256::val(&total_weight) <= decimal256::val(&decimal256::one()),
+            bigdecimal::le(total_weight, bigdecimal::one()),
             error::invalid_argument(EINVALID_WEIGHT),
         );
     }
@@ -995,7 +998,7 @@ module vip::vip {
     }
 
     public(friend) fun update_vip_weights_for_friend(
-        bridge_ids: vector<u64>, weights: vector<Decimal256>,
+        bridge_ids: vector<u64>, weights: vector<BigDecimal>,
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
 
@@ -1113,9 +1116,9 @@ module vip::vip {
         bridge_id: u64,
         bridge_address: address,
         vip_l2_score_contract: string::String,
-        operator_commission_max_rate: Decimal256,
-        operator_commission_max_change_rate: Decimal256,
-        operator_commission_rate: Decimal256,
+        operator_commission_max_rate: BigDecimal,
+        operator_commission_max_change_rate: BigDecimal,
+        operator_commission_rate: BigDecimal,
         vm_type: u64,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
@@ -1161,7 +1164,7 @@ module vip::vip {
                 bridge_addr: bridge_address,
                 operator_addr: operator,
                 vip_l2_score_contract,
-                vip_weight: decimal256::zero(),
+                vip_weight: bigdecimal::zero(),
                 vm_type,
             },
         );
@@ -1197,7 +1200,7 @@ module vip::vip {
                 bridge_addr: bridge.bridge_addr,
                 operator_addr: bridge.operator_addr,
                 vip_l2_score_contract: bridge.vip_l2_score_contract,
-                vip_weight: decimal256::zero(),
+                vip_weight: bigdecimal::zero(),
                 vm_type: bridge.vm_type
             },
         );
@@ -1568,7 +1571,7 @@ module vip::vip {
     public entry fun update_vip_weights(
         chain: &signer,
         bridge_ids: vector<u64>,
-        weights: vector<Decimal256>,
+        weights: vector<BigDecimal>,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         update_vip_weights_for_friend(bridge_ids, weights)
@@ -1577,7 +1580,7 @@ module vip::vip {
     public entry fun update_vip_weight(
         chain: &signer,
         bridge_id: u64,
-        weight: Decimal256,
+        weight: BigDecimal,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -1594,10 +1597,10 @@ module vip::vip {
         vesting_period: Option<u64>,
         minimum_lock_staking_period: Option<u64>,
         minimum_eligible_tvl: Option<u64>,
-        maximum_tvl_ratio: Option<Decimal256>,
-        maximum_weight_ratio: Option<Decimal256>,
-        minimum_score_ratio: Option<Decimal256>,
-        pool_split_ratio: Option<Decimal256>,
+        maximum_tvl_ratio: Option<BigDecimal>,
+        maximum_weight_ratio: Option<BigDecimal>,
+        minimum_score_ratio: Option<BigDecimal>,
+        pool_split_ratio: Option<BigDecimal>,
         challenge_period: Option<u64>,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
@@ -1635,8 +1638,7 @@ module vip::vip {
         if (option::is_some(&maximum_tvl_ratio)) {
             module_store.maximum_tvl_ratio = option::extract(&mut maximum_tvl_ratio);
             assert!(
-                decimal256::val(&module_store.maximum_tvl_ratio)
-                    <= decimal256::val(&decimal256::one()),
+                bigdecimal::le(module_store.maximum_tvl_ratio, bigdecimal::one()),
                 error::invalid_argument(EINVALID_MAX_TVL),
             );
         };
@@ -1644,8 +1646,7 @@ module vip::vip {
         if (option::is_some(&maximum_weight_ratio)) {
             module_store.maximum_weight_ratio = option::extract(&mut maximum_weight_ratio);
             assert!(
-                decimal256::val(&module_store.maximum_weight_ratio)
-                    <= decimal256::val(&decimal256::one()),
+                bigdecimal::le(module_store.maximum_weight_ratio, bigdecimal::one()),
                 error::invalid_argument(EINVALID_RATIO),
             );
         };
@@ -1653,8 +1654,7 @@ module vip::vip {
         if (option::is_some(&minimum_score_ratio)) {
             module_store.minimum_score_ratio = option::extract(&mut minimum_score_ratio);
             assert!(
-                decimal256::val(&module_store.minimum_score_ratio)
-                    <= decimal256::val(&decimal256::one()),
+                bigdecimal::le(module_store.minimum_score_ratio, bigdecimal::one()),
                 error::invalid_argument(EINVALID_RATIO),
             );
         };
@@ -1662,8 +1662,7 @@ module vip::vip {
         if (option::is_some(&pool_split_ratio)) {
             module_store.pool_split_ratio = option::extract(&mut pool_split_ratio);
             assert!(
-                decimal256::val(&module_store.pool_split_ratio)
-                    <= decimal256::val(&decimal256::one()),
+                bigdecimal::le(module_store.pool_split_ratio, bigdecimal::one()),
                 error::invalid_argument(EINVALID_RATIO),
             );
         };
@@ -1674,7 +1673,7 @@ module vip::vip {
     }
 
     public entry fun update_operator_commission(
-        operator: &signer, bridge_id: u64, version: u64, commission_rate: Decimal256
+        operator: &signer, bridge_id: u64, version: u64, commission_rate: BigDecimal
     ) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         operator::update_operator_commission(
@@ -1997,17 +1996,17 @@ module vip::vip {
         );
 
         let weight_ratio =
-            decimal256::sub(
-                &decimal256::one(),
-                &module_store.pool_split_ratio,
+            bigdecimal::sub(
+                bigdecimal::one(),
+                module_store.pool_split_ratio,
             );
         let balance_pool_reward_amount =
-            decimal256::mul_u64(
-                &module_store.pool_split_ratio,
+            bigdecimal::mul_by_u64_truncate(
+                module_store.pool_split_ratio,
                 fund_reward_amount,
             );
         let weight_pool_reward_amount =
-            decimal256::mul_u64(&weight_ratio, fund_reward_amount);
+            bigdecimal::mul_by_u64_truncate(weight_ratio, fund_reward_amount);
         let balance_split_amount =
             split_reward_with_share_internal(
                 &balance_shares,
@@ -2267,9 +2266,6 @@ module vip::vip {
     use initia_std::staking;
 
     #[test_only]
-    use initia_std::decimal128;
-
-    #[test_only]
     struct TestCapability has key {
         burn_cap: BurnCapability,
         freeze_cap: FreezeCapability,
@@ -2277,22 +2273,22 @@ module vip::vip {
     }
 
     #[test_only]
-    const DEFAULT_VIP_WEIGHT_RATIO_FOR_TEST: vector<u8> = b"1";
+    const DEFAULT_VIP_WEIGHT_RATIO_FOR_TEST: u64 = 10; // ratio with 10 as the
 
     #[test_only]
-    const DEFAULT_MIN_SCORE_RATIO_FOR_TEST: vector<u8> = b"1";
+    const DEFAULT_MIN_SCORE_RATIO_FOR_TEST: u64 = 10; // ratio with 10 as the
 
     #[test_only]
-    const DEFAULT_COMMISSION_MAX_RATE_FOR_TEST: vector<u8> = b"0.5";
+    const DEFAULT_COMMISSION_MAX_RATE_FOR_TEST: u64 = 5; // ratio with 10 as the
 
     #[test_only]
-    const DEFAULT_POOL_SPLIT_RATIO_FOR_TEST: vector<u8> = b"0.4";
+    const DEFAULT_POOL_SPLIT_RATIO_FOR_TEST: u64 = 4; // ratio with 10 as the
 
     #[test_only]
-    const DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST: vector<u8> = b"0.5";
+    const DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST: u64 = 5; // ratio with 10 as the
 
     #[test_only]
-    const DEFAULT_COMMISSION_RATE_FOR_TEST: vector<u8> = b"0";
+    const DEFAULT_COMMISSION_RATE_FOR_TEST: u64 = 0; // ratio with 10 as the
 
     #[test_only]
     const DEFAULT_USER_VESTING_PERIOD_FOR_TEST: u64 = 52;
@@ -2335,11 +2331,11 @@ module vip::vip {
         u64, // stage_interval
         u64, // vesting_period
         u64, // challenge_period
-        Decimal256, // minimum_score_ratio
-        Decimal256, // pool_split_ratio
-        Decimal256, // maximum_tvl_ratio
+        BigDecimal, // minimum_score_ratio
+        BigDecimal, // pool_split_ratio
+        BigDecimal, // maximum_tvl_ratio
         u64, //minimum_eligible_tvl
-        Decimal256, //maximum_weight_ratio
+        BigDecimal, //maximum_weight_ratio
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         (
@@ -2413,9 +2409,9 @@ module vip::vip {
         bridge_address: address,
         vip_l2_score_contract: string::String,
         mint_amount: u64,
-        commission_max_rate: Decimal256,
-        commission_max_change_rate: Decimal256,
-        commission_rate: Decimal256,
+        commission_max_rate: BigDecimal,
+        commission_max_change_rate: BigDecimal,
+        commission_rate: BigDecimal,
         mint_cap: &coin::MintCapability,
     ): u64 acquires ModuleStore {
         coin::mint_to(
@@ -2473,25 +2469,21 @@ module vip::vip {
             bridge_address,
             vip_l2_score_contract,
             mint_amount,
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             &mint_cap,
         );
 
         update_minimum_score_ratio(
             vip,
-            decimal256::from_string(&string::utf8(DEFAULT_MIN_SCORE_RATIO_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_MIN_SCORE_RATIO_FOR_TEST, 10),
         );
 
         update_vip_weight(
             vip,
             bridge_id,
-            decimal256::from_string(&string::utf8(DEFAULT_VIP_WEIGHT_RATIO_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_VIP_WEIGHT_RATIO_FOR_TEST, 10),
         );
 
         move_to(
@@ -2653,17 +2645,17 @@ module vip::vip {
     }
 
     #[test_only]
-    fun update_minimum_score_ratio(chain: &signer, ratio: Decimal256) acquires ModuleStore {
+    fun update_minimum_score_ratio(chain: &signer, ratio: BigDecimal) acquires ModuleStore {
         update_params(
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::none(), //vesting_period: Option<u64>,
             option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
-            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
-            option::none(), //maximum_weight_ratio: Option<Decimal256>,
-            option::some(ratio), //minimum_score_ratio: Option<Decimal256>,
-            option::none(), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::some(ratio), //minimum_score_ratio: Option<BigDecimal>,
+            option::none(), //pool_split_ratio: Option<BigDecimal>,
             option::none(), //challenge_period: Option<u64>,
         )
     }
@@ -2676,10 +2668,10 @@ module vip::vip {
             option::some(period), //vesting_period: Option<u64>,
             option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
-            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
-            option::none(), //maximum_weight_ratio: Option<Decimal256>,
-            option::none(), //minimum_score_ratio: Option<Decimal256>,
-            option::none(), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::none(), //minimum_score_ratio: Option<BigDecimal>,
+            option::none(), //pool_split_ratio: Option<BigDecimal>,
             option::none(), //challenge_period: Option<u64>,
         )
     }
@@ -2692,26 +2684,26 @@ module vip::vip {
             option::none(), //vesting_period: Option<u64>,
             option::none(), //minimum_lock_staking_period: Option<u64>,
             option::some(tvl), //minimum_eligible_tvl: Option<u64>,
-            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
-            option::none(), //maximum_weight_ratio: Option<Decimal256>,
-            option::none(), //minimum_score_ratio: Option<Decimal256>,
-            option::none(), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::none(), //minimum_score_ratio: Option<BigDecimal>,
+            option::none(), //pool_split_ratio: Option<BigDecimal>,
             option::none(), //challenge_period: Option<u64>,
         )
     }
 
     #[test_only]
-    fun update_pool_split_ratio(chain: &signer, ratio: Decimal256) acquires ModuleStore {
+    fun update_pool_split_ratio(chain: &signer, ratio: BigDecimal) acquires ModuleStore {
         update_params(
             chain,
             option::none(), //stage_interval: Option<u64>,
             option::none(), //vesting_period: Option<u64>,
             option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
-            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
-            option::none(), //maximum_weight_ratio: Option<Decimal256>,
-            option::none(), //minimum_score_ratio: Option<Decimal256>,
-            option::some(ratio), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::none(), //minimum_score_ratio: Option<BigDecimal>,
+            option::some(ratio), //pool_split_ratio: Option<BigDecimal>,
             option::none(), //challenge_period: Option<u64>,
         )
     }
@@ -2724,10 +2716,10 @@ module vip::vip {
             option::none(), //vesting_period: Option<u64>,
             option::none(), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
-            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
-            option::none(), //maximum_weight_ratio: Option<Decimal256>,
-            option::none(), //minimum_score_ratio: Option<Decimal256>,
-            option::none(), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::none(), //minimum_score_ratio: Option<BigDecimal>,
+            option::none(), //pool_split_ratio: Option<BigDecimal>,
             option::some(period), //challenge_period: Option<u64>,
         )
     }
@@ -2740,10 +2732,10 @@ module vip::vip {
             option::none(), //vesting_period: Option<u64>,
             option::some(period), //minimum_lock_staking_period: Option<u64>,
             option::none(), //minimum_eligible_tvl: Option<u64>,
-            option::none(), //maximum_tvl_ratio: Option<Decimal256>,
-            option::none(), //maximum_weight_ratio: Option<Decimal256>,
-            option::none(), //minimum_score_ratio: Option<Decimal256>,
-            option::none(), //pool_split_ratio: Option<Decimal256>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::none(), //minimum_score_ratio: Option<BigDecimal>,
+            option::none(), //pool_split_ratio: Option<BigDecimal>,
             option::none(), //challenge_period: Option<u64>,
         )
     }
@@ -2895,24 +2887,20 @@ module vip::vip {
             1,
             @0x90,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
-        let new_weight = decimal256::from_string(&string::utf8(b"0.7"));
+        let new_weight = bigdecimal::from_ratio_u64(7, 10);
         update_vip_weight(vip, 1, new_weight);
 
         let bridge_info = get_bridge_info(1);
         assert!(
-            decimal256::is_same(
-                &bridge_info.vip_weight,
-                &new_weight,
+            bigdecimal::eq(
+                bridge_info.vip_weight,
+                new_weight,
             ),
             3,
         );
@@ -3029,10 +3017,7 @@ module vip::vip {
             3,
         );
         // minimum score ratio : 0.5
-        update_minimum_score_ratio(
-            vip,
-            decimal256::from_string(&string::utf8(b"0.5")),
-        );
+        update_minimum_score_ratio(vip, bigdecimal::from_ratio_u64(5, 10));
 
         skip_period(DEFAULT_STAGE_INTERVAL);
         fund_reward_script(vip);
@@ -3725,10 +3710,7 @@ module vip::vip {
 
         let vesting_period = 5;
         let total_reward = DEFAULT_REWARD_PER_STAGE_FOR_TEST;
-        update_minimum_score_ratio(
-            vip,
-            decimal256::from_string(&string::utf8(b"0.3")),
-        );
+        update_minimum_score_ratio(vip, bigdecimal::from_ratio_u64(3, 10));
         update_vesting_period(vip, vesting_period);
 
         let (_, merkle_proof_map, score_map, _) = merkle_root_and_proof_scene2();
@@ -3859,13 +3841,9 @@ module vip::vip {
             1,
             @0x90,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -3875,13 +3853,9 @@ module vip::vip {
             2,
             @0x91,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -3891,28 +3865,21 @@ module vip::vip {
             3,
             @0x92,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
-        update_pool_split_ratio(
-            vip,
-            decimal256::from_string(&string::utf8(b"0.7")),
-        );
+        update_pool_split_ratio(vip, bigdecimal::from_ratio_u64(7, 10));
 
         update_vip_weights(
             chain,
             vector[1, 2, 3],
             vector[
-                decimal256::from_ratio_u64(1, 4),
-                decimal256::from_ratio_u64(1, 4),
-                decimal256::from_ratio_u64(2, 4)],
+                bigdecimal::from_ratio_u64(1, 4),
+                bigdecimal::from_ratio_u64(1, 4),
+                bigdecimal::from_ratio_u64(2, 4)],
         );
         // add_tvl_snapshot();
         fund_reward_script(vip);
@@ -3942,13 +3909,13 @@ module vip::vip {
             operator,
             1,
             1,
-            decimal256::from_string(&string::utf8(b"0.5")),
+            bigdecimal::from_ratio_u64(5, 10),
         );
         update_operator_commission(
             operator,
             2,
             1,
-            decimal256::from_string(&string::utf8(b"0.5")),
+            bigdecimal::from_ratio_u64(5, 10),
         );
 
         // add_tvl_snapshot();
@@ -4069,13 +4036,9 @@ module vip::vip {
             bridge_id1,
             bridge_address1,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4086,13 +4049,9 @@ module vip::vip {
             bridge_id2,
             bridge_address2,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4116,8 +4075,8 @@ module vip::vip {
             vip,
             vector[1, 2],
             vector[
-                decimal256::from_string(&string::utf8(b"0.5")),
-                decimal256::from_string(&string::utf8(b"0.5"))],
+                bigdecimal::from_ratio_u64(5, 10),
+                bigdecimal::from_ratio_u64(5, 10),],
         );
         // stage 1
         fund_reward_script(agent);
@@ -4151,13 +4110,9 @@ module vip::vip {
             bridge_id1,
             @0x999,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -4235,13 +4190,9 @@ module vip::vip {
             bridge_id1,
             bridge_address1,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4252,13 +4203,9 @@ module vip::vip {
             bridge_id2,
             bridge_address2,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4266,8 +4213,8 @@ module vip::vip {
             vip,
             vector[1, 2],
             vector[
-                decimal256::from_string(&string::utf8(b"0.5")),
-                decimal256::from_string(&string::utf8(b"0.7"))],
+                bigdecimal::from_ratio_u64(5, 10),
+                bigdecimal::from_ratio_u64(7, 10),],
         );
     }
 
@@ -4297,13 +4244,9 @@ module vip::vip {
             bridge_id1,
             bridge_address1,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4314,13 +4257,9 @@ module vip::vip {
             bridge_id2,
             bridge_address2,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4328,13 +4267,13 @@ module vip::vip {
             vip,
             vector[1, 2],
             vector[
-                decimal256::from_string(&string::utf8(b"0.5")),
-                decimal256::from_string(&string::utf8(b"0.4"))],
+                bigdecimal::from_ratio_u64(5, 10),
+                bigdecimal::from_ratio_u64(4, 10),],
         );
         update_vip_weight(
             vip,
             1,
-            decimal256::from_string(&string::utf8(b"0.7")),
+            bigdecimal::from_ratio_u64(7, 10),
         );
     }
 
@@ -4401,13 +4340,9 @@ module vip::vip {
             bridge_id,
             bridge_address,
             string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(
-                &string::utf8(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST)
-            ),
-            decimal256::from_string(&string::utf8(DEFAULT_COMMISSION_RATE_FOR_TEST)),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
             MOVEVM,
         );
 
@@ -4428,9 +4363,9 @@ module vip::vip {
             chain,
             string::utf8(b"pair"),
             string::utf8(b"INIT-USDC"),
-            decimal128::from_ratio(3, 1000),
-            decimal128::from_ratio(5, 10),
-            decimal128::from_ratio(5, 10),
+            bigdecimal::from_ratio_u64(3, 1000),
+            bigdecimal::from_ratio_u64(5, 10),
+            bigdecimal::from_ratio_u64(5, 10),
             reward_metadata,
             stakelisted_metadata,
             mint_amount,
@@ -4446,7 +4381,7 @@ module vip::vip {
         staking::set_staking_share_ratio(
             *string::bytes(&validator),
             &lp_metadata,
-            1,
+            &bigdecimal::one(),
             1,
         );
         fund_reward_script(vip);

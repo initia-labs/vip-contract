@@ -10,7 +10,7 @@ module vip::lock_staking {
     use initia_std::block;
     use initia_std::coin;
     use initia_std::cosmos::{stargate, stargate_vote, move_execute};
-    use initia_std::decimal128::{Self, Decimal128};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
     use initia_std::json::{marshal, unmarshal};
     use initia_std::object::{Self, ExtendRef, Object};
@@ -45,7 +45,7 @@ module vip::lock_staking {
     struct LockedDelegationResponse has drop {
         metadata: Object<Metadata>,
         validator: String,
-        locked_share: Decimal128,
+        locked_share: BigDecimal,
         amount: u64,
         release_time: u64,
     }
@@ -54,10 +54,10 @@ module vip::lock_staking {
         extend_ref: ExtendRef,
         last_height: u64, // record the last executed height to prevent the stargate sequential problem.
         validators: Table<String, u16>, // validator => number of delegation
-        delegations: Table<DelegationKey, Decimal128>, // key => locked share
+        delegations: Table<DelegationKey, BigDecimal>, // key => locked share
         // This share variable is specific to the lock_staking.move module
         // It should not be confused with the share variable in the mstaking module
-        total_locked_shares: Table<LockedShareKey, Decimal128>, // store total locked share
+        total_locked_shares: Table<LockedShareKey, BigDecimal>, // store total locked share
     }
 
     struct DelegationKey has copy, drop {
@@ -375,10 +375,14 @@ module vip::lock_staking {
                 coin::metadata_to_denom(metadata),
                 true,
             );
-        
+
         let locked_amount =
             locked_share_to_amount(
-                staking_account, validator, metadata, &share_before, &locked_share
+                staking_account,
+                validator,
+                metadata,
+                &share_before,
+                &locked_share,
             );
 
         // get undelegate amount and share before
@@ -558,7 +562,6 @@ module vip::lock_staking {
             validator_address,
             amount: vector[coin]
         };
-        stargate(&staking_account_signer, marshal(&msg));
 
         // execute hook
         let delegation =
@@ -570,6 +573,8 @@ module vip::lock_staking {
             );
 
         let share_before = get_share(&delegation.delegation.shares, denom, false);
+
+        stargate(&staking_account_signer, marshal(&msg));
 
         move_execute(
             &staking_account_signer,
@@ -591,7 +596,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String,
-        share_before: Decimal128,
+        share_before: BigDecimal,
     ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
@@ -609,10 +614,7 @@ module vip::lock_staking {
             );
 
         let share_after = get_share(&delegation.delegation.shares, denom, true);
-        let share_diff =
-            decimal128::new(
-                decimal128::val(&share_after) - decimal128::val(&share_before)
-            );
+        let share_diff = bigdecimal::sub(share_after, share_before);
         let new_locked_share =
             share_to_locked_share(
                 staking_account,
@@ -646,7 +648,7 @@ module vip::lock_staking {
         validator_src_address: String,
         dst_release_time: u64,
         validator_dst_address: String,
-        src_share_before: Option<Decimal128>, // if none, redelegate all
+        src_share_before: Option<BigDecimal>, // if none, redelegate all
     ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
@@ -707,10 +709,7 @@ module vip::lock_staking {
                 // redelegation always decreses the share from the src validator
                 let share_after = get_share(&delegation.delegation.shares, denom, false);
 
-                let share_diff =
-                    decimal128::new(
-                        decimal128::val(&share_before) - decimal128::val(&share_after)
-                    );
+                let share_diff = bigdecimal::sub(share_before, share_after);
 
                 let locked_share =
                     share_to_locked_share(
@@ -751,7 +750,7 @@ module vip::lock_staking {
 
         // get total delegation share before redelegation
         let dst_share_before =
-            decimal128::sub(&mut current_total_share, &redelegation_share.amount);
+            bigdecimal::sub(current_total_share, redelegation_share.amount);
 
         // get new locked share
         let new_locked_share =
@@ -784,7 +783,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String,
-        share_before: Option<Decimal128>, // if none, undelegate all
+        share_before: Option<BigDecimal>, // if none, undelegate all
     ) acquires StakingAccount {
         let staking_account_addr = signer::address_of(staking_account_signer);
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
@@ -832,10 +831,7 @@ module vip::lock_staking {
 
                 let share_after = get_share(&delegation.delegation.shares, denom, false);
 
-                let share_diff =
-                    decimal128::new(
-                        decimal128::val(&share_before) - decimal128::val(&share_after)
-                    );
+                let share_diff = bigdecimal::sub(share_before, share_after);
 
                 let locked_share =
                     share_to_locked_share(
@@ -969,7 +965,7 @@ module vip::lock_staking {
 
     struct DecCoin has drop, copy, store {
         denom: String,
-        amount: Decimal128,
+        amount: BigDecimal,
     }
 
     struct UnbondingDelegation has drop, copy, store {
@@ -1106,8 +1102,8 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String,
-        locked_share: Option<Decimal128>, // if none, withdraw all
-    ): Decimal128 acquires StakingAccount {
+        locked_share: Option<BigDecimal>, // if none, withdraw all
+    ): BigDecimal acquires StakingAccount {
         let staking_account = borrow_global_mut<StakingAccount>(addr);
         let key = generate_delegation_key(metadata, release_time, validator);
         let locked_share_stored = table::borrow_mut(&mut staking_account.delegations, key);
@@ -1119,7 +1115,7 @@ module vip::lock_staking {
             };
 
         assert!(
-            decimal128::val(locked_share_stored) >= decimal128::val(&locked_share),
+            bigdecimal::ge(*locked_share_stored, locked_share),
             error::invalid_argument(ENOT_ENOUGH_DELEGATION),
         );
 
@@ -1129,9 +1125,9 @@ module vip::lock_staking {
                 &mut staking_account.total_locked_shares,
                 LockedShareKey { metadata, validator },
             );
-        *total_locked_share = decimal128::sub(total_locked_share, &locked_share);
+        *total_locked_share = bigdecimal::sub(*total_locked_share, locked_share);
 
-        if (decimal128::val(total_locked_share) == 0) {
+        if (bigdecimal::is_zero(*total_locked_share)) {
             table::remove(
                 &mut staking_account.total_locked_shares,
                 LockedShareKey { metadata, validator },
@@ -1139,7 +1135,7 @@ module vip::lock_staking {
         };
 
         // update locked delegation
-        if (decimal128::val(locked_share_stored) == decimal128::val(&locked_share)) {
+        if (bigdecimal::eq(*locked_share_stored, locked_share)) {
             table::remove(&mut staking_account.delegations, key);
             let count = table::borrow_mut(&mut staking_account.validators, validator);
             *count = *count - 1;
@@ -1150,9 +1146,7 @@ module vip::lock_staking {
                 );
             };
         } else {
-            *locked_share_stored = decimal128::sub(
-                locked_share_stored, &locked_share
-            );
+            *locked_share_stored = bigdecimal::sub(*locked_share_stored, locked_share);
         };
         locked_share
     }
@@ -1161,7 +1155,7 @@ module vip::lock_staking {
         addr: address,
         metadata: Object<Metadata>,
         validator: String,
-        locked_share: Decimal128,
+        locked_share: BigDecimal,
         release_time: u64,
     ) acquires StakingAccount, ModuleStore {
         let staking_account = borrow_global_mut<StakingAccount>(addr);
@@ -1179,9 +1173,9 @@ module vip::lock_staking {
             table::borrow_mut_with_default(
                 &mut staking_account.total_locked_shares,
                 LockedShareKey { metadata, validator },
-                decimal128::zero(),
+                bigdecimal::zero(),
             );
-        *total_locked_share = decimal128::add(total_locked_share, &locked_share);
+        *total_locked_share = bigdecimal::add(*total_locked_share, locked_share);
         // update locked delegation
         if (!table::contains(&staking_account.delegations, key)) {
             let count =
@@ -1194,12 +1188,12 @@ module vip::lock_staking {
             table::add(
                 &mut staking_account.delegations,
                 key,
-                decimal128::zero() // locked share
+                bigdecimal::zero(), // locked share
             )
         };
 
         let locked_share_stored = table::borrow_mut(&mut staking_account.delegations, key);
-        *locked_share_stored = decimal128::add(locked_share_stored, &locked_share);
+        *locked_share_stored = bigdecimal::add(*locked_share_stored, locked_share);
 
         assert!(
             table::length(&staking_account.delegations) <= module_store.max_delegation_slot,
@@ -1209,7 +1203,7 @@ module vip::lock_staking {
 
     fun get_share(
         shares: &vector<DecCoin>, denom: String, must_exist: bool
-    ): Decimal128 {
+    ): BigDecimal {
         let (found, idx) = vector::find<DecCoin>(
             shares,
             |share| { compare_denom(share, denom) },
@@ -1220,7 +1214,7 @@ module vip::lock_staking {
         if (found) {
             vector::borrow(shares, idx).amount
         } else {
-            decimal128::zero()
+            bigdecimal::zero()
         }
     }
 
@@ -1228,64 +1222,50 @@ module vip::lock_staking {
         staking_account: &StakingAccount,
         validator: String,
         metadata: Object<Metadata>,
-        total_share: &Decimal128,
-        locked_share: &Decimal128
-    ): Decimal128 {
+        total_share: &BigDecimal,
+        locked_share: &BigDecimal
+    ): BigDecimal {
         let total_locked_share =
             table::borrow_with_default(
                 &staking_account.total_locked_shares,
                 LockedShareKey { metadata, validator },
-                &decimal128::zero(),
+                &bigdecimal::zero(),
             );
-        if (decimal128::val(total_share) == 0 || decimal128::val(total_locked_share) == 0) {
+        if (bigdecimal::is_zero(*total_share) || bigdecimal::is_zero(*total_locked_share)) {
             return *locked_share
         };
 
         // locked_share * total_share / total_locekd_share
-        let val =
-            utils::mul_div_u128(
-                decimal128::val(locked_share),
-                decimal128::val(total_share),
-                decimal128::val(total_locked_share),
-            );
-
-        decimal128::new(val)
+        bigdecimal::div(bigdecimal::mul(*locked_share, *total_share), *total_locked_share)
     }
 
     fun share_to_locked_share(
         staking_account: &StakingAccount,
         validator: String,
         metadata: Object<Metadata>,
-        total_share: &Decimal128,
-        share: &Decimal128
-    ): Decimal128 {
+        total_share: &BigDecimal,
+        share: &BigDecimal
+    ): BigDecimal {
         let total_locked_share =
             table::borrow_with_default(
                 &staking_account.total_locked_shares,
                 LockedShareKey { metadata, validator },
-                &decimal128::zero(),
+                &bigdecimal::zero(),
             );
-        if (decimal128::val(total_locked_share) == 0 || decimal128::val(total_share) == 0) {
+        if (bigdecimal::is_zero(*total_locked_share) || bigdecimal::is_zero(*total_share)) {
             return *share
         };
 
         // share * total_locekd_share / total_share
-        let val =
-            utils::mul_div_u128(
-                decimal128::val(share),
-                decimal128::val(total_locked_share),
-                decimal128::val(total_share),
-            );
-
-        decimal128::new(val)
+        bigdecimal::div(bigdecimal::mul(*share, *total_locked_share), *total_share)
     }
 
     fun locked_share_to_amount(
         staking_account: &StakingAccount,
         validator: String,
         metadata: Object<Metadata>,
-        total_share: &Decimal128,
-        locked_share: &Decimal128
+        total_share: &BigDecimal,
+        locked_share: &BigDecimal
     ): u64 {
         let share =
             locked_share_to_share(
@@ -1295,16 +1275,16 @@ module vip::lock_staking {
                 total_share,
                 locked_share,
             );
-        staking::share_to_amount(*string::bytes(&validator), &metadata, floor(&share))
+        staking::share_to_amount(*string::bytes(&validator), &metadata, &share)
     }
 
     fun amount_to_locked_share(
         staking_account: &StakingAccount,
         validator: String,
         metadata: Object<Metadata>,
-        total_share: &Decimal128,
+        total_share: &BigDecimal,
         amount: u64
-    ): Decimal128 {
+    ): BigDecimal {
         let share = staking::amount_to_share(
             *string::bytes(&validator), &metadata, amount
         );
@@ -1313,7 +1293,7 @@ module vip::lock_staking {
             validator,
             metadata,
             total_share,
-            &decimal128::from_ratio_u64(share, 1),
+            &share,
         )
     }
 
@@ -1322,17 +1302,13 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String
-    ): Decimal128 {
+    ): BigDecimal {
         let key = generate_delegation_key(metadata, release_time, validator);
         assert!(
             table::contains(&staking_account.delegations, key),
             error::not_found(EDELEGATION_NOT_FOUND),
         );
         *table::borrow(&staking_account.delegations, key)
-    }
-
-    fun floor(val: &Decimal128): u64 {
-        (decimal128::val(val) / decimal128::val(&decimal128::one()) as u64)
     }
 
     #[view]
@@ -1364,12 +1340,11 @@ module vip::lock_staking {
             simple_map::create();
 
         loop {
-            if (!table::prepare<DelegationKey, Decimal128>(iter)) { break };
-            let (key, locked_share_ref) =
-                table::next<DelegationKey, Decimal128>(iter);
+            if (!table::prepare<DelegationKey, BigDecimal>(iter)) { break };
+            let (key, locked_share_ref) = table::next<DelegationKey, BigDecimal>(iter);
             let metadata = key.metadata;
             let validator = key.validator;
-            
+
             if (!simple_map::contains_key(&delegations, &validator)) {
                 let delegation =
                     get_delegation(
@@ -1399,7 +1374,13 @@ module vip::lock_staking {
 
             vector::push_back(
                 &mut res,
-                LockedDelegationResponse { metadata, validator, locked_share: *locked_share_ref, amount, release_time, }
+                LockedDelegationResponse {
+                    metadata,
+                    validator,
+                    locked_share: *locked_share_ref,
+                    amount,
+                    release_time,
+                },
             );
         };
 
@@ -1407,14 +1388,1720 @@ module vip::lock_staking {
     }
 
     #[test_only]
-    public fun init_module_for_test(chain: &signer) {
-        assert!(signer::address_of(chain) == @vip, 1);
-        init_module(chain);
+    use initia_std::mock_mstaking;
+
+    #[test_only]
+    public fun init_module_for_test(vip: &signer) {
+        init_module(vip)
+    }
+
+    #[test_only]
+    public fun mock_delegate(
+        account: &signer,
+        metadata: Object<Metadata>,
+        amount: u64,
+        release_time: u64,
+        validator_address: String
+    ) acquires StakingAccount, ModuleStore {
+        let fa = coin::withdraw(account, metadata, amount);
+        let (_, curr_time) = block::get_block_info();
+        let module_store = borrow_global<ModuleStore>(@vip);
+        assert!(
+            release_time > curr_time + module_store.min_lock_period,
+            error::invalid_argument(ESMALL_RELEASE_TIME),
+        );
+
+        let staking_account_signer = get_staking_account_signer(account);
+        let staking_account_addr = signer::address_of(&staking_account_signer);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
+
+        assert_height(staking_account);
+        let metadata = fungible_asset::metadata_from_asset(&fa);
+        let amount = fungible_asset::amount(&fa);
+        let denom = coin::metadata_to_denom(metadata);
+
+        // deposit token to staking account addr
+        coin::deposit(staking_account_addr, fa);
+
+        let delegation =
+            get_delegation(
+                staking_account,
+                validator_address,
+                staking_account_addr,
+                false,
+            );
+
+        let share_before = get_share(&delegation.delegation.shares, denom, false);
+
+        // delegate
+        mock_mstaking::delegate(
+            &staking_account_signer,
+            validator_address,
+            metadata,
+            amount,
+        );
+
+        // execute hook
+        delegate_hook(
+            &staking_account_signer,
+            metadata,
+            release_time,
+            validator_address,
+            share_before,
+        );
+    }
+
+    #[test_only]
+    public fun mock_redelegate(
+        account: &signer,
+        metadata: Object<Metadata>,
+        amount: Option<u64>, // if none, redelegate all
+        src_release_time: u64,
+        validator_src_address: String,
+        dst_release_time: u64,
+        validator_dst_address: String,
+    ) acquires StakingAccount, ModuleStore {
+        let staking_account_signer = get_staking_account_signer(account);
+        let staking_account_addr = signer::address_of(&staking_account_signer);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
+
+        assert_height(staking_account);
+        assert!(
+            dst_release_time >= src_release_time,
+            error::invalid_argument(ESMALL_RELEASE_TIME),
+        );
+        // get current delegation share
+        let delegation =
+            get_delegation(
+                staking_account,
+                validator_src_address,
+                staking_account_addr,
+                false,
+            );
+        let locked_share =
+            get_locked_share(
+                staking_account,
+                metadata,
+                src_release_time,
+                validator_src_address,
+            );
+        let share_before =
+            get_share(
+                &delegation.delegation.shares,
+                coin::metadata_to_denom(metadata),
+                true,
+            );
+
+        let locked_amount =
+            locked_share_to_amount(
+                staking_account,
+                validator_src_address,
+                metadata,
+                &share_before,
+                &locked_share,
+            );
+
+        // get redelegate amount and share before
+        let (amount, share_before) =
+            if (option::is_none(&amount)) {
+                // redelegate all
+                (locked_amount, option::none())
+            } else {
+                let redelegate_amount = option::extract(&mut amount);
+                assert!(redelegate_amount > 0, error::invalid_argument(EZERO_AMOUNT));
+                assert!(
+                    locked_amount >= redelegate_amount,
+                    error::invalid_argument(ENOT_ENOUGH_DELEGATION),
+                );
+
+                (redelegate_amount, option::some(share_before))
+            };
+
+        // execute begin redelegate
+        mock_mstaking::redelegate(
+            &staking_account_signer,
+            validator_src_address,
+            validator_dst_address,
+            metadata,
+            amount,
+        );
+        // execute redelegate hook
+        redelegate_hook(
+            &staking_account_signer,
+            metadata,
+            src_release_time,
+            validator_src_address,
+            dst_release_time,
+            validator_dst_address,
+            share_before,
+        );
+    }
+
+    #[test_only]
+    public fun mock_undelegate(
+        account: &signer,
+        metadata: Object<Metadata>,
+        amount: Option<u64>, // if none, undelegte all
+        release_time: u64,
+        validator: String,
+    ) acquires StakingAccount {
+        let staking_account_signer = get_staking_account_signer(account);
+        let staking_account_addr = signer::address_of(&staking_account_signer);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
+
+        assert_height(staking_account);
+
+        // check can undelegate
+        let (_, curr_time) = block::get_block_info();
+        assert!(
+            curr_time > release_time,
+            error::invalid_state(ENOT_RELEASE),
+        );
+        // get current delegation share
+        let delegation =
+            get_delegation(
+                staking_account,
+                validator,
+                staking_account_addr,
+                false,
+            );
+        let locked_share =
+            get_locked_share(
+                staking_account,
+                metadata,
+                release_time,
+                validator,
+            );
+        let share_before =
+            get_share(
+                &delegation.delegation.shares,
+                coin::metadata_to_denom(metadata),
+                true,
+            );
+
+        let locked_amount =
+            locked_share_to_amount(
+                staking_account,
+                validator,
+                metadata,
+                &share_before,
+                &locked_share,
+            );
+
+        // get undelegate amount and share before
+        let (amount, share_before) =
+            if (option::is_none(&amount)) {
+                // undelegate all
+                (locked_amount, option::none())
+            } else {
+                let undelegate_amount = option::extract(&mut amount);
+                assert!(undelegate_amount > 0, error::invalid_argument(EZERO_AMOUNT));
+                assert!(
+                    locked_amount >= undelegate_amount,
+                    error::invalid_argument(ENOT_ENOUGH_DELEGATION),
+                );
+
+                (undelegate_amount, option::some(share_before))
+            };
+
+        // execute undelegate
+        mock_mstaking::undelegate(&staking_account_signer, validator, metadata, amount);
+
+        // execute undelegate hook
+        undelegate_hook(
+            &staking_account_signer,
+            metadata,
+            release_time,
+            validator,
+            share_before,
+        );
+    }
+
+    const TEST_RELEASE_PERIOD: u64 = 1000;
+    const DELEGATING_AMOUNT: u64 = 1000;
+
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37, delegator2 = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
+    fun test_lock_staking_delegate(
+        chain: &signer, vip: &signer, delegator1: &signer, delegator2: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+        let delegator2_addr = signer::address_of(delegator2);
+        let delegator2_staking_account_addr = get_staking_address(delegator2_addr);
+        // mock lp providing
+        coin::transfer(chain, signer::address_of(delegator1), metadata, DELEGATING_AMOUNT);
+        coin::transfer(
+            chain,
+            signer::address_of(delegator2),
+            metadata,
+            2 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate
+        mock_delegate(
+            delegator1,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        mock_delegate(
+            delegator2,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        mock_delegate(
+            delegator2,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            val2,
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    }],
+            1,
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator2))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    }],
+            2,
+        );
+
+        // check mstaking share and amount of mstaking
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(get_staking_address(delegator1_addr)),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            3,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator2_staking_account_addr),
+                validator,
+                delegator2_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator2))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            4,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator2_staking_account_addr),
+                val2,
+                delegator2_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator2))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            5,
+        );
 
     }
 
-    // #[test_only]
-    // public fun set_delegation(
-    //     metadata: Object<Metadata>, release_time: u64, validator: String, locked_share
-    // )
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_lock_staking_undelegate(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            3 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate
+        mock_delegate(
+            delegator1,
+            metadata,
+            2 * DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        utils::increase_block(1, 2);
+
+        mock_delegate(
+            delegator1,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            val2,
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        amount: 2 * DELEGATING_AMOUNT,
+                        locked_share: bigdecimal::from_ratio_u64(2 * DELEGATING_AMOUNT, 1),
+                        release_time: TEST_RELEASE_PERIOD
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        amount: DELEGATING_AMOUNT,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        release_time: TEST_RELEASE_PERIOD
+                    }],
+            1,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(2 * DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: 2 * DELEGATING_AMOUNT
+                    }]
+            },
+            2,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                val2,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            3,
+        );
+        // block increases to release
+        utils::increase_block(500, 1001);
+        mock_undelegate(
+            delegator1,
+            metadata,
+            option::some<u64>(DELEGATING_AMOUNT),
+            release_time,
+            validator,
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: TEST_RELEASE_PERIOD
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: TEST_RELEASE_PERIOD
+                    }],
+            4,
+        );
+
+        // check delegation share and amount
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            5,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                val2,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            6,
+        );
+        // check unbonding entry
+        assert!(
+            get_unbonding_delegation(
+                get_staking_address(signer::address_of(delegator1)), validator
+            ) == UnbondingDelegationResponse {
+                unbond: UnbondingDelegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    entries: vector[
+                        UnbondingDelegationEntry {
+                            creation_height: 502,
+                            completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                            initial_balance: vector[
+                                Coin {
+                                    denom: string::utf8(b"INIT-USDC"),
+                                    amount: DELEGATING_AMOUNT
+                                }],
+                            balance: vector[
+                                Coin {
+                                    denom: string::utf8(b"INIT-USDC"),
+                                    amount: DELEGATING_AMOUNT
+                                }],
+                            unbonding_id: 1,
+                            unbonding_on_hold_ref_count: 0
+                        }]
+                }
+            },
+            7,
+        );
+
+        utils::increase_block(1, 2);
+        mock_undelegate(
+            delegator1,
+            metadata,
+            option::none<u64>(),
+            release_time,
+            validator,
+        );
+
+        // check unbonding entry
+        assert!(
+            get_unbonding_delegation(
+                get_staking_address(signer::address_of(delegator1)), validator
+            ) == UnbondingDelegationResponse {
+                unbond: UnbondingDelegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    entries: vector[
+                        UnbondingDelegationEntry {
+                            creation_height: 502,
+                            completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                            initial_balance: vector[
+                                Coin {
+                                    denom: string::utf8(b"INIT-USDC"),
+                                    amount: DELEGATING_AMOUNT
+                                }],
+                            balance: vector[
+                                Coin {
+                                    denom: string::utf8(b"INIT-USDC"),
+                                    amount: DELEGATING_AMOUNT
+                                }],
+                            unbonding_id: 1,
+                            unbonding_on_hold_ref_count: 0
+                        },
+                        UnbondingDelegationEntry {
+                            creation_height: 503,
+                            completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                            initial_balance: vector[
+                                Coin {
+                                    denom: string::utf8(b"INIT-USDC"),
+                                    amount: DELEGATING_AMOUNT
+                                }],
+                            balance: vector[
+                                Coin {
+                                    denom: string::utf8(b"INIT-USDC"),
+                                    amount: DELEGATING_AMOUNT
+                                }],
+                            unbonding_id: 2,
+                            unbonding_on_hold_ref_count: 0
+                        }]
+                }
+            },
+            8,
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time,
+                    }],
+            9,
+        );
+
+        // check mstaking share and amount of mstaking
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                val2,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            10,
+        );
+        // pass the unbonding period
+        utils::increase_block(500, mock_mstaking::get_unbonding_period());
+        // clear the unbonding entry
+        mock_mstaking::clear_completed_entries();
+        assert!(
+            coin::balance(get_staking_address(signer::address_of(delegator1)), metadata)
+                == 2 * DELEGATING_AMOUNT,
+            11,
+        );
+
+        withdraw_asset(
+            delegator1,
+            metadata,
+            option::some(DELEGATING_AMOUNT),
+        );
+
+        assert!(
+            coin::balance(signer::address_of(delegator1), metadata) == DELEGATING_AMOUNT,
+            12,
+        );
+        withdraw_asset(
+            delegator1,
+            metadata,
+            option::none(),
+        );
+        assert!(
+            coin::balance(signer::address_of(delegator1), metadata) == 2
+                * DELEGATING_AMOUNT,
+            13,
+        );
+    }
+
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_lock_staking_redelegate(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let new_release_time = time + 2 * TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let src_val = mock_mstaking::get_validator1();
+        let dst_val = mock_mstaking::get_validator2();
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_addr = get_staking_address(delegator1_addr);
+        // mock lp providing
+        coin::transfer(chain, delegator1_addr, metadata, 3 * DELEGATING_AMOUNT);
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate
+        mock_delegate(
+            delegator1,
+            metadata,
+            2 * DELEGATING_AMOUNT,
+            release_time,
+            src_val,
+        );
+
+        assert!(
+            get_locked_delegations(delegator1_addr)
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: src_val,
+                        locked_share: bigdecimal::from_ratio_u64(2 * DELEGATING_AMOUNT, 1),
+                        amount: 2 * DELEGATING_AMOUNT,
+                        release_time,
+                    },],
+            1,
+        );
+
+        utils::increase_block(1, 2);
+
+        mock_redelegate(
+            delegator1,
+            metadata,
+            option::some<u64>(DELEGATING_AMOUNT),
+            release_time,
+            src_val,
+            release_time,
+            dst_val,
+        );
+
+        // block increases to release
+        utils::increase_block(500, 1001);
+        assert!(
+            get_redelegations(to_sdk(delegator1_staking_addr), src_val, dst_val)
+                == RedelegationsResponse {
+                    redelegation_responses: vector[
+                        RedelegationResponse {
+                            redelegation: Redelegation {
+                                delegator_address: to_sdk(delegator1_staking_addr),
+                                validator_src_address: src_val,
+                                validator_dst_address: dst_val,
+                                entries: option::none()
+                            },
+                            entries: vector[
+                                RedelegationEntryResponse {
+                                    redelegation_entry: RedelegationEntry {
+                                        creation_height: 2,
+                                        completion_time: string::utf8(b""),
+                                        initial_balance: vector[
+                                            Coin {
+                                                denom: string::utf8(b"INIT-USDC"),
+                                                amount: DELEGATING_AMOUNT
+                                            }],
+                                        shares_dst: vector[
+                                            DecCoin {
+                                                denom: string::utf8(b"INIT-USDC"),
+                                                amount: bigdecimal::from_ratio_u64(
+                                                    DELEGATING_AMOUNT, 1
+                                                )
+                                            }],
+                                        unbonding_id: 1
+                                    },
+                                    balance: vector[
+                                        Coin {
+                                            denom: string::utf8(b"INIT-USDC"),
+                                            amount: DELEGATING_AMOUNT
+                                        }]
+                                }]
+                        }],
+                    pagination: option::none()
+                },
+            2,
+        );
+        assert!(
+            get_locked_delegations(delegator1_addr)
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: src_val,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time,
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: dst_val,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time,
+                    }],
+            3,
+        );
+
+        assert!(coin::balance(delegator1_staking_addr, metadata) == 0, 4);
+
+        // pass the unbonding period
+        utils::increase_block(500, mock_mstaking::get_unbonding_period());
+        // clear the unbonding entry
+        mock_mstaking::clear_completed_entries();
+
+        assert!(coin::balance(delegator1_staking_addr, metadata) == 0, 5);
+
+        // redelegate all of total amount to dst_val
+        mock_redelegate(
+            delegator1,
+            metadata,
+            option::none<u64>(),
+            release_time,
+            src_val,
+            new_release_time,
+            dst_val,
+        );
+
+        // block increases to release
+        utils::increase_block(500, 1001);
+
+        assert!(
+            get_redelegations(to_sdk(delegator1_staking_addr), src_val, dst_val)
+                == RedelegationsResponse {
+                    redelegation_responses: vector[
+                        RedelegationResponse {
+                            redelegation: Redelegation {
+                                delegator_address: to_sdk(delegator1_staking_addr),
+                                validator_src_address: src_val,
+                                validator_dst_address: dst_val,
+                                entries: option::none()
+                            },
+                            entries: vector[
+                                RedelegationEntryResponse {
+                                    redelegation_entry: RedelegationEntry {
+                                        creation_height: 1002,
+                                        completion_time: string::utf8(b""),
+                                        initial_balance: vector[
+                                            Coin {
+                                                denom: string::utf8(b"INIT-USDC"),
+                                                amount: DELEGATING_AMOUNT
+                                            }],
+                                        shares_dst: vector[
+                                            DecCoin {
+                                                denom: string::utf8(b"INIT-USDC"),
+                                                amount: bigdecimal::from_ratio_u64(
+                                                    DELEGATING_AMOUNT, 1
+                                                )
+                                            }],
+                                        unbonding_id: 2
+                                    },
+                                    balance: vector[
+                                        Coin {
+                                            denom: string::utf8(b"INIT-USDC"),
+                                            amount: DELEGATING_AMOUNT
+                                        }]
+                                }]
+                        }],
+                    pagination: option::none()
+                },
+            6,
+        );
+        assert!(
+            get_locked_delegations(delegator1_addr)
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: dst_val,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: release_time,
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: dst_val,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: new_release_time,
+                    }],
+            7,
+        );
+
+        assert!(coin::balance(delegator1_staking_addr, metadata) == 0, 8);
+
+        // pass the unbonding period
+        utils::increase_block(500, mock_mstaking::get_unbonding_period());
+        // clear the unbonding entry
+        mock_mstaking::clear_completed_entries();
+
+        assert!(coin::balance(delegator1_staking_addr, metadata) == 0, 9);
+    }
+
+    // #[test]
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_delegate_and_slash(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+        // mock lp providing
+        coin::transfer(chain, delegator1_addr, metadata, DELEGATING_AMOUNT);
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate
+        mock_delegate(
+            delegator1,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        assert!(
+            get_locked_delegations(delegator1_addr)
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time,
+                    },],
+            1,
+        );
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            2,
+        );
+        // block increases
+        utils::increase_block(1, 2);
+        // 10% slashing
+        mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
+
+        // check locked delgations share constant, amount decreased by 10%
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT * 9 / 10,
+                        release_time,
+                    },],
+            3,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT * 9 / 10
+                    }]
+            },
+            4,
+        );
+
+    }
+
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_undelegate_and_slash(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            2 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate
+        mock_delegate(
+            delegator1,
+            metadata,
+            2 * DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        // pass the unbonding period
+        utils::increase_block(500, mock_mstaking::get_unbonding_period());
+
+        mock_undelegate(
+            delegator1,
+            metadata,
+            option::some(DELEGATING_AMOUNT),
+            release_time,
+            validator,
+        );
+
+        assert!(
+            get_unbonding_delegation(delegator1_staking_account_addr, validator)
+                == UnbondingDelegationResponse {
+                    unbond: UnbondingDelegation {
+                        delegator_address: to_sdk(delegator1_staking_account_addr),
+                        validator_address: validator,
+                        entries: vector[
+                            UnbondingDelegationEntry {
+                                creation_height: 501,
+                                completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                                initial_balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: DELEGATING_AMOUNT
+                                    }],
+                                balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: DELEGATING_AMOUNT
+                                    }],
+                                unbonding_id: 1,
+                                unbonding_on_hold_ref_count: 0
+                            },]
+                    }
+                },
+            1,
+        );
+
+        // 10% slashing
+        mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT * 9 / 10,
+                        release_time,
+                    },],
+            2,
+        );
+
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(delegator1_staking_account_addr),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT * 9 / 10
+                    }]
+            },
+            3,
+        );
+
+        assert!(
+            get_unbonding_delegation(delegator1_staking_account_addr, validator)
+                == UnbondingDelegationResponse {
+                    unbond: UnbondingDelegation {
+                        delegator_address: to_sdk(delegator1_staking_account_addr),
+                        validator_address: validator,
+                        entries: vector[
+                            UnbondingDelegationEntry {
+                                creation_height: 501,
+                                completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                                initial_balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: DELEGATING_AMOUNT
+                                    }],
+                                balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: DELEGATING_AMOUNT * 9 / 10
+                                    }],
+                                unbonding_id: 1,
+                                unbonding_on_hold_ref_count: 0
+                            },]
+                    }
+                },
+            4,
+        );
+
+    }
+
+    // slash the delegation of dst
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_redelegate_and_slash1(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let new_release_time = time + TEST_RELEASE_PERIOD * 2;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            2 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate to val
+        mock_delegate(
+            delegator1,
+            metadata,
+            2 * DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // redelegate to val2
+        mock_redelegate(
+            delegator1,
+            metadata,
+            option::some(DELEGATING_AMOUNT),
+            release_time,
+            validator,
+            new_release_time,
+            val2,
+        );
+
+        // 10% slashing
+        mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
+
+        // check share locked share constant
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: 9 * DELEGATING_AMOUNT / 10,
+                        release_time,
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: 9 * DELEGATING_AMOUNT / 10,
+                        release_time: new_release_time
+                    }],
+            1,
+        );
+        // check cosmos mstaking amount of val decreased by 10%
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: 9 * DELEGATING_AMOUNT / 10
+                    }]
+            },
+            2,
+        );
+        // check cosmos mstaking share and amount of val2 decreased by 10%
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                val2,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(
+                                DELEGATING_AMOUNT * 9 / 10,
+                                1,
+                            )
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: 9 * DELEGATING_AMOUNT / 10
+                    }]
+            },
+            3,
+        );
+
+    }
+
+    // slash only on the unbonding of dst
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_redelegate_and_slash2(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let new_release_time = time + TEST_RELEASE_PERIOD * 2;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            3 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate to val
+        mock_delegate(
+            delegator1,
+            metadata,
+            3 * DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // redelegate to val2
+        mock_redelegate(
+            delegator1,
+            metadata,
+            option::some(2 * DELEGATING_AMOUNT),
+            release_time,
+            validator,
+            new_release_time,
+            val2,
+        );
+
+        // pass the release period
+        utils::increase_block(1000, new_release_time);
+
+        // undelegate val2
+        mock_undelegate(
+            delegator1,
+            metadata,
+            option::some(DELEGATING_AMOUNT),
+            new_release_time,
+            val2,
+        );
+
+        // 10% slashing
+        mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
+
+        // check locked share constant
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: 9 * DELEGATING_AMOUNT / 10,
+                        release_time,
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: new_release_time
+                    }],
+            1,
+        );
+        // check cosmos mstaking amount of val decreased by 10%
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: 9 * DELEGATING_AMOUNT / 10
+                    }]
+            },
+            2,
+        );
+
+        // check cosmos mstaking share and amount of val2 not decreased
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                val2,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: DELEGATING_AMOUNT
+                    }]
+            },
+            3,
+        );
+
+        // check cosmos mstaking unbonding entry amount of val2 decreased by 20% by slashing val1
+        assert!(
+            get_unbonding_delegation(delegator1_staking_account_addr, val2)
+                == UnbondingDelegationResponse {
+                    unbond: UnbondingDelegation {
+                        delegator_address: to_sdk(delegator1_staking_account_addr),
+                        validator_address: val2,
+                        entries: vector[
+                            UnbondingDelegationEntry {
+                                creation_height: 1002,
+                                completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                                initial_balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: DELEGATING_AMOUNT
+                                    }],
+                                balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: 8 * DELEGATING_AMOUNT / 10
+                                    }],
+                                unbonding_id: 2,
+                                unbonding_on_hold_ref_count: 0
+                            }]
+                    }
+                },
+            7,
+        );
+
+    }
+
+    // slash unbonding entry and delegation of dst
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_redelegate_and_slash3(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let new_release_time = time + TEST_RELEASE_PERIOD * 2;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+        let delegator1_addr = signer::address_of(delegator1);
+        let delegator1_staking_account_addr = get_staking_address(delegator1_addr);
+
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            3 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate to val
+        mock_delegate(
+            delegator1,
+            metadata,
+            3 * DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // redelegate to val2
+        mock_redelegate(
+            delegator1,
+            metadata,
+            option::some(2 * DELEGATING_AMOUNT),
+            release_time,
+            validator,
+            new_release_time,
+            val2,
+        );
+
+        // pass the release period
+        utils::increase_block(1000, new_release_time);
+
+        // undelegate val2 100
+        mock_undelegate(
+            delegator1,
+            metadata,
+            option::some(DELEGATING_AMOUNT / 10),
+            new_release_time,
+            val2,
+        );
+
+        // 10% slashing: -200
+        mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
+        // check locked share constant
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: 9 * DELEGATING_AMOUNT / 10,
+                        release_time,
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(
+                            19 * DELEGATING_AMOUNT / 10,
+                            1,
+                        ), // it's not same mstaking share
+                        amount: 18 * DELEGATING_AMOUNT / 10,
+                        release_time: new_release_time
+                    }],
+            1,
+        );
+        // check cosmos mstaking amount of val decreased by 10%
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                validator,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: validator,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1)
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: 9 * DELEGATING_AMOUNT / 10
+                    }]
+            },
+            2,
+        );
+
+        // check cosmos mstaking share and amount of val2 decreased
+        assert!(
+            get_delegation(
+                borrow_global<StakingAccount>(delegator1_staking_account_addr),
+                val2,
+                delegator1_staking_account_addr,
+                true,
+            ) == DelegationResponseInner {
+                delegation: Delegation {
+                    delegator_address: to_sdk(
+                        get_staking_address(signer::address_of(delegator1))
+                    ),
+                    validator_address: val2,
+                    shares: vector[
+                        DecCoin {
+                            denom: coin::metadata_to_denom(metadata),
+                            amount: bigdecimal::from_ratio_u64(
+                                18 * DELEGATING_AMOUNT / 10,
+                                1,
+                            ),
+                        }]
+                },
+                balance: vector[
+                    Coin {
+                        denom: coin::metadata_to_denom(metadata),
+                        amount: 18 * DELEGATING_AMOUNT / 10
+                    }]
+            },
+            3,
+        );
+
+        // check cosmos mstaking unbonding entry amount of val2 decreased by 20% by slashing val1
+        assert!(
+            get_unbonding_delegation(delegator1_staking_account_addr, val2)
+                == UnbondingDelegationResponse {
+                    unbond: UnbondingDelegation {
+                        delegator_address: to_sdk(delegator1_staking_account_addr),
+                        validator_address: val2,
+                        entries: vector[
+                            UnbondingDelegationEntry {
+                                creation_height: 1002,
+                                completion_time: string::utf8(b""), // mock mstaking module doesn't set compleation time
+                                initial_balance: vector[
+                                    Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: DELEGATING_AMOUNT / 10
+                                    }],
+                                balance: vector[Coin {
+                                        denom: string::utf8(b"INIT-USDC"),
+                                        amount: 0
+                                    }],
+                                unbonding_id: 2,
+                                unbonding_on_hold_ref_count: 0
+                            }]
+                    }
+                },
+            4,
+        );
+
+    }
 }

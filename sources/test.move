@@ -10,8 +10,7 @@ module vip::test {
     use initia_std::block;
     use initia_std::coin;
     use initia_std::dex;
-    use initia_std::decimal128;
-    use initia_std::decimal256::{Self, Decimal256};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::Metadata;
     use initia_std::object::Object;
     use initia_std::staking;
@@ -96,20 +95,20 @@ module vip::test {
         challenge_period
     }
 
-    const TEST_MIN_SCORE_RATIO: vector<u8> = b"0.5";
-    fun get_minimum_score_ratio(): Decimal256 {
+    const TEST_MIN_SCORE_RATIO: u64 = 5; // with 10 as the denominator
+    fun get_minimum_score_ratio(): BigDecimal {
         let (_, _, _, _, minimum_score_ratio, _, _, _, _) = vip::unpack_module_store();
         minimum_score_ratio
     }
 
-    const TEST_POOL_RATIO: vector<u8> = b"0.5";
-    fun get_pool_split_ratio(): Decimal256 {
+    const TEST_POOL_RATIO: u64 = 5; // with 10 as the denominator
+    fun get_pool_split_ratio(): BigDecimal {
         let (_, _, _, _, _, pool_split_ratio, _, _, _) = vip::unpack_module_store();
         pool_split_ratio
     }
 
-    const TEST_MAX_TVL_RATIO: vector<u8> = b"1";
-    fun get_maximum_tvl_ratio(): Decimal256 {
+    const TEST_MAX_TVL_RATIO: u64 = 10; // with 10 as the denominator
+    fun get_maximum_tvl_ratio(): BigDecimal {
         let (_, _, _, _, _, _, maximum_tvl_ratio, _, _) = vip::unpack_module_store();
         maximum_tvl_ratio
     }
@@ -120,8 +119,8 @@ module vip::test {
         minimum_eligible_tvl
     }
 
-    const TEST_MAX_WEIGHT_RATIO: vector<u8> = b"0.5";
-    fun get_maximum_weight_ratio(): Decimal256 {
+    const TEST_MAX_WEIGHT_RATIO: u64 = 5; // with 10 as the denominator
+    fun get_maximum_weight_ratio(): BigDecimal {
         let (_, _, _, _, _, _, _, _, maximum_weight_ratio) = vip::unpack_module_store();
         maximum_weight_ratio
     }
@@ -305,12 +304,10 @@ module vip::test {
             option::some(TEST_VESTING_PERIOD),
             option::none(),
             option::some(TEST_MIN_ELIGIBLE_TVL),
-            option::some(decimal256::one()),
-            option::some(
-                decimal256::from_string(&string::utf8(TEST_MAX_WEIGHT_RATIO))
-            ),
-            option::some(decimal256::from_string(&string::utf8(TEST_MIN_SCORE_RATIO))),
-            option::some(decimal256::from_string(&string::utf8(TEST_POOL_RATIO))),
+            option::some(bigdecimal::one()),
+            option::some(bigdecimal::from_ratio_u64(TEST_MAX_WEIGHT_RATIO, 10)),
+            option::some(bigdecimal::from_ratio_u64(TEST_MIN_SCORE_RATIO, 10)),
+            option::some(bigdecimal::from_ratio_u64(TEST_POOL_RATIO, 10)),
             option::some(TEST_CHALLENGE_PERIOD),
         );
         vault::deposit(chain, 9_000_000_000_000_000);
@@ -336,9 +333,9 @@ module vip::test {
             get_bridge_id(),
             get_bridge_address(),
             string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
             get_vm_type(),
         );
 
@@ -348,25 +345,25 @@ module vip::test {
             get_bridge2_id(),
             get_bridge2_address(),
             string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
             get_vm_type(),
         );
 
         vip::update_vip_weights(
             vip,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(1, 2), decimal256::from_ratio_u64(1, 2)],
+            vector[bigdecimal::from_ratio_u64(1, 2), bigdecimal::from_ratio_u64(1, 2)],
         );
         move_to(vip, TestState { last_submitted_stage: 0 });
         dex::create_pair_script(
             chain,
             string::utf8(b"pair"),
             string::utf8(b"INIT-USDC"),
-            decimal128::from_ratio(3, 1000),
-            decimal128::from_ratio(5, 10),
-            decimal128::from_ratio(5, 10),
+            bigdecimal::from_ratio_u64(3, 1000),
+            bigdecimal::from_ratio_u64(5, 10),
+            bigdecimal::from_ratio_u64(5, 10),
             init_metadata,
             usdc_metadata,
             100000,
@@ -382,7 +379,7 @@ module vip::test {
         staking::set_staking_share_ratio(
             *string::bytes(&get_validator()),
             &lp_metadata,
-            1,
+            &bigdecimal::one(),
             1,
         );
         vip::fund_reward_script(vip);
@@ -1181,9 +1178,9 @@ module vip::test {
             get_bridge_id(),
             get_bridge_address(),
             string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
             get_vm_type(),
         );
 
@@ -1791,9 +1788,9 @@ module vip::test {
             get_bridge_id(),
             get_bridge_address(),
             string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
             get_vm_type(),
         );
         // stage4 distributed
@@ -2117,9 +2114,9 @@ module vip::test {
             get_bridge_id(),
             get_bridge_address(),
             string::utf8(b"contract"),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
-            decimal256::from_ratio(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
+            bigdecimal::from_ratio_u64(1, 2),
             get_vm_type(),
         );
         assert!(vip::get_bridge_init_stage(get_bridge_id()) == 5, 1);
@@ -2359,7 +2356,7 @@ module vip::test {
         vip::update_vip_weights(
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[decimal256::from_ratio_u64(3, 5), decimal256::from_ratio_u64(2, 5)],
+            vector[bigdecimal::from_ratio_u64(3, 5), bigdecimal::from_ratio_u64(2, 5)],
         );
 
         submit_snapshot_and_fund_reward(
@@ -2410,8 +2407,8 @@ module vip::test {
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
             vector[
-                decimal256::from_ratio_u64(3, 10),
-                decimal256::from_ratio_u64(7, 10)],
+                bigdecimal::from_ratio_u64(3, 10),
+                bigdecimal::from_ratio_u64(7, 10)],
         );
         submit_snapshot_and_fund_reward(
             vip,

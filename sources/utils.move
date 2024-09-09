@@ -7,7 +7,7 @@ module vip::utils {
 
     use initia_std::address::to_sdk;
     use initia_std::coin;
-    use initia_std::decimal128::{Self, Decimal128};
+    use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::Metadata;
     use initia_std::json::{marshal, unmarshal};
     use initia_std::object::Object;
@@ -106,7 +106,8 @@ module vip::utils {
                     |coin| {
                         let Coin { denom, amount } = *coin;
                         let weight = simple_map::borrow(&weight_map, &denom);
-                        let voting_power = decimal128::mul_u64(weight, amount);
+                        let voting_power =
+                            bigdecimal::mul_by_u64_truncate(*weight, amount);
                         total_voting_power = total_voting_power + voting_power;
                     },
                 );
@@ -144,7 +145,8 @@ module vip::utils {
                         let (denom, amount) = unpack_coin(coin);
                         let metadata = coin::denom_to_metadata(denom);
                         let weight = simple_map::borrow(&weight_map, &denom);
-                        let voting_power = decimal128::mul_u64(weight, amount);
+                        let voting_power =
+                            bigdecimal::mul_by_u64_truncate(*weight, amount);
                         total_voting_power = total_voting_power + f(
                             metadata, voting_power
                         );
@@ -156,9 +158,9 @@ module vip::utils {
         total_voting_power
     }
 
-    public fun get_weight_map(): SimpleMap<String, Decimal128> {
+    public fun get_weight_map(): SimpleMap<String, BigDecimal> {
         let PoolResponse { pool } = get_pool();
-        let weight_map = simple_map::create<String, Decimal128>();
+        let weight_map = simple_map::create<String, BigDecimal>();
         vector::for_each_ref(
             &pool.voting_power_weights,
             |weight| {
@@ -260,7 +262,7 @@ module vip::utils {
 
     struct DecCoin has copy, drop {
         denom: String,
-        amount: Decimal128,
+        amount: BigDecimal,
     }
 
     #[test_only]
