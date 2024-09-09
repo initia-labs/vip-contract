@@ -273,5 +273,4 @@ module vip::utils {
         let (curr_height, curr_time) = block::get_block_info();
         block::set_block_info(curr_height + height_diff, curr_time + time_diff);
     }
-
 }

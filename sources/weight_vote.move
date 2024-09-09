@@ -790,7 +790,7 @@ module vip::weight_vote {
         );
         // remove former vote
         if (table::contains(&proposal.votes, addr)) {
-            let WeightVote { max_voting_power , voting_power: _, weights } =
+            let WeightVote { max_voting_power, voting_power: _, weights } =
                 table::remove(&mut proposal.votes, addr);
             remove_vote(proposal, max_voting_power, weights);
         };
@@ -897,18 +897,19 @@ module vip::weight_vote {
             cycle_start_time,
             cycle_interval,
             voting_period,
-            signer::address_of(vesting_creator)
+            signer::address_of(vesting_creator),
         );
         lock_staking::init_module_for_test(vip);
         mock_lock_staking::initialize(chain, vip);
         vesting::test_init(vesting_creator);
-        let capability = vesting::create_vesting_store(vesting_creator,mock_mstaking::get_init_metadata());
+        let capability =
+            vesting::create_vesting_store(
+                vesting_creator, mock_mstaking::get_init_metadata()
+            );
         vesting::disable_claim(&capability);
         move_to(
             vip,
-            TestState {
-                capability
-            }
+            TestState { capability },
         );
         block::set_block_info(100, 101);
         tvl_manager::init_module_for_test(vip);
@@ -922,7 +923,7 @@ module vip::weight_vote {
             bigdecimal::zero(),
             bigdecimal::zero(),
             bigdecimal::zero(),
-            vm_type
+            vm_type,
         );
         vip::register(
             vip,
@@ -933,7 +934,7 @@ module vip::weight_vote {
             bigdecimal::zero(),
             bigdecimal::zero(),
             bigdecimal::zero(),
-            vm_type
+            vm_type,
         );
 
         let init_metadata = mock_mstaking::get_init_metadata();
@@ -943,50 +944,50 @@ module vip::weight_vote {
             chain,
             @0x101,
             init_metadata,
-            200
+            200,
         );
         coin::transfer(
             chain,
             @0x102,
             init_metadata,
-            200
+            200,
         );
 
         coin::transfer(
             chain,
             @0x103,
             init_metadata,
-            200
+            200,
         );
         coin::transfer(
             chain,
             @0x104,
             init_metadata,
-            200
+            200,
         );
         coin::transfer(
             chain,
             @0x101,
             lp_metadata,
-            200
+            200,
         );
         coin::transfer(
             chain,
             @0x102,
             lp_metadata,
-            200
+            200,
         );
         coin::transfer(
             chain,
             @0x103,
             lp_metadata,
-            200
+            200,
         );
         coin::transfer(
             chain,
             @0x104,
             lp_metadata,
-            200
+            200,
         );
     }
 
@@ -997,27 +998,28 @@ module vip::weight_vote {
         vip: &signer,
         vesting_creator: &signer,
         u1: &signer,
-        u2: &signer,) acquires ModuleStore {
+        u2: &signer,
+    ) acquires ModuleStore {
         init_test(chain, vip, vesting_creator);
         let validator = mock_mstaking::get_validator1();
         let init_metadata = mock_mstaking::get_init_metadata();
         let lp_metadata = mock_mstaking::get_lp_metadata();
 
         // check the mstaking delegation makes the voting power
-        mock_mstaking::delegate(u1, validator,init_metadata, 10);
-        mock_mstaking::delegate(u2, validator,init_metadata, 30);
-        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 10 , 1);
-        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 30 , 1);
+        mock_mstaking::delegate(u1, validator, init_metadata, 10);
+        mock_mstaking::delegate(u2, validator, init_metadata, 30);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 10, 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 30, 1);
 
-        mock_mstaking::delegate(u1, validator,init_metadata, 30);
-        mock_mstaking::delegate(u2, validator,init_metadata, 10);
-        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 40 , 1);
-        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 40 , 1);
-        
-        mock_mstaking::undelegate(u1, validator,init_metadata, 10);
-        mock_mstaking::undelegate(u2, validator,init_metadata, 10);
-        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 30 , 1);
-        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 30 , 1);
+        mock_mstaking::delegate(u1, validator, init_metadata, 30);
+        mock_mstaking::delegate(u2, validator, init_metadata, 10);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 40, 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 40, 1);
+
+        mock_mstaking::undelegate(u1, validator, init_metadata, 10);
+        mock_mstaking::undelegate(u2, validator, init_metadata, 10);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 30, 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 30, 1);
 
         // check the lock staking delegation makes the voting power
         mock_lock_staking::delegate(u1, lp_metadata, 30, 60 * 60 * 24 * 26, validator);
@@ -1025,24 +1027,23 @@ module vip::weight_vote {
         mock_lock_staking::delegate(u2, lp_metadata, 80, 60 * 60 * 24 * 26, validator);
         skip_period(2);
 
-        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 60 , 1);
-        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 110 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 60, 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 110, 1);
 
         mock_lock_staking::delegate(u1, lp_metadata, 90, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         mock_lock_staking::delegate(u2, lp_metadata, 40, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 150 , 1);
-        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 150 , 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 150, 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 150, 1);
 
         mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
-        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 135 , 1);
-        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 135 , 1);
-        
+        assert!(mock_calculate_voting_power(signer::address_of(u1)) == 135, 1);
+        assert!(mock_calculate_voting_power(signer::address_of(u2)) == 135, 1);
 
     }
 
-    #[test(chain = @0x1, vip = @vip,vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102)]
+    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102)]
     fun mock_vote_with_dynamic_voting_power(
         chain: &signer,
         vip: &signer,
@@ -1055,10 +1056,10 @@ module vip::weight_vote {
         let validator = mock_mstaking::get_validator1();
         let init_metadata = mock_mstaking::get_init_metadata();
         let lp_metadata = mock_mstaking::get_lp_metadata();
-        mock_mstaking::delegate(u1, validator,init_metadata, 5);
+        mock_mstaking::delegate(u1, validator, init_metadata, 5);
         mock_lock_staking::delegate(u1, lp_metadata, 5, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        mock_mstaking::delegate(u2, validator,init_metadata, 10);
+        mock_mstaking::delegate(u2, validator, init_metadata, 10);
         mock_lock_staking::delegate(u2, lp_metadata, 10, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         mock_vote(
@@ -1082,10 +1083,10 @@ module vip::weight_vote {
         let total_tally = get_total_tally(1);
         assert!(vote1 == 10, 1);
         assert!(vote2 == 20, 2);
-        assert!(total_tally ==30, 3);
+        assert!(total_tally == 30, 3);
 
-        mock_mstaking::delegate(u1,validator,init_metadata, 5);
-        mock_mstaking::undelegate(u2,validator,init_metadata, 5);
+        mock_mstaking::delegate(u1, validator, init_metadata, 5);
+        mock_mstaking::undelegate(u2, validator, init_metadata, 5);
 
         mock_vote(
             u1,
@@ -1093,7 +1094,6 @@ module vip::weight_vote {
             vector[1, 2],
             vector[bigdecimal::from_ratio_u64(1, 2), bigdecimal::from_ratio_u64(1, 2)], // 7 / 7
         );
-        
 
         proposal = get_proposal(1);
         assert!(proposal.total_tally == 34, 0);
@@ -1121,8 +1121,7 @@ module vip::weight_vote {
         assert!(total_tally == 22, 10);
     }
 
-
-    #[test(chain = @0x1, vip = @vip,vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
+    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102, u3 = @0x103, u4 = @0x104)]
     fun proposal_end_to_end(
         chain: &signer,
         vip: &signer,
@@ -1137,14 +1136,14 @@ module vip::weight_vote {
         let validator = mock_mstaking::get_validator1();
         let init_metadata = mock_mstaking::get_init_metadata();
         let lp_metadata = mock_mstaking::get_lp_metadata();
-        mock_mstaking::delegate(u1, validator,init_metadata, 5);
+        mock_mstaking::delegate(u1, validator, init_metadata, 5);
         mock_lock_staking::delegate(u1, lp_metadata, 5, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        mock_mstaking::delegate(u2, validator,init_metadata, 10);
+        mock_mstaking::delegate(u2, validator, init_metadata, 10);
         mock_lock_staking::delegate(u2, lp_metadata, 10, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        mock_mstaking::delegate(u3, validator,init_metadata, 30);
-        mock_mstaking::delegate(u4, validator,init_metadata, 40);
+        mock_mstaking::delegate(u3, validator, init_metadata, 30);
+        mock_mstaking::delegate(u4, validator, init_metadata, 40);
         mock_vote(
             u1,
             cycle,
