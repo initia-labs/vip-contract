@@ -961,141 +961,22 @@ module vip::vesting {
         operator_vesting_store.last_claimed_stage = last_claimed_stage;
     }
 
-    //
-    // View Functions
-    //
-    // <----- USER ----->
-    #[view]
-    public fun get_user_unlocked_reward(
-        account_addr: address, bridge_id: u64, version: u64,
-    ): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let total_unlocked_reward = 0;
-        let user_vestings =
-            load_user_vestings_imut(module_store, bridge_id, version, account_addr);
-        utils::walk<vector<u8>, UserVesting>(
-            user_vestings,
-            option::none(),
-            option::none(),
-            1,
-            |_k, user_vesting| {
-                use_user_vesting_ref(user_vesting);
-                total_unlocked_reward = total_unlocked_reward + user_vesting.initial_reward
-                    - user_vesting.remaining_reward;
-                false
-            },
-        );
-        total_unlocked_reward
-    }
-
-    #[view]
-    public fun get_user_locked_reward(
-        account_addr: address, bridge_id: u64, version: u64,
-    ): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let total_locked_reward = 0;
-        let user_vestings =
-            load_user_vestings_imut(module_store, bridge_id, version, account_addr);
-        utils::walk<vector<u8>, UserVesting>(
-            user_vestings,
-            option::none(),
-            option::none(),
-            1,
-            |_k, user_vesting| {
-                use_user_vesting_ref(user_vesting);
-                total_locked_reward = total_locked_reward + user_vesting.remaining_reward;
-                false
-            },
-        );
-        total_locked_reward
-    }
-
-    #[view]
     public fun get_user_last_claimed_stage(
         account_addr: address, bridge_id: u64, version: u64,
     ): u64 acquires ModuleStore {
         get_last_claimed_stage<UserVesting>(account_addr, bridge_id, version)
     }
 
-    #[view]
-    public fun get_user_claimed_stages(
-        account_addr: address, bridge_id: u64, version: u64,
-    ): vector<u64> acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let claimed_stages = vector::empty<u64>();
-        let user_vestings =
-            load_user_vestings_imut(module_store, bridge_id, version, account_addr);
-        utils::walk(
-            user_vestings,
-            option::none(),
-            option::none(),
-            1,
-            |stage_key, _v| {
-                vector::push_back(
-                    &mut claimed_stages,
-                    table_key::decode_u64(stage_key),
-                );
-                false
-            },
-        );
-        claimed_stages
-    }
-
-    // <----- OPERATOR ----->
-    #[view]
-    public fun get_operator_unlocked_reward(
-        bridge_id: u64, version: u64,
-    ): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let total_unlocked_reward = 0;
-        let operator_vestings =
-            load_operator_vestings_imut(module_store, bridge_id, version);
-        utils::walk(
-            operator_vestings,
-            option::none(),
-            option::none(),
-            1,
-            |_k, operator_vesting| {
-                use_operator_vesting_ref(operator_vesting);
-                total_unlocked_reward = total_unlocked_reward
-                    + (
-                        operator_vesting.initial_reward - operator_vesting.remaining_reward
-                    );
-                false
-            },
-        );
-        total_unlocked_reward
-    }
-
-    #[view]
     public fun get_operator_last_claimed_stage(
         bridge_id: u64, version: u64,
     ): u64 acquires ModuleStore {
         get_last_claimed_stage<OperatorVesting>(@0x0, bridge_id, version)
     }
 
-    #[view]
-    public fun get_operator_claimed_stages(bridge_id: u64, version: u64): vector<u64> acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let claimed_stages = vector::empty<u64>();
-        let operator_vestings =
-            load_operator_vestings_imut(module_store, bridge_id, version);
-        utils::walk(
-            operator_vestings,
-            option::none(),
-            option::none(),
-            1,
-            |stage_key, _v| {
-                vector::push_back(
-                    &mut claimed_stages,
-                    table_key::decode_u64(stage_key),
-                );
-                false
-            },
-        );
-        claimed_stages
-    }
-
+    //
+    // View Functions
+    //
+    // <----- USER ----->
     #[view]
     public fun get_user_vesting(
         account_addr: address, bridge_id: u64, version: u64, stage: u64
@@ -1115,6 +996,7 @@ module vip::vesting {
         }
     }
 
+    // <----- OPERATOR ----->
     #[view]
     public fun get_operator_vesting(
         bridge_id: u64, version: u64, stage: u64

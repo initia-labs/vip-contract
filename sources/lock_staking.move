@@ -2367,7 +2367,6 @@ module vip::lock_staking {
         assert!(coin::balance(delegator1_staking_addr, metadata) == 0, 9);
     }
 
-    // #[test]
     #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
     fun test_delegate_and_slash(
         chain: &signer, vip: &signer, delegator1: &signer

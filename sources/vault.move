@@ -93,43 +93,45 @@ module vip::vault {
         vault_store.reward_per_stage = reward_per_stage;
     }
 
-    //
-    // View Functions
-    //
-
-    #[view]
-    public fun get_vault_store_address(): address acquires ModuleStore {
-        borrow_global<ModuleStore>(@vip).vault_store_addr
-    }
-
-    #[view]
-    public fun balance(): u64 acquires ModuleStore {
-        let vault_store_addr = get_vault_store_address();
-        primary_fungible_store::balance(vault_store_addr, reward_metadata())
-    }
-
-    #[view]
     public fun reward_per_stage(): u64 acquires ModuleStore {
         let vault_store = borrow_global<ModuleStore>(@vip);
         vault_store.reward_per_stage
     }
 
-    #[view]
     public fun reward_metadata(): Object<Metadata> {
         coin::metadata(@initia_std, string::utf8(b"uinit"))
     }
 
     //
+    // View Functions
+    //
+    #[view]
+    public fun get_vault_store_address(): address acquires ModuleStore {
+        borrow_global<ModuleStore>(@vip).vault_store_addr
+    }
+
+    //
     // Tests
     //
-
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
     }
 
     #[test_only]
+    public fun balance(): u64 acquires ModuleStore {
+        let vault_store_addr = get_vault_store_address();
+        primary_fungible_store::balance(vault_store_addr, reward_metadata())
+    }
+
+    #[test_only]
     use initia_std::option;
+
+    #[test_only]
+    use initia_std::signer;
+
+    #[test_only]
+    use initia_std::fungible_asset;
 
     #[test_only]
     fun initialize_coin(account: &signer, symbol: string::String)
@@ -150,46 +152,33 @@ module vip::vault {
         (burn_cap, freeze_cap, mint_cap)
     }
 
-    // #[test(chain = @0x1, vip = @vip, funder = @0x2)]
-    // fun e2e(
-    //     chain: &signer,
-    //     vip: &signer,
-    //     funder: &signer
-    // ) acquires ModuleStore {
-    //     primary_fungible_store::init_module_for_test(chain);
-    //     init_module(initia_std);
-    //     let (_, _, mint_cap) = initialize_coin(chain, string::utf8(b"uinit"));
-    //     coin::mint_to(
-    //         &mint_cap,
-    //         signer::address_of(funder),
-    //         1000000
-    //     );
+    #[test(chain = @0x1, vip = @vip, funder = @0x2)]
+    fun e2e(
+        chain: &signer, vip: &signer, funder: &signer
+    ) acquires ModuleStore {
+        primary_fungible_store::init_module_for_test();
+        init_module(vip);
+        let (_, _, mint_cap) = initialize_coin(chain, string::utf8(b"uinit"));
+        coin::mint_to(
+            &mint_cap,
+            signer::address_of(funder),
+            1000000,
+        );
 
-    //     // udpate reward_per_stage
-    //     update_reward_per_stage(initia_std, 1000);
-    //     assert!(reward_per_stage() == 1000, 1);
+        // udpate reward_per_stage
+        update_reward_per_stage(vip, 1000);
+        assert!(reward_per_stage() == 1000, 1);
 
-    //     // deposit
-    //     deposit(funder, 1000);
-    //     assert!(balance() == 1000, 2);
-    //     let vault_addr = get_vault_store_address();
-    //     assert!(
-    //         coin::balance(
-    //             vault_addr,
-    //             coin::metadata(@0x1, string::utf8(b"uinit"))
-    //         ) == balance(),
-    //         3
-    //     );
+        // deposit 1000
+        deposit(funder, 1000);
+        assert!(balance() == 1000, 2);
 
-    //     // claim
-    //     let fa = claim(1);
-    //     assert!(
-    //         fungible_asset::amount(&fa) == 1000,
-    //         4
-    //     );
-    //     let module_store = borrow_global<ModuleStore>(@vip);
-    //     assert!(module_store.claimable_stage == 2, 5);
+        // withdraw 500
+        let withdrawn_reward = withdraw(500);
+        assert!(fungible_asset::amount(&withdrawn_reward) == 500, 3);
+        assert!(balance() == 500, 4);
 
-    //     coin::deposit(@0x1, fa);
-    // }
+        // deposit to funder
+        primary_fungible_store::deposit(signer::address_of(funder), withdrawn_reward);
+    }
 }

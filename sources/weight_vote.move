@@ -85,15 +85,6 @@ module vip::weight_vote {
     //
     // responses
     //
-
-    struct ModuleResponse has drop {
-        current_cycle: u64,
-        cycle_start_time: u64,
-        cycle_end_time: u64,
-        cycle_interval: u64,
-        voting_period: u64,
-    }
-
     struct ProposalResponse has drop {
         total_tally: u64,
         voting_end_time: u64,
@@ -219,7 +210,7 @@ module vip::weight_vote {
         create_proposal();
         vip::add_tvl_snapshot();
         let addr = signer::address_of(account);
-        let max_voting_power = calculate_voting_power(addr);
+        let max_voting_power = get_voting_power(addr);
         assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -506,57 +497,6 @@ module vip::weight_vote {
         voting_start_time
     }
 
-    fun calculate_voting_power(addr: address): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let cosmos_voting_power =
-            utils::get_customized_voting_power(
-                addr,
-                |metadata, voting_power| {
-                    let weight =
-                        table::borrow_with_default(
-                            &module_store.pair_weights,
-                            metadata,
-                            &bigdecimal::one(),
-                        );
-                    bigdecimal::mul_by_u64_truncate(*weight, voting_power)
-                },
-            );
-
-        let lock_staking_voting_power = 0;
-        let locked_delegations = lock_staking::get_locked_delegations(addr);
-        let weight_map = utils::get_weight_map();
-        vector::for_each_ref(
-            &locked_delegations,
-            |delegation| {
-                let (metadata, _, amount, _) =
-                    lock_staking::unpack_locked_delegation(delegation);
-                let denom = coin::metadata_to_denom(metadata);
-                let voting_power_weight = simple_map::borrow(&weight_map, &denom);
-                let voting_power =
-                    bigdecimal::mul_by_u64_truncate(*voting_power_weight, amount);
-                let pair_weight =
-                    table::borrow_with_default(
-                        &module_store.pair_weights,
-                        metadata,
-                        &bigdecimal::one(),
-                    );
-                lock_staking_voting_power = lock_staking_voting_power
-                    + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
-            },
-        );
-        // TODO: lock time weight multplier
-
-        let vesting_voting_power =
-            get_vesting_voting_power(module_store.core_vesting_creator, addr);
-        // mul weight
-        let init_weight = simple_map::borrow(&weight_map, &string::utf8(b"uinit"));
-        vesting_voting_power = bigdecimal::mul_by_u64_truncate(
-            *init_weight, vesting_voting_power
-        );
-
-        cosmos_voting_power + lock_staking_voting_power + vesting_voting_power
-    }
-
     fun get_vesting_voting_power(creator: address, addr: address): u64 {
         if (!vesting::has_vesting(creator, addr)) {
             return 0
@@ -584,19 +524,6 @@ module vip::weight_vote {
     //
 
     #[view]
-    public fun get_module_store(): ModuleResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-
-        ModuleResponse {
-            current_cycle: module_store.current_cycle,
-            cycle_start_time: module_store.cycle_start_time,
-            cycle_end_time: module_store.cycle_end_time,
-            cycle_interval: module_store.cycle_interval,
-            voting_period: module_store.voting_period,
-        }
-    }
-
-    #[view]
     public fun get_total_tally(cycle: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
@@ -606,22 +533,6 @@ module vip::weight_vote {
         );
         let proposal = table::borrow(&module_store.proposals, cycle_key);
         proposal.total_tally
-    }
-
-    #[view]
-    public fun get_tally(cycle: u64, bridge_id: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let cycle_key = table_key::encode_u64(cycle);
-        assert!(
-            table::contains(&module_store.proposals, cycle_key),
-            error::not_found(ECYCLE_NOT_FOUND),
-        );
-        let proposal = table::borrow(&module_store.proposals, cycle_key);
-        *table::borrow_with_default(
-            &proposal.tallies,
-            table_key::encode_u64(bridge_id),
-            &0,
-        )
     }
 
     #[view]
@@ -675,6 +586,58 @@ module vip::weight_vote {
     }
 
     #[view]
+    public fun get_voting_power(addr: address): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let cosmos_voting_power =
+            utils::get_customized_voting_power(
+                addr,
+                |metadata, voting_power| {
+                    let weight =
+                        table::borrow_with_default(
+                            &module_store.pair_weights,
+                            metadata,
+                            &bigdecimal::one(),
+                        );
+                    bigdecimal::mul_by_u64_truncate(*weight, voting_power)
+                },
+            );
+
+        let lock_staking_voting_power = 0;
+        let locked_delegations = lock_staking::get_locked_delegations(addr);
+        let weight_map = utils::get_weight_map();
+        vector::for_each_ref(
+            &locked_delegations,
+            |delegation| {
+                let (metadata, _, amount, _) =
+                    lock_staking::unpack_locked_delegation(delegation);
+                let denom = coin::metadata_to_denom(metadata);
+                let voting_power_weight = simple_map::borrow(&weight_map, &denom);
+                let voting_power =
+                    bigdecimal::mul_by_u64_truncate(*voting_power_weight, amount);
+                let pair_weight =
+                    table::borrow_with_default(
+                        &module_store.pair_weights,
+                        metadata,
+                        &bigdecimal::one(),
+                    );
+                lock_staking_voting_power = lock_staking_voting_power
+                    + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
+            },
+        );
+        // TODO: lock time weight multplier
+
+        let vesting_voting_power =
+            get_vesting_voting_power(module_store.core_vesting_creator, addr);
+        // mul weight
+        let init_weight = simple_map::borrow(&weight_map, &string::utf8(b"uinit"));
+        vesting_voting_power = bigdecimal::mul_by_u64_truncate(
+            *init_weight, vesting_voting_power
+        );
+
+        cosmos_voting_power + lock_staking_voting_power + vesting_voting_power
+    }
+
+    #[view]
     public fun get_weight_vote(cycle: u64, user: address): WeightVoteResponse acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let cycle_key = table_key::encode_u64(cycle);
@@ -700,11 +663,6 @@ module vip::weight_vote {
             voting_power: *voting_power,
             weights: *weights
         }
-    }
-
-    #[view]
-    public fun get_voting_power(user: address): u64 acquires ModuleStore {
-        calculate_voting_power(user)
     }
 
     inline fun use_weight(_v: Weight) {}
@@ -733,6 +691,22 @@ module vip::weight_vote {
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
         block::set_block_info(height + period / 2, curr_time + period);
+    }
+
+    #[test_only]
+    public fun get_tally(cycle: u64, bridge_id: u64): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let cycle_key = table_key::encode_u64(cycle);
+        assert!(
+            table::contains(&module_store.proposals, cycle_key),
+            error::not_found(ECYCLE_NOT_FOUND),
+        );
+        let proposal = table::borrow(&module_store.proposals, cycle_key);
+        *table::borrow_with_default(
+            &proposal.tallies,
+            table_key::encode_u64(bridge_id),
+            &0,
+        )
     }
 
     #[test_only]
@@ -839,7 +813,7 @@ module vip::weight_vote {
 
     // test calculate voting power by comsos staking(mstaking), lock staking
     #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102)]
-    fun test_calculate_voting_power(
+    fun test_get_voting_power(
         chain: &signer,
         vip: &signer,
         vesting_creator: &signer,
@@ -854,18 +828,18 @@ module vip::weight_vote {
         // check the mstaking delegation makes the voting power
         mock_mstaking::delegate(u1, validator, init_metadata, 10);
         mock_mstaking::delegate(u2, validator, init_metadata, 30);
-        assert!(calculate_voting_power(signer::address_of(u1)) == 10, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 30, 1);
+        assert!(get_voting_power(signer::address_of(u1)) == 10, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 30, 1);
 
         mock_mstaking::delegate(u1, validator, init_metadata, 30);
         mock_mstaking::delegate(u2, validator, init_metadata, 10);
-        assert!(calculate_voting_power(signer::address_of(u1)) == 40, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 40, 1);
+        assert!(get_voting_power(signer::address_of(u1)) == 40, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 40, 1);
 
         mock_mstaking::undelegate(u1, validator, init_metadata, 10);
         mock_mstaking::undelegate(u2, validator, init_metadata, 10);
-        assert!(calculate_voting_power(signer::address_of(u1)) == 30, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 30, 1);
+        assert!(get_voting_power(signer::address_of(u1)) == 30, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 30, 1);
 
         // check the lock staking delegation makes the voting power
         lock_staking::mock_delegate(u1, lp_metadata, 30, 60 * 60 * 24 * 26, validator);
@@ -873,31 +847,41 @@ module vip::weight_vote {
         lock_staking::mock_delegate(u2, lp_metadata, 80, 60 * 60 * 24 * 26, validator);
         skip_period(2);
 
-        assert!(calculate_voting_power(signer::address_of(u1)) == 60, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 110, 1);
+        assert!(get_voting_power(signer::address_of(u1)) == 60, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 110, 1);
 
         lock_staking::mock_delegate(u1, lp_metadata, 90, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         lock_staking::mock_delegate(u2, lp_metadata, 40, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        assert!(calculate_voting_power(signer::address_of(u1)) == 150, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 150, 1);
-        
+        assert!(get_voting_power(signer::address_of(u1)) == 150, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 150, 1);
 
         mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
-        assert!(calculate_voting_power(signer::address_of(u1)) == 135, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 135, 1);
-        
+        assert!(get_voting_power(signer::address_of(u1)) == 135, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 135, 1);
 
         // undelegate lock staking 108(120 * 0.9 ,by slash)
         skip_period(60 * 60 * 24 * 26);
-        lock_staking::mock_undelegate(u1, lp_metadata, option::none(), 60 * 60 * 24 * 26, validator);
+        lock_staking::mock_undelegate(
+            u1,
+            lp_metadata,
+            option::none(),
+            60 * 60 * 24 * 26,
+            validator,
+        );
         skip_period(2);
-        lock_staking::mock_undelegate(u2, lp_metadata, option::none(), 60 * 60 * 24 * 26, validator);
+        lock_staking::mock_undelegate(
+            u2,
+            lp_metadata,
+            option::none(),
+            60 * 60 * 24 * 26,
+            validator,
+        );
         skip_period(2);
 
-        assert!(calculate_voting_power(signer::address_of(u1)) == 27, 1);
-        assert!(calculate_voting_power(signer::address_of(u2)) == 27, 1);
+        assert!(get_voting_power(signer::address_of(u1)) == 27, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 27, 1);
 
     }
 

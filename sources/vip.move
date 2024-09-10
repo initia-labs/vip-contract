@@ -192,36 +192,6 @@ module vip::vip {
     //
     // Responses
     //
-
-    struct ModuleResponse has drop {
-        stage: u64,
-        stage_interval: u64,
-        agent_data: AgentData,
-        minimum_score_ratio: BigDecimal,
-        pool_split_ratio: BigDecimal,
-        vesting_period: u64,
-        minimum_eligible_tvl: u64,
-        maximum_tvl_ratio: BigDecimal,
-        challenge_period: u64,
-    }
-
-    struct SnapshotResponse has drop {
-        create_time: u64,
-        upsert_time: u64,
-        merkle_root: vector<u8>,
-        total_l2_score: u64
-    }
-
-    struct StageDataResponse has drop {
-        stage_start_time: u64,
-        stage_end_time: u64,
-        pool_split_ratio: BigDecimal,
-        total_operator_funded_reward: u64,
-        total_user_funded_reward: u64,
-        vesting_period: u64,
-        minimum_score_ratio: BigDecimal,
-    }
-
     struct BridgeResponse has drop {
         init_stage: u64,
         bridge_id: u64,
@@ -233,14 +203,6 @@ module vip::vip {
         vm_type: u64,
     }
 
-    struct ExecutedChallengeResponse has drop {
-        title: string::String,
-        summary: string::String,
-        new_api_uri: string::String,
-        new_agent: address,
-        new_merkle_root: vector<u8>,
-    }
-
     struct TotalL2ScoreResponse has drop {
         bridge_id: u64,
         version: u64,
@@ -250,7 +212,6 @@ module vip::vip {
     //
     // Events
     //
-
     #[event]
     struct FundEvent has drop, store {
         stage: u64,
@@ -1964,65 +1925,6 @@ module vip::vip {
         table::borrow(&module_store.bridges, key)
     }
 
-    //
-    // View Functions
-    //
-
-    #[view]
-    public fun get_snapshot(bridge_id: u64, stage: u64): SnapshotResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
-        let snapshot = load_snapshot_imut(module_store, stage, bridge_id, version);
-        SnapshotResponse {
-            create_time: snapshot.create_time,
-            upsert_time: snapshot.upsert_time,
-            merkle_root: snapshot.merkle_root,
-            total_l2_score: snapshot.total_l2_score,
-        }
-    }
-
-    #[view]
-    public fun get_expected_reward(
-        bridge_id: u64, fund_reward_amount: u64
-    ): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let (bridge_ids, _) = get_whitelisted_bridge_ids_internal(module_store);
-        let balance_shares = calculate_balance_share(module_store, bridge_ids);
-        let weight_shares = calculate_weight_share(module_store);
-        assert!(
-            fund_reward_amount > 0,
-            error::invalid_argument(EINVALID_TOTAL_REWARD),
-        );
-
-        let weight_ratio =
-            bigdecimal::sub(
-                bigdecimal::one(),
-                module_store.pool_split_ratio,
-            );
-        let balance_pool_reward_amount =
-            bigdecimal::mul_by_u64_truncate(
-                module_store.pool_split_ratio,
-                fund_reward_amount,
-            );
-        let weight_pool_reward_amount =
-            bigdecimal::mul_by_u64_truncate(weight_ratio, fund_reward_amount);
-        let balance_split_amount =
-            split_reward_with_share_internal(
-                &balance_shares,
-                bridge_id,
-                balance_pool_reward_amount,
-            );
-        let weight_split_amount =
-            split_reward_with_share_internal(
-                &weight_shares,
-                bridge_id,
-                weight_pool_reward_amount,
-            );
-        balance_split_amount + weight_split_amount
-    }
-
-    #[view]
     public fun get_last_submitted_stage(bridge_id: u64, version: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let iter = table::iter(
@@ -2067,54 +1969,20 @@ module vip::vip {
         0
     }
 
-    #[view]
-    public fun get_stage_data(stage: u64): StageDataResponse acquires ModuleStore {
+    public fun get_whitelisted_bridge_ids(): (vector<u64>, vector<u64>) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let stage_data = load_stage_data_imut(module_store, stage);
-        StageDataResponse {
-            stage_start_time: stage_data.stage_start_time,
-            stage_end_time: stage_data.stage_end_time,
-            pool_split_ratio: stage_data.pool_split_ratio,
-            total_operator_funded_reward: stage_data.total_operator_funded_reward,
-            total_user_funded_reward: stage_data.total_user_funded_reward,
-            vesting_period: stage_data.vesting_period,
-            minimum_score_ratio: stage_data.minimum_score_ratio,
-        }
+        get_whitelisted_bridge_ids_internal(module_store)
     }
 
-    #[view]
-    public fun get_bridge_info(bridge_id: u64): BridgeResponse acquires ModuleStore {
+    public fun is_registered(bridge_id: u64): bool acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
-        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
-        let bridge = load_registered_bridge_imut(module_store, bridge_id, version);
-        BridgeResponse {
-            init_stage: bridge.init_stage,
-            bridge_id,
-            version,
-            bridge_addr: bridge.bridge_addr,
-            operator_addr: bridge.operator_addr,
-            vip_l2_score_contract: bridge.vip_l2_score_contract,
-            vip_weight: bridge.vip_weight,
-            vm_type: bridge.vm_type
-        }
+        let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
+        is_registered
     }
 
-    #[view]
-    public fun get_executed_challenge(challenge_id: u64): ExecutedChallengeResponse acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let key = table_key::encode_u64(challenge_id);
-        let executed_challenge = table::borrow(&module_store.challenges, key);
-
-        ExecutedChallengeResponse {
-            title: executed_challenge.title,
-            summary: executed_challenge.summary,
-            new_api_uri: executed_challenge.api_uri,
-            new_agent: executed_challenge.new_agent,
-            new_merkle_root: executed_challenge.merkle_root,
-        }
-    }
-
+    //
+    // View Functions
+    //
     #[view]
     public fun get_bridge_infos(): vector<BridgeResponse> acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
@@ -2154,19 +2022,6 @@ module vip::vip {
     }
 
     #[view]
-    public fun get_whitelisted_bridge_ids(): (vector<u64>, vector<u64>) acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        get_whitelisted_bridge_ids_internal(module_store)
-    }
-
-    #[view]
-    public fun is_registered(bridge_id: u64): bool acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
-        is_registered
-    }
-
-    #[view]
     public fun get_total_l2_scores(stage: u64): vector<TotalL2ScoreResponse> acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let stage_key = table_key::encode_u64(stage);
@@ -2195,38 +2050,6 @@ module vip::vip {
             },
         );
         total_l2_scores
-    }
-
-    #[view]
-    public fun get_module_store(): ModuleResponse acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-
-        ModuleResponse {
-            stage: module_store.stage,
-            stage_interval: module_store.stage_interval,
-            agent_data: AgentData {
-                agent: module_store.agent_data.agent,
-                api_uri: module_store.agent_data.api_uri
-            },
-            minimum_score_ratio: module_store.minimum_score_ratio,
-            pool_split_ratio: module_store.pool_split_ratio,
-            vesting_period: module_store.vesting_period,
-            minimum_eligible_tvl: module_store.minimum_eligible_tvl,
-            maximum_tvl_ratio: module_store.maximum_tvl_ratio,
-            challenge_period: module_store.challenge_period,
-        }
-    }
-
-    #[view]
-    public fun get_user_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        get_user_funded_reward_internal(module_store, bridge_id, stage)
-    }
-
-    #[view]
-    public fun get_operator_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
-        let module_store = borrow_global<ModuleStore>(@vip);
-        get_operator_funded_reward_internal(module_store, bridge_id, stage)
     }
 
     //
@@ -2324,6 +2147,25 @@ module vip::vip {
 
     #[test_only]
     const NEW_L2_TOTAL_SCORE_FOR_TEST: u64 = 1000;
+
+    #[test_only]
+    public fun get_bridge_info(bridge_id: u64): BridgeResponse acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
+        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
+        let bridge = load_registered_bridge_imut(module_store, bridge_id, version);
+        BridgeResponse {
+            init_stage: bridge.init_stage,
+            bridge_id,
+            version,
+            bridge_addr: bridge.bridge_addr,
+            operator_addr: bridge.operator_addr,
+            vip_l2_score_contract: bridge.vip_l2_score_contract,
+            vip_weight: bridge.vip_weight,
+            vm_type: bridge.vm_type
+        }
+    }
+
     #[test_only]
     public fun unpack_module_store()
         : (
@@ -2354,6 +2196,18 @@ module vip::vip {
     #[test_only]
     public fun get_bridge_init_stage(bridge_id: u64): u64 acquires ModuleStore {
         get_bridge_info(bridge_id).init_stage
+    }
+
+    #[test_only]
+    public fun get_user_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        get_user_funded_reward_internal(module_store, bridge_id, stage)
+    }
+
+    #[test_only]
+    public fun get_operator_funded_reward(bridge_id: u64, stage: u64): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        get_operator_funded_reward_internal(module_store, bridge_id, stage)
     }
 
     #[test_only]
@@ -2738,6 +2592,46 @@ module vip::vip {
             option::none(), //pool_split_ratio: Option<BigDecimal>,
             option::none(), //challenge_period: Option<u64>,
         )
+    }
+
+    #[test_only]
+    public fun get_expected_reward(
+        bridge_id: u64, fund_reward_amount: u64
+    ): u64 acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let (bridge_ids, _) = get_whitelisted_bridge_ids_internal(module_store);
+        let balance_shares = calculate_balance_share(module_store, bridge_ids);
+        let weight_shares = calculate_weight_share(module_store);
+        assert!(
+            fund_reward_amount > 0,
+            error::invalid_argument(EINVALID_TOTAL_REWARD),
+        );
+
+        let weight_ratio =
+            bigdecimal::sub(
+                bigdecimal::one(),
+                module_store.pool_split_ratio,
+            );
+        let balance_pool_reward_amount =
+            bigdecimal::mul_by_u64_truncate(
+                module_store.pool_split_ratio,
+                fund_reward_amount,
+            );
+        let weight_pool_reward_amount =
+            bigdecimal::mul_by_u64_truncate(weight_ratio, fund_reward_amount);
+        let balance_split_amount =
+            split_reward_with_share_internal(
+                &balance_shares,
+                bridge_id,
+                balance_pool_reward_amount,
+            );
+        let weight_split_amount =
+            split_reward_with_share_internal(
+                &weight_shares,
+                bridge_id,
+                weight_pool_reward_amount,
+            );
+        balance_split_amount + weight_split_amount
     }
 
     #[test_only]
@@ -3232,8 +3126,10 @@ module vip::vip {
             vector[*simple_map::borrow(&score_map, &5)],
         );
 
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let stage_data = load_stage_data_imut(module_store, 1);
         assert!(
-            get_stage_data(1).vesting_period == vesting_period,
+            stage_data.vesting_period == vesting_period,
             1,
         );
 
@@ -3373,22 +3269,22 @@ module vip::vip {
             1_000_000_000_000,
         );
 
-        let module_response = get_module_store();
-        assert!(module_response.minimum_eligible_tvl == 0, 0);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        assert!(module_store.minimum_eligible_tvl == 0, 0);
 
         update_minimum_eligible_tvl(vip, 1_000_000_000_000);
 
-        let module_response = get_module_store();
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
-            module_response.minimum_eligible_tvl == 1_000_000_000_000,
+            module_store.minimum_eligible_tvl == 1_000_000_000_000,
             0,
         );
 
         update_minimum_eligible_tvl(vip, 500_000_000_000);
 
-        let module_response = get_module_store();
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
-            module_response.minimum_eligible_tvl == 500_000_000_000,
+            module_store.minimum_eligible_tvl == 500_000_000_000,
             0,
         );
     }
@@ -3434,17 +3330,16 @@ module vip::vip {
             NEW_L2_TOTAL_SCORE_FOR_TEST,
         );
 
-        let SnapshotResponse {
-            create_time: expected_create_time,
-            upsert_time: expected_upsert_time,
-            merkle_root: expected_merkle_root,
-            total_l2_score: _,
-        } = get_snapshot(BRIDGE_ID_FOR_TEST, challenge_stage);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
+        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
+        let snapshot =
+            load_snapshot_imut(module_store, challenge_stage, BRIDGE_ID_FOR_TEST, version);
 
-        assert!(create_time == expected_create_time, 1);
-        assert!(expected_upsert_time > create_time, 2);
+        assert!(create_time == snapshot.create_time, 1);
+        assert!(snapshot.upsert_time > create_time, 2);
         assert!(
-            expected_merkle_root
+            snapshot.merkle_root
                 == *simple_map::borrow(
                     &new_merkle_root,
                     &BRIDGE_ID_FOR_TEST,
@@ -3452,20 +3347,16 @@ module vip::vip {
             3,
         );
 
-        let ExecutedChallengeResponse {
-            title: expected_title,
-            summary: expected_summary,
-            new_api_uri: expected_new_api_uri,
-            new_agent: expected_agent,
-            new_merkle_root: expected_new_merkle_root,
-        } = get_executed_challenge(CHALLENGE_ID_FOR_TEST);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let key = table_key::encode_u64(CHALLENGE_ID_FOR_TEST);
+        let executed_challenge = table::borrow(&module_store.challenges, key);
 
-        assert!(expected_title == title, 4);
-        assert!(expected_summary == summary, 5);
-        assert!(expected_new_api_uri == new_api_uri, 6);
-        assert!(expected_agent == new_agent, 7);
+        assert!(executed_challenge.title == title, 4);
+        assert!(executed_challenge.summary == summary, 5);
+        assert!(executed_challenge.api_uri == new_api_uri, 6);
+        assert!(executed_challenge.new_agent == new_agent, 7);
         assert!(
-            expected_new_merkle_root
+            executed_challenge.merkle_root
                 == *simple_map::borrow(
                     &new_merkle_root,
                     &BRIDGE_ID_FOR_TEST,
@@ -4158,8 +4049,9 @@ module vip::vip {
     fun test_update_challenge_period(vip: &signer) acquires ModuleStore {
         init_module_for_test(vip);
         update_challenge_period(vip, DEFAULT_NEW_CHALLENGE_PERIOD);
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
-            get_module_store().challenge_period == DEFAULT_NEW_CHALLENGE_PERIOD,
+            module_store.challenge_period == DEFAULT_NEW_CHALLENGE_PERIOD,
             0,
         )
     }
