@@ -232,6 +232,14 @@ module vip::operator {
         operator_info.commission_rate
     }
 
+    public fun is_bridge_registered(bridge_id: u64, version: u64): bool acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        table::contains(
+            &module_store.operator_infos,
+            generate_key(bridge_id, version),
+        )
+    }
+
     //
     // Tests
     //
@@ -247,15 +255,6 @@ module vip::operator {
     #[test_only]
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
-    }
-
-    #[test_only]
-    public fun is_bridge_registered(bridge_id: u64, version: u64): bool acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        table::contains(
-            &module_store.operator_infos,
-            generate_key(bridge_id, version),
-        )
     }
 
     #[test_only]

@@ -864,11 +864,19 @@ module vip::weight_vote {
         // undelegate lock staking 108(120 * 0.9 ,by slash)
         skip_period(60 * 60 * 24 * 26);
         lock_staking::mock_undelegate(
-            u1, lp_metadata, option::none(), 60 * 60 * 24 * 26, validator
+            u1,
+            lp_metadata,
+            option::none(),
+            60 * 60 * 24 * 26,
+            validator,
         );
         skip_period(2);
         lock_staking::mock_undelegate(
-            u2, lp_metadata, option::none(), 60 * 60 * 24 * 26, validator
+            u2,
+            lp_metadata,
+            option::none(),
+            60 * 60 * 24 * 26,
+            validator,
         );
         skip_period(2);
 
