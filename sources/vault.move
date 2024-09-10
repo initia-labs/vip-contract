@@ -93,6 +93,14 @@ module vip::vault {
         vault_store.reward_per_stage = reward_per_stage;
     }
 
+    public fun reward_per_stage(): u64 acquires ModuleStore {
+        let vault_store = borrow_global<ModuleStore>(@vip);
+        vault_store.reward_per_stage
+    }
+    
+    public fun reward_metadata(): Object<Metadata> {
+        coin::metadata(@initia_std, string::utf8(b"uinit"))
+    }
     //
     // View Functions
     //
@@ -102,22 +110,7 @@ module vip::vault {
         borrow_global<ModuleStore>(@vip).vault_store_addr
     }
 
-    #[view]
-    public fun balance(): u64 acquires ModuleStore {
-        let vault_store_addr = get_vault_store_address();
-        primary_fungible_store::balance(vault_store_addr, reward_metadata())
-    }
-
-    #[view]
-    public fun reward_per_stage(): u64 acquires ModuleStore {
-        let vault_store = borrow_global<ModuleStore>(@vip);
-        vault_store.reward_per_stage
-    }
-
-    #[view]
-    public fun reward_metadata(): Object<Metadata> {
-        coin::metadata(@initia_std, string::utf8(b"uinit"))
-    }
+    
 
     //
     // Tests
@@ -127,10 +120,17 @@ module vip::vault {
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
     }
+    
+    #[test_only]
+    public fun balance(): u64 acquires ModuleStore {
+        let vault_store_addr = get_vault_store_address();
+        primary_fungible_store::balance(vault_store_addr, reward_metadata())
+    }
 
     #[test_only]
     use initia_std::option;
 
+    
     #[test_only]
     fun initialize_coin(account: &signer, symbol: string::String)
         : (

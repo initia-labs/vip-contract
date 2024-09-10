@@ -40,7 +40,7 @@ module vip::operator {
     //
     // Responses
     //
-
+    // TODO: MAKE TEST ONLY ON REPUBLISH
     struct OperatorInfoResponse has drop {
         operator_addr: address,
         last_changed_stage: u64,
@@ -228,20 +228,6 @@ module vip::operator {
         );
     }
 
-    //
-    // View Functions
-    //
-
-    #[view]
-    public fun is_bridge_registered(bridge_id: u64, version: u64): bool acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        table::contains(
-            &module_store.operator_infos,
-            generate_key(bridge_id, version),
-        )
-    }
-
-    #[view]
     public fun get_operator_commission(bridge_id: u64, version: u64): BigDecimal acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
@@ -258,8 +244,24 @@ module vip::operator {
             );
         operator_info.commission_rate
     }
+    //
+    // Tests
+    //
+    #[test_only]
+    public fun init_module_for_test(chain: &signer) {
+        init_module(chain);
+    }
 
-    #[view]
+    #[test_only]
+    public fun is_bridge_registered(bridge_id: u64, version: u64): bool acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        table::contains(
+            &module_store.operator_infos,
+            generate_key(bridge_id, version),
+        )
+    }
+
+    #[test_only]
     public fun get_operator_info(bridge_id: u64, version: u64): OperatorInfoResponse acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
@@ -282,15 +284,6 @@ module vip::operator {
             commission_max_change_rate: operator_info.commission_max_change_rate,
             commission_rate: operator_info.commission_rate
         }
-    }
-
-    //
-    // Tests
-    //
-
-    #[test_only]
-    public fun init_module_for_test(chain: &signer) {
-        init_module(chain);
     }
 
     #[test(vip = @vip, operator = @0x999)]
