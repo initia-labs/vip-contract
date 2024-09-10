@@ -97,7 +97,7 @@ module vip::vault {
         let vault_store = borrow_global<ModuleStore>(@vip);
         vault_store.reward_per_stage
     }
-    
+
     public fun reward_metadata(): Object<Metadata> {
         coin::metadata(@initia_std, string::utf8(b"uinit"))
     }
@@ -109,8 +109,6 @@ module vip::vault {
     public fun get_vault_store_address(): address acquires ModuleStore {
         borrow_global<ModuleStore>(@vip).vault_store_addr
     }
-
-    
 
     //
     // Tests

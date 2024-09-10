@@ -85,15 +85,6 @@ module vip::weight_vote {
     //
     // responses
     //
-    // TODO: REMOVE ON REPULISH
-    struct ModuleResponse has drop {
-        current_cycle: u64,
-        cycle_start_time: u64,
-        cycle_end_time: u64,
-        cycle_interval: u64,
-        voting_period: u64,
-    }
-
     struct ProposalResponse has drop {
         total_tally: u64,
         voting_end_time: u64,

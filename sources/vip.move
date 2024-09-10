@@ -192,36 +192,6 @@ module vip::vip {
     //
     // Responses
     //
-    // TODO: REMOVE ON REPUBLISH
-    struct ModuleResponse has drop {
-        stage: u64,
-        stage_interval: u64,
-        agent_data: AgentData,
-        minimum_score_ratio: BigDecimal,
-        pool_split_ratio: BigDecimal,
-        vesting_period: u64,
-        minimum_eligible_tvl: u64,
-        maximum_tvl_ratio: BigDecimal,
-        challenge_period: u64,
-    }
-    // TODO: REMOVE ON REPUBLISH
-    struct SnapshotResponse has drop {
-        create_time: u64,
-        upsert_time: u64,
-        merkle_root: vector<u8>,
-        total_l2_score: u64
-    }
-    // TODO: REMOVE ON REPUBLISH
-    struct StageDataResponse has drop {
-        stage_start_time: u64,
-        stage_end_time: u64,
-        pool_split_ratio: BigDecimal,
-        total_operator_funded_reward: u64,
-        total_user_funded_reward: u64,
-        vesting_period: u64,
-        minimum_score_ratio: BigDecimal,
-    }
-
     struct BridgeResponse has drop {
         init_stage: u64,
         bridge_id: u64,
@@ -233,15 +203,6 @@ module vip::vip {
         vm_type: u64,
     }
 
-    // TODO: REMOVE ON REPUBLISH
-    struct ExecutedChallengeResponse has drop {
-        title: string::String,
-        summary: string::String,
-        new_api_uri: string::String,
-        new_agent: address,
-        new_merkle_root: vector<u8>,
-    }
-
     struct TotalL2ScoreResponse has drop {
         bridge_id: u64,
         version: u64,
@@ -251,7 +212,6 @@ module vip::vip {
     //
     // Events
     //
-
     #[event]
     struct FundEvent has drop, store {
         stage: u64,

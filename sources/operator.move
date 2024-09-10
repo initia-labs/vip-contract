@@ -36,23 +36,9 @@ module vip::operator {
         commission_max_change_rate: BigDecimal,
         commission_rate: BigDecimal,
     }
-
-    //
-    // Responses
-    //
-    // TODO: MAKE TEST ONLY ON REPUBLISH
-    struct OperatorInfoResponse has drop {
-        operator_addr: address,
-        last_changed_stage: u64,
-        commission_max_rate: BigDecimal,
-        commission_max_change_rate: BigDecimal,
-        commission_rate: BigDecimal,
-    }
-
     //
     // Events
     //
-
     #[event]
     struct UpdateCommissionEvent has drop, store {
         operator: address,
@@ -248,6 +234,15 @@ module vip::operator {
     // Tests
     //
     #[test_only]
+    struct OperatorInfoResponse has drop {
+        operator_addr: address,
+        last_changed_stage: u64,
+        commission_max_rate: BigDecimal,
+        commission_max_change_rate: BigDecimal,
+        commission_rate: BigDecimal,
+    }
+
+    #[test_only]
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
     }
@@ -261,6 +256,7 @@ module vip::operator {
         )
     }
 
+    
     #[test_only]
     public fun get_operator_info(bridge_id: u64, version: u64): OperatorInfoResponse acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
