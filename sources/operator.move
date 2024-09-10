@@ -36,6 +36,7 @@ module vip::operator {
         commission_max_change_rate: BigDecimal,
         commission_rate: BigDecimal,
     }
+
     //
     // Events
     //
@@ -230,6 +231,7 @@ module vip::operator {
             );
         operator_info.commission_rate
     }
+
     //
     // Tests
     //
@@ -256,7 +258,6 @@ module vip::operator {
         )
     }
 
-    
     #[test_only]
     public fun get_operator_info(bridge_id: u64, version: u64): OperatorInfoResponse acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);

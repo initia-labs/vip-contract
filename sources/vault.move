@@ -101,6 +101,7 @@ module vip::vault {
     public fun reward_metadata(): Object<Metadata> {
         coin::metadata(@initia_std, string::utf8(b"uinit"))
     }
+
     //
     // View Functions
     //
@@ -118,7 +119,7 @@ module vip::vault {
     public fun init_module_for_test(chain: &signer) {
         init_module(chain);
     }
-    
+
     #[test_only]
     public fun balance(): u64 acquires ModuleStore {
         let vault_store_addr = get_vault_store_address();
@@ -128,7 +129,6 @@ module vip::vault {
     #[test_only]
     use initia_std::option;
 
-    
     #[test_only]
     fun initialize_coin(account: &signer, symbol: string::String)
         : (

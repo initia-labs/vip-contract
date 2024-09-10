@@ -972,6 +972,7 @@ module vip::vesting {
     ): u64 acquires ModuleStore {
         get_last_claimed_stage<OperatorVesting>(@0x0, bridge_id, version)
     }
+
     //
     // View Functions
     //
@@ -1018,7 +1019,6 @@ module vip::vesting {
         }
     }
 
-
     // <----- OPERATOR ----->
     #[view]
     public fun get_operator_unlocked_reward(
@@ -1045,7 +1045,6 @@ module vip::vesting {
         total_unlocked_reward
     }
 
-    
     #[view]
     public fun get_operator_vesting(
         bridge_id: u64, version: u64, stage: u64

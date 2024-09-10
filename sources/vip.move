@@ -1925,7 +1925,6 @@ module vip::vip {
         table::borrow(&module_store.bridges, key)
     }
 
-
     public fun get_last_submitted_stage(bridge_id: u64, version: u64): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let iter = table::iter(
@@ -1980,6 +1979,7 @@ module vip::vip {
         let (is_registered, _) = get_last_bridge_version(module_store, bridge_id);
         is_registered
     }
+
     //
     // View Functions
     //
@@ -2051,8 +2051,6 @@ module vip::vip {
         );
         total_l2_scores
     }
-
-    
 
     //
     // (only on compiler v1) for preventing compile error; because of inferring type issue
@@ -3335,7 +3333,8 @@ module vip::vip {
         let module_store = borrow_global<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
         assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
-        let snapshot = load_snapshot_imut(module_store, challenge_stage, BRIDGE_ID_FOR_TEST, version);
+        let snapshot =
+            load_snapshot_imut(module_store, challenge_stage, BRIDGE_ID_FOR_TEST, version);
 
         assert!(create_time == snapshot.create_time, 1);
         assert!(snapshot.upsert_time > create_time, 2);
@@ -3351,7 +3350,6 @@ module vip::vip {
         let module_store = borrow_global<ModuleStore>(@vip);
         let key = table_key::encode_u64(CHALLENGE_ID_FOR_TEST);
         let executed_challenge = table::borrow(&module_store.challenges, key);
-
 
         assert!(executed_challenge.title == title, 4);
         assert!(executed_challenge.summary == summary, 5);
