@@ -2207,7 +2207,7 @@ module vip::vip {
             vm_type: bridge.vm_type
         }
     }
-    
+
     #[test_only]
     public fun unpack_module_store()
         : (
@@ -3311,20 +3311,22 @@ module vip::vip {
             1_000_000_000_000,
         );
 
-        let module_response = borrow_global<ModuleStore>(@vip);
-        assert!(module_response.minimum_eligible_tvl == 0, 0);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        assert!(module_store.minimum_eligible_tvl == 0, 0);
 
         update_minimum_eligible_tvl(vip, 1_000_000_000_000);
 
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
-            module_response.minimum_eligible_tvl == 1_000_000_000_000,
+            module_store.minimum_eligible_tvl == 1_000_000_000_000,
             0,
         );
 
         update_minimum_eligible_tvl(vip, 500_000_000_000);
 
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
-            module_response.minimum_eligible_tvl == 500_000_000_000,
+            module_store.minimum_eligible_tvl == 500_000_000_000,
             0,
         );
     }
