@@ -1251,10 +1251,8 @@ module initia_std::mock_mstaking {
 
     fun get_pool(): PoolResponse {
         let path = b"/initia.mstaking.v1.Query/Pool";
-        let response = query_stargate(path, b"{}");
+        let response = query_stargate(path, marshal(&PoolRequest {}));
         unmarshal<PoolResponse>(response)
-        // TODO: use below when json marshal fixed
-        // query<PoolRequest, PoolResponse>(path, PoolRequest {})
     }
 
     fun gen_key(completion_time: u64, unbonding_id: u64): CompletionTimeKey {

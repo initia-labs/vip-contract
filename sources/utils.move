@@ -211,10 +211,7 @@ module vip::utils {
 
     fun get_pool(): PoolResponse {
         let path = b"/initia.mstaking.v1.Query/Pool";
-        let response = query_stargate(path, b"{}");
-        unmarshal<PoolResponse>(response)
-        // TODO: use below when json marshal fixed
-        // query<PoolRequest, PoolResponse>(path, PoolRequest {})
+        query<PoolRequest, PoolResponse>(path, PoolRequest {})
     }
 
     fun query<Request: drop, Response: drop>(
