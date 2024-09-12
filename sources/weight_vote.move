@@ -549,26 +549,24 @@ module vip::weight_vote {
         let max_multiplier = module_store.max_lock_period_multiplier;
         let min_multiplier = module_store.min_lock_period_multiplier;
 
-        if (lock_period < min_lock_period) {
+        if (lock_period <= min_lock_period) {
             return bigdecimal::from_u64(min_multiplier)
         };
 
-        if (lock_period > max_lock_period) {
+        if (lock_period >= max_lock_period) {
             return bigdecimal::from_u64(max_multiplier)
         };
 
         // slope = (max_multiplier - min_multiplier) / (max_lock_period - min_lock_period)
         // multiplier = slope * (lock_period - min_lock_period) + min_multiplier
-        let slope =
-            bigdecimal::from_ratio_u64(
-                max_multiplier - min_multiplier,
-                max_lock_period - min_lock_period,
-            );
-        bigdecimal::add(
-            bigdecimal::from_u64(min_multiplier),
-            bigdecimal::mul_by_u64(slope, (lock_period - min_lock_period)),
+        let numerator = (max_multiplier - min_multiplier) * (lock_period - min_lock_period);
+        let denominator = (max_lock_period - min_lock_period); 
+        bigdecimal::add_by_u64(
+            bigdecimal::from_ratio_u64(numerator, denominator),
+            min_multiplier,
         )
     }
+
 
     //
     // views
@@ -731,6 +729,9 @@ module vip::weight_vote {
     use initia_std::block;
 
     #[test_only]
+    use initia_std::biguint;
+
+    #[test_only]
     use initia_std::mock_mstaking;
 
     #[test_only]
@@ -746,6 +747,18 @@ module vip::weight_vote {
     fun skip_period(period: u64) {
         let (height, curr_time) = block::get_block_info();
         block::set_block_info(height + period / 2, curr_time + period);
+    }
+    #[test_only]
+    const DECIMAL_FRACTIONAL: u64 = 1000000000000000000;
+    
+    #[test_only]
+    fun is_within_tolerance(a: BigDecimal, b: BigDecimal, tolerance: BigDecimal):bool {
+        let b_min = bigdecimal::sub(b, tolerance);
+        let b_max = bigdecimal::add(b, tolerance);
+        if(bigdecimal::lt(a, b_min) || bigdecimal::gt(a, b_max)) {
+            return false
+        };
+        true
     }
 
     #[test_only]
@@ -1116,5 +1129,46 @@ module vip::weight_vote {
 
         skip_period(300);
         execute_proposal();
+    }
+
+    #[test_only]
+    const ONE_WEEK: u64 = 7 * 60 * 60 * 24;
+    #[test_only]
+    const ONE_MONTH: u64 = 30 * 60 * 60 * 24;
+    #[test_only]
+    const ONE_YEAR: u64 = 365 * 60 * 60 * 24;
+    #[test_only]
+    const TOLERANCE: u64 = 110; // denominator : DECIMAL_FRACTIONAL
+    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std,)] 
+    fun test_lock_period_multiplier(chain: &signer, vip: &signer, vesting_creator: &signer) acquires ModuleStore {
+        init_test(chain, vip, vesting_creator);
+        let tolerance = bigdecimal::from_scaled(biguint::from_u64(TOLERANCE));
+        let min_lock_period = ONE_MONTH; // one month
+        let max_lock_period = 4 * ONE_YEAR; // 4 year
+        lock_staking::update_params(chain,option::some(min_lock_period), option::some(max_lock_period),option::none());
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let max_multiplier = module_store.max_lock_period_multiplier;
+        let min_multiplier = module_store.min_lock_period_multiplier;
+        // 1) lock period < ONE MONTH
+        let lock_period = ONE_WEEK;
+        assert!(get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(min_multiplier), 1);
+        lock_period = min_lock_period;
+        assert!(get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(min_multiplier), 2);
+        // 2) lock period >= ONE MONTH && lock period =< 4 year
+        lock_period = 4 * ONE_MONTH;
+        // (3_000_000_000_000_000_000n)*(3n * 30n * 60n * 60n * 24n)/ (1430n * 60n * 60n * 24n) + 1_000_000_000_000_000_000n
+        // = 1188811188811188811n
+        assert!(get_lock_period_multiplier(lock_period) == bigdecimal::from_scaled(biguint::from_u64(1188811188811188811)), 3);
+
+        lock_period = 3 * ONE_YEAR;
+        // (3_000_000_000_000_000_000n)*(1065n * 60n * 60n * 24n)/ (1430n * 60n * 60n * 24n) + 1_000_000_000_000_000_000n
+        // = 3234265734265734265n
+        assert!(get_lock_period_multiplier(lock_period) == bigdecimal::from_scaled(biguint::from_u128(3234265734265734265)), 4);
+
+        lock_period = max_lock_period;
+        assert!(get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(max_multiplier), 5);
+        // 3) lock period > 4 year
+        lock_period = 5 * ONE_YEAR;
+        assert!(get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(max_multiplier), 6);
     }
 }

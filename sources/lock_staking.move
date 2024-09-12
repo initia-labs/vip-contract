@@ -90,7 +90,6 @@ module vip::lock_staking {
     }
 
     // entry functions
-
     public entry fun update_params(
         chain: &signer,
         min_lock_period: Option<u64>,
