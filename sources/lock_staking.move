@@ -3170,8 +3170,7 @@ module vip::lock_staking {
                         locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
                         amount: DELEGATING_AMOUNT,
                         release_time
-                    }
-                ],
+                    }],
             1,
         );
         // merge
@@ -3184,7 +3183,6 @@ module vip::lock_staking {
         );
         utils::increase_block(1, 2);
 
-
         assert!(
             get_locked_delegations(signer::address_of(delegator1))
                 == vector[
@@ -3201,8 +3199,7 @@ module vip::lock_staking {
                         locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
                         amount: DELEGATING_AMOUNT,
                         release_time
-                    }
-                ],
+                    }],
             2,
         );
 
@@ -3213,10 +3210,10 @@ module vip::lock_staking {
             release_time,
             validator,
             release_time,
-            val2
+            val2,
         );
         utils::increase_block(1, 2);
-        
+
         assert!(
             get_locked_delegations(signer::address_of(delegator1))
                 == vector[
@@ -3233,8 +3230,7 @@ module vip::lock_staking {
                         locked_share: bigdecimal::from_ratio_u64(3 * DELEGATING_AMOUNT, 1),
                         amount: 3 * DELEGATING_AMOUNT,
                         release_time
-                    }
-                ],
+                    }],
             3,
         );
     }
@@ -3252,7 +3248,12 @@ module vip::lock_staking {
         let release_time = time + TEST_RELEASE_PERIOD;
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
-        update_params(chain, option::none(), option::none(), option::some(max_delegation_slot));
+        update_params(
+            chain,
+            option::none(),
+            option::none(),
+            option::some(max_delegation_slot),
+        );
 
         // mock lp providing
         coin::transfer(
@@ -3264,8 +3265,8 @@ module vip::lock_staking {
         utils::increase_block(1, 2);
         // try delegate 5
         let i = 0;
-        while(i < max_delegation_slot + 1) {
-             // delegate
+        while (i < max_delegation_slot + 1) {
+            // delegate
             mock_delegate(
                 delegator1,
                 metadata,

@@ -39,10 +39,9 @@ module vip::weight_vote {
     // NOT FOUND ERROR
     const ECYCLE_NOT_FOUND: u64 = 9;
 
-    // LOCK TIME WEIGHT MULTIPLIER 
+    // LOCK TIME WEIGHT MULTIPLIER
     const DEFAULT_MIN_WEIGHT_MULTIPLIER: u64 = 1;
     const DEFAULT_MAX_WEIGHT_MULTIPLIER: u64 = 4;
-
 
     struct ModuleStore has key {
         // current cycle
@@ -58,13 +57,13 @@ module vip::weight_vote {
         // voting period
         voting_period: u64,
         // pair weight
-        pair_weights: Table<Object<Metadata>, BigDecimal>,
+        pair_multipliers: Table<Object<Metadata>, BigDecimal>,
         // core vesting creator
         core_vesting_creator: address,
-        // max lock staking multplier for voting 
-        max_lock_time_weight: u64,
-        // min lock staking multplier for voting 
-        min_lock_time_weight: u64,
+        // max lock staking multplier for voting
+        max_lock_period_multiplier: u64,
+        // min lock staking multplier for voting
+        min_lock_period_multiplier: u64,
     }
 
     struct Proposal has store {
@@ -156,10 +155,10 @@ module vip::weight_vote {
                 cycle_end_time: cycle_start_time,
                 proposals: table::new(),
                 voting_period,
-                pair_weights: table::new(),
+                pair_multipliers: table::new(),
                 core_vesting_creator: vesting_creator,
-                min_lock_time_weight: DEFAULT_MIN_WEIGHT_MULTIPLIER,
-                max_lock_time_weight: DEFAULT_MAX_WEIGHT_MULTIPLIER
+                min_lock_period_multiplier: DEFAULT_MIN_WEIGHT_MULTIPLIER,
+                max_lock_period_multiplier: DEFAULT_MAX_WEIGHT_MULTIPLIER
             },
         )
     }
@@ -169,8 +168,8 @@ module vip::weight_vote {
         cycle_interval: Option<u64>,
         voting_period: Option<u64>,
         core_vesting_creator: Option<address>,
-        max_lock_time_weight: Option<u64>,
-        min_lock_time_weight: Option<u64>
+        max_lock_period_multiplier: Option<u64>,
+        min_lock_period_multiplier: Option<u64>
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -187,12 +186,16 @@ module vip::weight_vote {
             module_store.core_vesting_creator = option::extract(&mut core_vesting_creator);
         };
 
-        if (option::is_some(&max_lock_time_weight)) {
-            module_store.max_lock_time_weight = option::extract(&mut max_lock_time_weight);
+        if (option::is_some(&max_lock_period_multiplier)) {
+            module_store.max_lock_period_multiplier = option::extract(
+                &mut max_lock_period_multiplier
+            );
         };
 
-        if (option::is_some(&min_lock_time_weight)) {
-            module_store.min_lock_time_weight = option::extract(&mut min_lock_time_weight);
+        if (option::is_some(&min_lock_period_multiplier)) {
+            module_store.min_lock_period_multiplier = option::extract(
+                &mut min_lock_period_multiplier
+            );
         };
 
         // voting period must be less than cycle interval
@@ -202,17 +205,17 @@ module vip::weight_vote {
         );
     }
 
-    public entry fun update_pair_weight(
+    public entry fun update_pair_multiplier(
         chain: &signer,
         metadata: Object<Metadata>,
-        weight: BigDecimal,
+        multiplier: BigDecimal,
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         table::upsert(
-            &mut module_store.pair_weights,
+            &mut module_store.pair_multipliers,
             metadata,
-            weight,
+            multiplier,
         );
     }
 
@@ -540,13 +543,13 @@ module vip::weight_vote {
         allocation * (time - start_time) / vesting_period - claimed_amount
     }
 
-    fun get_lock_time_weight(lock_period: u64): BigDecimal acquires ModuleStore {
+    fun get_lock_period_multiplier(lock_period: u64): BigDecimal acquires ModuleStore {
         let (min_lock_period, max_lock_period) = lock_staking::get_lock_period_limits();
         let module_store = borrow_global<ModuleStore>(@vip);
-        let max_multiplier = module_store.max_lock_time_weight;
-        let min_multiplier = module_store.min_lock_time_weight;
-        
-        if(lock_period < min_lock_period) {
+        let max_multiplier = module_store.max_lock_period_multiplier;
+        let min_multiplier = module_store.min_lock_period_multiplier;
+
+        if (lock_period < min_lock_period) {
             return bigdecimal::from_u64(min_multiplier)
         };
 
@@ -555,10 +558,18 @@ module vip::weight_vote {
         };
 
         // slope = (max_multiplier - min_multiplier) / (max_lock_period - min_lock_period)
-        // weight multiplier = slope * (lock_period - min_lock_period) + min_multiplier
-        let slope = bigdecimal::from_ratio_u64(max_multiplier - min_multiplier ,max_lock_period - min_lock_period);
-        bigdecimal::add(bigdecimal::from_u64(min_multiplier),bigdecimal::mul_by_u64(slope,(lock_period - min_lock_period)))
+        // multiplier = slope * (lock_period - min_lock_period) + min_multiplier
+        let slope =
+            bigdecimal::from_ratio_u64(
+                max_multiplier - min_multiplier,
+                max_lock_period - min_lock_period,
+            );
+        bigdecimal::add(
+            bigdecimal::from_u64(min_multiplier),
+            bigdecimal::mul_by_u64(slope, (lock_period - min_lock_period)),
+        )
     }
+
     //
     // views
     //
@@ -635,7 +646,7 @@ module vip::weight_vote {
                 |metadata, voting_power| {
                     let weight =
                         table::borrow_with_default(
-                            &module_store.pair_weights,
+                            &module_store.pair_multipliers,
                             metadata,
                             &bigdecimal::one(),
                         );
@@ -655,19 +666,18 @@ module vip::weight_vote {
                 let voting_power_weight = simple_map::borrow(&weight_map, &denom);
                 let voting_power =
                     bigdecimal::mul_by_u64_truncate(*voting_power_weight, amount);
-                let pair_weight =
+                let pair_multiplier =
                     table::borrow_with_default(
-                        &module_store.pair_weights,
+                        &module_store.pair_multipliers,
                         metadata,
                         &bigdecimal::one(),
                     );
-                // TODO: applylock time weight
-
+                // TODO: apply lock time weight
                 // let lock_period = curr_time - release_time;
-                // let lock_time_weight = get_lock_time_weight(lock_period);
+                // let lock_time_weight = get_lock_period_multiplier(lock_period);
                 // voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
                 lock_staking_voting_power = lock_staking_voting_power
-                    + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
+                    + bigdecimal::mul_by_u64_truncate(*pair_multiplier, voting_power);
             },
         );
 
