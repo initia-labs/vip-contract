@@ -39,6 +39,11 @@ module vip::weight_vote {
     // NOT FOUND ERROR
     const ECYCLE_NOT_FOUND: u64 = 9;
 
+    // LOCK TIME WEIGHT MULTIPLIER 
+    const DEFAULT_MIN_WEIGHT_MULTIPLIER: u64 = 1;
+    const DEFAULT_MAX_WEIGHT_MULTIPLIER: u64 = 4;
+
+
     struct ModuleStore has key {
         // current cycle
         current_cycle: u64,
@@ -56,6 +61,10 @@ module vip::weight_vote {
         pair_weights: Table<Object<Metadata>, BigDecimal>,
         // core vesting creator
         core_vesting_creator: address,
+        // max lock staking multplier for voting 
+        max_lock_time_weight: u64,
+        // min lock staking multplier for voting 
+        min_lock_time_weight: u64,
     }
 
     struct Proposal has store {
@@ -149,6 +158,8 @@ module vip::weight_vote {
                 voting_period,
                 pair_weights: table::new(),
                 core_vesting_creator: vesting_creator,
+                min_lock_time_weight: DEFAULT_MIN_WEIGHT_MULTIPLIER,
+                max_lock_time_weight: DEFAULT_MAX_WEIGHT_MULTIPLIER
             },
         )
     }
@@ -158,6 +169,8 @@ module vip::weight_vote {
         cycle_interval: Option<u64>,
         voting_period: Option<u64>,
         core_vesting_creator: Option<address>,
+        max_lock_time_weight: Option<u64>,
+        min_lock_time_weight: Option<u64>
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -172,6 +185,14 @@ module vip::weight_vote {
 
         if (option::is_some(&core_vesting_creator)) {
             module_store.core_vesting_creator = option::extract(&mut core_vesting_creator);
+        };
+
+        if (option::is_some(&max_lock_time_weight)) {
+            module_store.max_lock_time_weight = option::extract(&mut max_lock_time_weight);
+        };
+
+        if (option::is_some(&min_lock_time_weight)) {
+            module_store.min_lock_time_weight = option::extract(&mut min_lock_time_weight);
         };
 
         // voting period must be less than cycle interval
@@ -519,6 +540,25 @@ module vip::weight_vote {
         allocation * (time - start_time) / vesting_period - claimed_amount
     }
 
+    fun get_lock_time_weight(lock_period: u64): BigDecimal acquires ModuleStore {
+        let (min_lock_period, max_lock_period) = lock_staking::get_lock_period_limits();
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let max_multiplier = module_store.max_lock_time_weight;
+        let min_multiplier = module_store.min_lock_time_weight;
+        
+        if(lock_period < min_lock_period) {
+            return bigdecimal::from_u64(min_multiplier)
+        };
+
+        if (lock_period > max_lock_period) {
+            return bigdecimal::from_u64(max_multiplier)
+        };
+
+        // slope = (max_multiplier - min_multiplier) / (max_lock_period - min_lock_period)
+        // weight multiplier = slope * (lock_period - min_lock_period) + min_multiplier
+        let slope = bigdecimal::from_ratio_u64(max_multiplier - min_multiplier ,max_lock_period - min_lock_period);
+        bigdecimal::add(bigdecimal::from_u64(min_multiplier),bigdecimal::mul_by_u64(slope,(lock_period - min_lock_period)))
+    }
     //
     // views
     //
@@ -588,6 +628,7 @@ module vip::weight_vote {
     #[view]
     public fun get_voting_power(addr: address): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
+        let (_, curr_time) = block::get_block_info();
         let cosmos_voting_power =
             utils::get_customized_voting_power(
                 addr,
@@ -608,7 +649,7 @@ module vip::weight_vote {
         vector::for_each_ref(
             &locked_delegations,
             |delegation| {
-                let (metadata, _, amount, _) =
+                let (metadata, _, amount, release_time) =
                     lock_staking::unpack_locked_delegation(delegation);
                 let denom = coin::metadata_to_denom(metadata);
                 let voting_power_weight = simple_map::borrow(&weight_map, &denom);
@@ -620,11 +661,15 @@ module vip::weight_vote {
                         metadata,
                         &bigdecimal::one(),
                     );
+                // TODO: applylock time weight
+
+                // let lock_period = curr_time - release_time;
+                // let lock_time_weight = get_lock_time_weight(lock_period);
+                // voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
                 lock_staking_voting_power = lock_staking_voting_power
                     + bigdecimal::mul_by_u64_truncate(*pair_weight, voting_power);
             },
         );
-        // TODO: lock time weight multplier
 
         let vesting_voting_power =
             get_vesting_voting_power(module_store.core_vesting_creator, addr);

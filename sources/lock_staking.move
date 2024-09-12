@@ -1030,6 +1030,11 @@ module vip::lock_staking {
         )
     }
 
+    public fun get_lock_period_limits(): (u64, u64) acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        (module_store.min_lock_period, module_store.max_lock_period)
+    }
+
     fun get_staking_account_signer(account: &signer): signer acquires StakingAccount {
         let addr = signer::address_of(account);
         if (!is_registered(addr)) {
@@ -3118,7 +3123,6 @@ module vip::lock_staking {
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
         let val2 = mock_mstaking::get_validator2();
-        let delegator1_addr = signer::address_of(delegator1);
 
         // mock lp providing
         coin::transfer(
@@ -3248,7 +3252,6 @@ module vip::lock_staking {
         let release_time = time + TEST_RELEASE_PERIOD;
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
-        let val2 = mock_mstaking::get_validator2();
         update_params(chain, option::none(), option::none(), option::some(max_delegation_slot));
 
         // mock lp providing
