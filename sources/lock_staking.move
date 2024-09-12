@@ -3103,4 +3103,176 @@ module vip::lock_staking {
         );
 
     }
+
+    // Test merging of existing delegation when the user makes duplicated lock staking
+    // Verifies that the delegation key (validator, user, release time) is correctly merged
+    // upon extension or new delegation and redelegations, rather than creating a new delegation
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    fun test_merge_lock_staking(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+        let delegator1_addr = signer::address_of(delegator1);
+
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            4 * DELEGATING_AMOUNT,
+        );
+
+        // block increases
+        utils::increase_block(1, 2);
+
+        // delegate
+        mock_delegate(
+            delegator1,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+        utils::increase_block(1, 2);
+
+        mock_delegate(
+            delegator1,
+            metadata,
+            DELEGATING_AMOUNT,
+            release_time,
+            val2,
+        );
+        utils::increase_block(1, 2);
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    }
+                ],
+            1,
+        );
+        // merge
+        mock_delegate(
+            delegator1,
+            metadata,
+            2 * DELEGATING_AMOUNT,
+            release_time,
+            validator,
+        );
+        utils::increase_block(1, 2);
+
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(3 * DELEGATING_AMOUNT, 1),
+                        amount: 3 * DELEGATING_AMOUNT,
+                        release_time
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    }
+                ],
+            2,
+        );
+
+        mock_redelegate(
+            delegator1,
+            metadata,
+            option::some(2 * DELEGATING_AMOUNT),
+            release_time,
+            validator,
+            release_time,
+            val2
+        );
+        utils::increase_block(1, 2);
+        
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(3 * DELEGATING_AMOUNT, 1),
+                        amount: 3 * DELEGATING_AMOUNT,
+                        release_time
+                    }
+                ],
+            3,
+        );
+    }
+
+    // fail test when the user delegates lock staking over than max_delegation_slot
+    #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37)]
+    #[expected_failure(abort_code = 0x3000D, location = Self)]
+    fun fail_test_merge_lock_staking_over_max_slots(
+        chain: &signer, vip: &signer, delegator1: &signer
+    ) acquires ModuleStore, StakingAccount {
+        let max_delegation_slot = 4;
+        mock_mstaking::initialize(chain);
+        init_module_for_test(vip);
+        let (_, time) = block::get_block_info();
+        let release_time = time + TEST_RELEASE_PERIOD;
+        let metadata = mock_mstaking::get_lp_metadata();
+        let validator = mock_mstaking::get_validator1();
+        let val2 = mock_mstaking::get_validator2();
+        update_params(chain, option::none(), option::none(), option::some(max_delegation_slot));
+
+        // mock lp providing
+        coin::transfer(
+            chain,
+            signer::address_of(delegator1),
+            metadata,
+            5 * DELEGATING_AMOUNT,
+        );
+        utils::increase_block(1, 2);
+        // try delegate 5
+        let i = 0;
+        while(i < max_delegation_slot + 1) {
+             // delegate
+            mock_delegate(
+                delegator1,
+                metadata,
+                DELEGATING_AMOUNT,
+                release_time + i,
+                validator,
+            );
+            // block increases
+            utils::increase_block(1, 2);
+            i = i + 1
+        };
+    }
 }
