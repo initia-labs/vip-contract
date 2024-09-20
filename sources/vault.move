@@ -153,9 +153,7 @@ module vip::vault {
     }
 
     #[test(chain = @0x1, vip = @vip, funder = @0x2)]
-    fun e2e(
-        chain: &signer, vip: &signer, funder: &signer
-    ) acquires ModuleStore {
+    fun e2e(chain: &signer, vip: &signer, funder: &signer) acquires ModuleStore {
         primary_fungible_store::init_module_for_test();
         init_module(vip);
         let (_, _, mint_cap) = initialize_coin(chain, string::utf8(b"uinit"));
