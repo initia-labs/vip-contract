@@ -637,7 +637,7 @@ module vip::weight_vote {
     #[view]
     public fun get_voting_power(addr: address): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (_, curr_time) = block::get_block_info();
+        let (_, curr_time) = get_block_info();
         let cosmos_voting_power =
             utils::get_customized_voting_power(
                 addr,
