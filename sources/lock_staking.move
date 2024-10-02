@@ -10,6 +10,7 @@ module vip::lock_staking {
     use initia_std::block;
     use initia_std::coin;
     use initia_std::cosmos::{stargate, stargate_vote, move_execute};
+    use initia_std::dex;
     use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::{Self, FungibleAsset, Metadata};
     use initia_std::json::{marshal, unmarshal};
@@ -233,6 +234,60 @@ module vip::lock_staking {
     ) acquires StakingAccount, ModuleStore {
         // TODO: disable this
         let fa = coin::withdraw(account, metadata, amount);
+        delegate_internal(
+            account,
+            fa,
+            release_time,
+            validator_address,
+        );
+    }
+
+    public entry fun provide_delegate(
+        account: &signer,
+        metadata: Object<Metadata>,
+        coin_a_amount_in: u64,
+        coin_b_amount_in: u64,
+        min_liquidity: Option<u64>,
+        release_time: u64,
+        validator_address: String
+    ) acquires StakingAccount, ModuleStore {
+        // TODO: disable this
+        let pair = object::convert(metadata);
+        let (metadata_a, metadata_b) = dex::pool_metadata(pair);
+        let coin_a = coin::withdraw(account, metadata_a, coin_a_amount_in);
+        let coin_b = coin::withdraw(account, metadata_b, coin_b_amount_in);
+        let fa = dex::provide_liquidity(
+            pair,
+            coin_a,
+            coin_b,
+            min_liquidity,
+        );
+
+        delegate_internal(
+            account,
+            fa,
+            release_time,
+            validator_address,
+        );
+    }
+
+    public entry fun single_asset_provide_delegate(
+        account: &signer,
+        metadata: Object<Metadata>,
+        offer_asset_metadata: Object<Metadata>,
+        amount_in: u64,
+        min_liquidity: Option<u64>,
+        release_time: u64,
+        validator_address: String
+    ) acquires StakingAccount, ModuleStore {
+        // TODO: disable this
+        let pair = object::convert(metadata);
+        let fa = dex::single_asset_provide_liquidity(
+            pair,
+            coin::withdraw(account, offer_asset_metadata, amount_in),
+            min_liquidity,
+        );
+
         delegate_internal(
             account,
             fa,
