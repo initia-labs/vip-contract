@@ -548,7 +548,7 @@ module vip::lock_staking {
         }
     }
 
-    inline fun extend_internal(
+    fun extend_internal(
         staking_account_addr: address,
         staking_account: &mut StakingAccount,
         metadata: Object<Metadata>,
@@ -556,7 +556,7 @@ module vip::lock_staking {
         release_time: u64,
         validator: String,
         new_release_time: u64,
-    ) acquires ModuleStore, StakingAccount {
+    ) acquires ModuleStore {
         // check release time
         assert!(
             new_release_time > release_time,
