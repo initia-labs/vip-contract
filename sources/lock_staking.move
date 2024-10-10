@@ -42,6 +42,7 @@ module vip::lock_staking {
     const EMAX_SLOT: u64 = 13;
     const EZERO_AMOUNT: u64 = 14;
     const EINVALID_MIN_MAX: u64 = 15;
+    const EARGS_LENGTH: u64 = 16;
 
     struct LockedDelegationResponse has drop {
         metadata: Object<Metadata>,
@@ -253,7 +254,8 @@ module vip::lock_staking {
     ) acquires StakingAccount, ModuleStore {
         // TODO: disable this
         let pair = object::convert(metadata);
-        let (coin_a_amount_in, coin_b_amount_in) = get_exact_provide_amount(pair, coin_a_amount_in, coin_b_amount_in);
+        let (coin_a_amount_in, coin_b_amount_in) =
+            get_exact_provide_amount(pair, coin_a_amount_in, coin_b_amount_in);
         let (metadata_a, metadata_b) = dex::pool_metadata(pair);
         let coin_a = coin::withdraw(account, metadata_a, coin_a_amount_in);
         let coin_b = coin::withdraw(account, metadata_b, coin_b_amount_in);
@@ -283,11 +285,12 @@ module vip::lock_staking {
     ) acquires StakingAccount, ModuleStore {
         // TODO: disable this
         let pair = object::convert(metadata);
-        let fa = dex::single_asset_provide_liquidity(
-            pair,
-            coin::withdraw(account, offer_asset_metadata, amount_in),
-            min_liquidity,
-        );
+        let fa =
+            dex::single_asset_provide_liquidity(
+                pair,
+                coin::withdraw(account, offer_asset_metadata, amount_in),
+                min_liquidity,
+            );
 
         delegate_internal(
             account,
@@ -496,6 +499,64 @@ module vip::lock_staking {
 
         assert_height(staking_account);
 
+        extend_internal(
+            staking_account_addr,
+            staking_account,
+            metadata,
+            amount,
+            release_time,
+            validator,
+            new_release_time,
+        );
+    }
+
+    public entry fun batch_extend(
+        account: &signer,
+        metadata: vector<Object<Metadata>>,
+        amounts: vector<Option<u64>>, // if none, extend all
+        release_times: vector<u64>,
+        validators: vector<String>,
+        new_release_times: vector<u64>,
+    ) acquires StakingAccount, ModuleStore {
+        let staking_account_signer = get_staking_account_signer(account);
+        let staking_account_addr = signer::address_of(&staking_account_signer);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
+
+        assert_height(staking_account);
+
+        let len = vector::length(&metadata);
+        assert!(
+            len == vector::length(&amounts)
+            || len == vector::length(&release_times)
+            || len == vector::length(&validators)
+            || len == vector::length(&new_release_times),
+            error::invalid_argument(EARGS_LENGTH),
+        );
+
+        let i = 0;
+        while (i < len) {
+            extend_internal(
+                staking_account_addr,
+                staking_account,
+                *vector::borrow(&metadata, i),
+                *vector::borrow(&amounts, i),
+                *vector::borrow(&release_times, i),
+                *vector::borrow(&validators, i),
+                *vector::borrow(&new_release_times, i),
+            );
+            i = i + 1;
+        }
+    }
+
+    inline fun extend_internal(
+        staking_account_addr: address,
+        staking_account: &mut StakingAccount,
+        metadata: Object<Metadata>,
+        amount: Option<u64>, // if none, extend all
+        release_time: u64,
+        validator: String,
+        new_release_time: u64,
+    ) acquires ModuleStore, StakingAccount {
         // check release time
         assert!(
             new_release_time > release_time,
@@ -538,7 +599,7 @@ module vip::lock_staking {
         // withdraw/remove delegation
         let withdrawn_locked_share =
             withdraw_delegation(
-                staking_account_addr,
+                staking_account,
                 metadata,
                 release_time,
                 validator,
@@ -547,7 +608,7 @@ module vip::lock_staking {
 
         // deposit delegation to new release time
         deposit_delegation(
-            staking_account_addr,
+            staking_account,
             metadata,
             validator,
             withdrawn_locked_share,
@@ -654,7 +715,7 @@ module vip::lock_staking {
         share_before: BigDecimal,
     ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
-        let staking_account = borrow_global<StakingAccount>(staking_account_addr);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
         assert_staking_account(staking_account_addr);
 
         // calculate share diff
@@ -681,7 +742,7 @@ module vip::lock_staking {
 
         // store delegation
         deposit_delegation(
-            staking_account_addr,
+            staking_account,
             metadata,
             validator,
             new_locked_share,
@@ -706,7 +767,7 @@ module vip::lock_staking {
         src_share_before: Option<BigDecimal>, // if none, redelegate all
     ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
-        let staking_account = borrow_global<StakingAccount>(staking_account_addr);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
         assert_staking_account(staking_account_addr);
         let (height, _) = block::get_block_info();
         let denom = coin::metadata_to_denom(metadata);
@@ -778,7 +839,7 @@ module vip::lock_staking {
             };
 
         withdraw_delegation(
-            staking_account_addr,
+            staking_account,
             metadata,
             src_release_time,
             validator_src_address,
@@ -786,7 +847,6 @@ module vip::lock_staking {
         );
 
         // deposit locked delegation
-        let staking_account = borrow_global<StakingAccount>(staking_account_addr);
         let delegation =
             get_delegation(
                 staking_account,
@@ -818,7 +878,7 @@ module vip::lock_staking {
             );
 
         deposit_delegation(
-            staking_account_addr,
+            staking_account,
             metadata,
             validator_dst_address,
             new_locked_share,
@@ -841,7 +901,7 @@ module vip::lock_staking {
         share_before: Option<BigDecimal>, // if none, undelegate all
     ) acquires StakingAccount {
         let staking_account_addr = signer::address_of(staking_account_signer);
-        let staking_account = borrow_global<StakingAccount>(staking_account_addr);
+        let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
         assert_staking_account(staking_account_addr);
 
         let (height, _) = block::get_block_info();
@@ -900,7 +960,7 @@ module vip::lock_staking {
             };
 
         withdraw_delegation(
-            staking_account_addr,
+            staking_account,
             metadata,
             release_time,
             validator,
@@ -1158,13 +1218,12 @@ module vip::lock_staking {
     }
 
     fun withdraw_delegation(
-        addr: address,
+        staking_account: &mut StakingAccount,
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String,
         locked_share: Option<BigDecimal>, // if none, withdraw all
-    ): BigDecimal acquires StakingAccount {
-        let staking_account = borrow_global_mut<StakingAccount>(addr);
+    ): BigDecimal {
         let key = generate_delegation_key(metadata, release_time, validator);
         let locked_share_stored = table::borrow_mut(&mut staking_account.delegations, key);
         let locked_share =
@@ -1212,13 +1271,12 @@ module vip::lock_staking {
     }
 
     fun deposit_delegation(
-        addr: address,
+        staking_account: &mut StakingAccount,
         metadata: Object<Metadata>,
         validator: String,
         locked_share: BigDecimal,
         release_time: u64,
-    ) acquires StakingAccount, ModuleStore {
-        let staking_account = borrow_global_mut<StakingAccount>(addr);
+    ) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let key = generate_delegation_key(metadata, release_time, validator);
 
@@ -1371,7 +1429,9 @@ module vip::lock_staking {
         *table::borrow(&staking_account.delegations, key)
     }
 
-    fun get_exact_provide_amount(pair: Object<dex::Config>, coin_a_amount_in: u64, coin_b_amount_in : u64): (u64, u64) {
+    fun get_exact_provide_amount(
+        pair: Object<dex::Config>, coin_a_amount_in: u64, coin_b_amount_in: u64
+    ): (u64, u64) {
         let pool_info = dex::get_pool_info(pair);
         let coin_a_amount = dex::get_coin_a_amount_from_pool_info_response(&pool_info);
         let coin_b_amount = dex::get_coin_b_amount_from_pool_info_response(&pool_info);
@@ -1381,12 +1441,18 @@ module vip::lock_staking {
         if (total_share == 0) {
             (coin_a_amount_in, coin_b_amount_in)
         } else {
-            let a_share_ratio = bigdecimal::from_ratio_u64(coin_a_amount_in, coin_a_amount);
-            let b_share_ratio = bigdecimal::from_ratio_u64(coin_b_amount_in, coin_b_amount);
+            let a_share_ratio =
+                bigdecimal::from_ratio_u64(coin_a_amount_in, coin_a_amount);
+            let b_share_ratio =
+                bigdecimal::from_ratio_u64(coin_b_amount_in, coin_b_amount);
             if (bigdecimal::gt(a_share_ratio, b_share_ratio)) {
-                coin_a_amount_in = bigdecimal::mul_by_u64_truncate(b_share_ratio, coin_a_amount);
+                coin_a_amount_in = bigdecimal::mul_by_u64_truncate(
+                    b_share_ratio, coin_a_amount
+                );
             } else {
-                coin_b_amount_in = bigdecimal::mul_by_u64_truncate(a_share_ratio, coin_b_amount);
+                coin_b_amount_in = bigdecimal::mul_by_u64_truncate(
+                    a_share_ratio, coin_b_amount
+                );
             };
 
             (coin_a_amount_in, coin_b_amount_in)
