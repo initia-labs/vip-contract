@@ -1769,13 +1769,14 @@ module vip::lock_staking {
     const DELEGATING_AMOUNT: u64 = 1000;
 
     #[test(chain = @initia_std, vip = @vip, delegator1 = @0x19c9b6007d21a996737ea527f46b160b0a057c37, delegator2 = @0x56ccf33c45b99546cd1da172cf6849395bbf8573)]
-    fun test_lock_staking_delegate(
+    fun test_lock_staking_delegate_and_extend(
         chain: &signer, vip: &signer, delegator1: &signer, delegator2: &signer
     ) acquires ModuleStore, StakingAccount {
         mock_mstaking::initialize(chain);
         init_module_for_test(vip);
         let (_, time) = block::get_block_info();
         let release_time = time + TEST_RELEASE_PERIOD;
+        let new_release_time = time + 2* TEST_RELEASE_PERIOD;
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
         let val2 = mock_mstaking::get_validator2();
@@ -1826,7 +1827,9 @@ module vip::lock_staking {
             release_time,
             val2,
         );
-
+        
+        // block increases
+        utils::increase_block(1, 2);
         assert!(
             get_locked_delegations(signer::address_of(delegator1))
                 == vector[
@@ -1938,6 +1941,60 @@ module vip::lock_staking {
                     }]
             },
             5,
+        );
+        //test extend
+        extend(
+            delegator1,
+            metadata,
+            option::none(),
+            release_time,
+            validator,
+            new_release_time
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator1))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: new_release_time
+                    }],
+            6,
+        );
+        // block increases
+        utils::increase_block(1, 2);
+        
+        // delegator2 extend two positions of lock staking
+        batch_extend(
+            delegator2,
+            vector[metadata,metadata],
+            vector[option::none(), option::none()],
+            vector[release_time,release_time],
+            vector[validator, val2],
+            vector[new_release_time,new_release_time],
+        );
+
+        assert!(
+            get_locked_delegations(signer::address_of(delegator2))
+                == vector[
+                    LockedDelegationResponse {
+                        metadata,
+                        validator,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: new_release_time
+                    },
+                    LockedDelegationResponse {
+                        metadata,
+                        validator: val2,
+                        locked_share: bigdecimal::from_ratio_u64(DELEGATING_AMOUNT, 1),
+                        amount: DELEGATING_AMOUNT,
+                        release_time: new_release_time
+                    }],
+            7,
         );
 
     }
@@ -3263,6 +3320,7 @@ module vip::lock_staking {
         init_module_for_test(vip);
         let (_, time) = block::get_block_info();
         let release_time = time + TEST_RELEASE_PERIOD;
+        let new_release_time = time + TEST_RELEASE_PERIOD * 2;
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
         let val2 = mock_mstaking::get_validator2();
@@ -3287,7 +3345,7 @@ module vip::lock_staking {
             validator,
         );
         utils::increase_block(1, 2);
-
+        
         mock_delegate(
             delegator1,
             metadata,
