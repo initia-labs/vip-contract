@@ -1776,7 +1776,7 @@ module vip::lock_staking {
         init_module_for_test(vip);
         let (_, time) = block::get_block_info();
         let release_time = time + TEST_RELEASE_PERIOD;
-        let new_release_time = time + 2* TEST_RELEASE_PERIOD;
+        let new_release_time = time + 2 * TEST_RELEASE_PERIOD;
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
         let val2 = mock_mstaking::get_validator2();
@@ -1827,7 +1827,7 @@ module vip::lock_staking {
             release_time,
             val2,
         );
-        
+
         // block increases
         utils::increase_block(1, 2);
         assert!(
@@ -1949,7 +1949,7 @@ module vip::lock_staking {
             option::none(),
             release_time,
             validator,
-            new_release_time
+            new_release_time,
         );
 
         assert!(
@@ -1966,15 +1966,15 @@ module vip::lock_staking {
         );
         // block increases
         utils::increase_block(1, 2);
-        
+
         // delegator2 extend two positions of lock staking
         batch_extend(
             delegator2,
-            vector[metadata,metadata],
+            vector[metadata, metadata],
             vector[option::none(), option::none()],
-            vector[release_time,release_time],
+            vector[release_time, release_time],
             vector[validator, val2],
-            vector[new_release_time,new_release_time],
+            vector[new_release_time, new_release_time],
         );
 
         assert!(
@@ -3345,7 +3345,7 @@ module vip::lock_staking {
             validator,
         );
         utils::increase_block(1, 2);
-        
+
         mock_delegate(
             delegator1,
             metadata,
