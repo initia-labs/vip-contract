@@ -29,9 +29,6 @@ module vip::weight_vote {
     const EUNAUTHORIZED: u64 = 2;
     // VOTE ERROR
     const EVOTING_END: u64 = 3;
-    // PROPOSAL ERROR
-    const EPROPOSAL_IN_PROGRESS: u64 = 4;
-    const EPROPOSAL_ALREADY_EXECUTED: u64 = 5;
     // EINVALID ERROR
     const EINVALID_PARAMETER: u64 = 6;
     const EINVALID_BRIDGE: u64 = 7;
@@ -381,14 +378,14 @@ module vip::weight_vote {
                 &mut module_store.proposals,
                 table_key::encode_u64(module_store.current_cycle),
             );
-        assert!(
-            proposal.voting_end_time < time,
-            error::invalid_state(EPROPOSAL_IN_PROGRESS),
-        );
-        assert!(
-            !proposal.executed,
-            error::invalid_state(EPROPOSAL_ALREADY_EXECUTED),
-        );
+
+        if (proposal.voting_end_time >= time) {
+            return
+        };
+
+        if (proposal.executed) {
+            return
+        };
 
         execute_proposal_internal(proposal, module_store.current_cycle);
     }
