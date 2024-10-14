@@ -483,7 +483,7 @@ module vip::vip {
         esinit: FungibleAsset,
         stakelisted_metadata: Object<Metadata>,
         stakelisted_amount: u64,
-        lock_stake_period: Option<u64>,
+        release_time_option: Option<u64>,
     ) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let account_addr = signer::address_of(account);
@@ -504,21 +504,20 @@ module vip::vip {
                 stakelisted_amount,
             );
 
-        let lock_period =
-            if (option::is_some(&lock_stake_period)) {
+        let (_, curr_time) = block::get_block_info();
+        let release_time =
+            if (option::is_some(&release_time_option)) {
                 assert!(
-                    *option::borrow(&lock_stake_period)
+                    *option::borrow(&release_time_option) - curr_time
                         >= module_store.minimum_lock_staking_period,
                     error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD),
                 );
-                *option::borrow(&lock_stake_period)
+                curr_time + *option::borrow(&release_time_option)
             } else {
-                module_store.minimum_lock_staking_period
+                curr_time + module_store.minimum_lock_staking_period
             };
 
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
-        let (_, curr_time) = block::get_block_info();
-        let release_time = curr_time + lock_period;
         let esinit_metadata = fungible_asset::asset_metadata(&esinit);
 
         let (coin_a_metadata, _) = dex::pool_metadata(pair);
@@ -1687,7 +1686,7 @@ module vip::vip {
         esinit_amount: u64,
         stakelisted_metadata: Object<Metadata>,
         stakelisted_amount: u64,
-        lock_stake_period: Option<u64>,
+        release_time: Option<u64>,
     ) acquires ModuleStore {
         let account_addr = signer::address_of(account);
         check_lock_stakable(account_addr, bridge_id, version, stage);
@@ -1708,7 +1707,7 @@ module vip::vip {
             esinit,
             stakelisted_metadata,
             stakelisted_amount,
-            lock_stake_period,
+            release_time,
         );
     }
 
