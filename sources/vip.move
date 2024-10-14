@@ -512,7 +512,7 @@ module vip::vip {
                         >= module_store.minimum_lock_staking_period,
                     error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD),
                 );
-                curr_time + *option::borrow(&release_time_option)
+                *option::borrow(&release_time_option)
             } else {
                 curr_time + module_store.minimum_lock_staking_period
             };
