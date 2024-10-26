@@ -665,7 +665,8 @@ module vip::lock_staking {
         assert_height(staking_account);
         let metadata = fungible_asset::metadata_from_asset(&fa);
         let amount = fungible_asset::amount(&fa);
-        let coin = create_coin(metadata,amount);
+        let denom = coin::metadata_to_denom(metadata);
+        let coin = Coin { denom, amount };
 
         // deposit token to staking account addr
         coin::deposit(staking_account_addr, fa);
