@@ -786,19 +786,19 @@ module vip::vesting {
     fun get_last_claimed_stage<Vesting: copy + drop + store>(
         account_addr: address, bridge_id: u64, version: u64,
     ): u64 acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let module_store = borrow_global<ModuleStore>(@vip);
         let table_key = generate_key(bridge_id, version, account_addr);
         if (type_info::type_name<Vesting>() == type_info::type_name<OperatorVesting>()) {
             let operator_vesting_store =
-                table::borrow_mut(
-                    &mut module_store.operator_vestings,
+                table::borrow(
+                    &module_store.operator_vestings,
                     table_key,
                 );
             operator_vesting_store.last_claimed_stage
         } else if (type_info::type_name<Vesting>() == type_info::type_name<UserVesting>()) {
             let user_vesting_store =
-                table::borrow_mut(
-                    &mut module_store.user_vestings,
+                table::borrow(
+                    &module_store.user_vestings,
                     table_key,
                 );
             user_vesting_store.last_claimed_stage

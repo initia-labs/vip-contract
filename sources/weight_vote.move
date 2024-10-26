@@ -478,7 +478,7 @@ module vip::weight_vote {
                         table_key::encode_u64(w.bridge_id),
                         0,
                     );
-                *tally = *tally - (bridge_vp as u64);
+                *tally = *tally - bridge_vp;
             },
         );
         proposal.total_tally = proposal.total_tally - voting_power_removed;
@@ -501,7 +501,7 @@ module vip::weight_vote {
                         table_key::encode_u64(w.bridge_id),
                         0,
                     );
-                *tally = *tally + (bridge_vp as u64);
+                *tally = *tally + bridge_vp;
             },
         );
         proposal.total_tally = proposal.total_tally + voting_power_used
