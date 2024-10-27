@@ -206,8 +206,8 @@ module vip::operator {
         operator: &signer, bridge_id: u64, version: u64
     ) acquires ModuleStore {
         let key = generate_key(bridge_id, version);
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
+        let module_store = borrow_global<ModuleStore>(@vip);
+        let operator_info = table::borrow(&module_store.operator_infos, key);
 
         assert!(
             operator_info.operator_addr == signer::address_of(operator),
@@ -216,7 +216,7 @@ module vip::operator {
     }
 
     public fun get_operator_commission(bridge_id: u64, version: u64): BigDecimal acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
@@ -233,7 +233,7 @@ module vip::operator {
     }
 
     public fun is_bridge_registered(bridge_id: u64, version: u64): bool acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_infos,
             generate_key(bridge_id, version),
@@ -259,7 +259,7 @@ module vip::operator {
 
     #[test_only]
     public fun get_operator_info(bridge_id: u64, version: u64): OperatorInfoResponse acquires ModuleStore {
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
