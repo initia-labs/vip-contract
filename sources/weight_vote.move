@@ -268,7 +268,7 @@ module vip::weight_vote {
         );
         let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
         assert!(
-            time < proposal.voting_end_time,
+            time <= proposal.voting_end_time,
             error::invalid_state(EVOTING_END),
         );
 
