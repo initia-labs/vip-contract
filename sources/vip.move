@@ -735,7 +735,7 @@ module vip::vip {
             },
         );
         assert!(
-            total_balance > 0,
+            vector::length(&bridge_ids) == 0 || total_balance > 0,
             error::invalid_state(EINVALID_TOTAL_SHARE),
         );
         let max_effective_balance =
