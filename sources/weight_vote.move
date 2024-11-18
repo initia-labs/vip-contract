@@ -666,10 +666,11 @@ module vip::weight_vote {
                         metadata,
                         &bigdecimal::one(),
                     );
-                // TODO: apply lock time weight
-                // let lock_period = curr_time - release_time;
-                // let lock_time_weight = get_lock_period_multiplier(lock_period);
-                // voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
+
+                let lock_period = curr_time - release_time;
+                let lock_time_weight = get_lock_period_multiplier(lock_period);
+                voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
+
                 lock_staking_voting_power = lock_staking_voting_power
                     + bigdecimal::mul_by_u64_truncate(*pair_multiplier, voting_power);
             },
