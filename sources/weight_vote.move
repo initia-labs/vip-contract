@@ -666,7 +666,11 @@ module vip::weight_vote {
                         &bigdecimal::one(),
                     );
 
-                let lock_period = curr_time - release_time;
+                let lock_period = if (release_time > curr_time){
+                    release_time - curr_time
+                } else {
+                    0
+                };
                 let lock_time_weight = get_lock_period_multiplier(module_store, lock_period);
                 voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
 
