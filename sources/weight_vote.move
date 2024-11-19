@@ -540,9 +540,8 @@ module vip::weight_vote {
         allocation * (time - start_time) / vesting_period - claimed_amount
     }
 
-    fun get_lock_period_multiplier(lock_period: u64): BigDecimal acquires ModuleStore {
+    fun get_lock_period_multiplier(module_store: &ModuleStore, lock_period: u64): BigDecimal {
         let (min_lock_period, max_lock_period) = lock_staking::get_lock_period_limits();
-        let module_store = borrow_global<ModuleStore>(@vip);
         let max_multiplier = module_store.max_lock_period_multiplier;
         let min_multiplier = module_store.min_lock_period_multiplier;
 
@@ -667,8 +666,12 @@ module vip::weight_vote {
                         &bigdecimal::one(),
                     );
 
-                let lock_period = curr_time - release_time;
-                let lock_time_weight = get_lock_period_multiplier(lock_period);
+                let lock_period = if (release_time > curr_time){
+                    release_time - curr_time
+                } else {
+                    0
+                };
+                let lock_time_weight = get_lock_period_multiplier(module_store, lock_period);
                 voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
 
                 lock_staking_voting_power = lock_staking_voting_power
@@ -1159,14 +1162,14 @@ module vip::weight_vote {
         // 1) lock period < ONE MONTH
         let lock_period = ONE_WEEK;
         assert!(
-            get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(
+            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
                 min_multiplier
             ),
             1,
         );
         lock_period = min_lock_period;
         assert!(
-            get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(
+            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
                 min_multiplier
             ),
             2,
@@ -1176,7 +1179,7 @@ module vip::weight_vote {
         // (3_000_000_000_000_000_000n)*(3n * 30n * 60n * 60n * 24n)/ (1430n * 60n * 60n * 24n) + 1_000_000_000_000_000_000n
         // = 1188811188811188811n
         assert!(
-            get_lock_period_multiplier(lock_period)
+            get_lock_period_multiplier(module_store, lock_period)
                 == bigdecimal::from_scaled(biguint::from_u64(1188811188811188811)),
             3,
         );
@@ -1185,14 +1188,14 @@ module vip::weight_vote {
         // (3_000_000_000_000_000_000n)*(1065n * 60n * 60n * 24n)/ (1430n * 60n * 60n * 24n) + 1_000_000_000_000_000_000n
         // = 3234265734265734265n
         assert!(
-            get_lock_period_multiplier(lock_period)
+            get_lock_period_multiplier(module_store, lock_period)
                 == bigdecimal::from_scaled(biguint::from_u128(3234265734265734265)),
             4,
         );
 
         lock_period = max_lock_period;
         assert!(
-            get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(
+            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
                 max_multiplier
             ),
             5,
@@ -1200,7 +1203,7 @@ module vip::weight_vote {
         // 3) lock period > 4 year
         lock_period = 5 * ONE_YEAR;
         assert!(
-            get_lock_period_multiplier(lock_period) == bigdecimal::from_u64(
+            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
                 max_multiplier
             ),
             6,
