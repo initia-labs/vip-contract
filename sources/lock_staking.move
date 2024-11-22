@@ -361,7 +361,12 @@ module vip::lock_staking {
                     error::invalid_argument(ENOT_ENOUGH_DELEGATION),
                 );
 
-                (redelegate_amount, option::some(share_before))
+
+                if (redelegate_amount == locked_amount) {
+                    (locked_amount, option::none())
+                } else {
+                    (redelegate_amount, option::some(share_before))
+                }
             };
 
         // execute begin redelegate
