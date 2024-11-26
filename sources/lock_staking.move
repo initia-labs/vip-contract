@@ -169,10 +169,11 @@ module vip::lock_staking {
         if (!is_registered(addr)) { return };
 
         let staking_account_signer = get_staking_account_signer(account);
+        let staking_account_addr = signer::address_of(&staking_account_signer);
         stargate_vote(
             &staking_account_signer,
             proposal_id,
-            to_sdk(addr),
+            to_sdk(staking_account_addr),
             option,
             metadata,
         );
