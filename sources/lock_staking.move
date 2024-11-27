@@ -3330,7 +3330,6 @@ module vip::lock_staking {
         init_module_for_test(vip);
         let (_, time) = block::get_block_info();
         let release_time = time + TEST_RELEASE_PERIOD;
-        let new_release_time = time + TEST_RELEASE_PERIOD * 2;
         let metadata = mock_mstaking::get_lp_metadata();
         let validator = mock_mstaking::get_validator1();
         let val2 = mock_mstaking::get_validator2();

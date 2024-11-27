@@ -300,7 +300,7 @@ module initia_std::mock_mstaking {
                     // calculate slash amount proportional to stake contributing to infraction
                     vector::enumerate_ref(
                         &initial_balances,
-                        |i, initial_balance| {
+                        |_i, initial_balance| {
                             use_coin(initial_balance);
                             let slashing_amount =
                                 bigdecimal::mul_by_u64_truncate(
