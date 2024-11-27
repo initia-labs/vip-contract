@@ -826,7 +826,7 @@ module vip::vip {
             ),
             option::none(),
             1,
-            |key, bridge| {
+            |_key, bridge| {
                 use_bridge(bridge);
                 total_weight = bigdecimal::add(total_weight, bridge.vip_weight);
                 false

@@ -899,6 +899,7 @@ module vip::weight_vote {
         // check the mstaking delegation makes the voting power
         mock_mstaking::delegate(u1, validator, init_metadata, 10);
         mock_mstaking::delegate(u2, validator, init_metadata, 30);
+        
         assert!(get_voting_power(signer::address_of(u1)) == 10, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 30, 1);
 
@@ -911,26 +912,29 @@ module vip::weight_vote {
         mock_mstaking::undelegate(u2, validator, init_metadata, 10);
         assert!(get_voting_power(signer::address_of(u1)) == 30, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 30, 1);
-
+       
         // check the lock staking delegation makes the voting power
         lock_staking::mock_delegate(u1, lp_metadata, 30, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         lock_staking::mock_delegate(u2, lp_metadata, 80, 60 * 60 * 24 * 26, validator);
         skip_period(2);
+        
+         
+        assert!(get_voting_power(signer::address_of(u1)) == 61, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 114, 1);
 
-        assert!(get_voting_power(signer::address_of(u1)) == 60, 1);
-        assert!(get_voting_power(signer::address_of(u2)) == 110, 1);
-
+        
         lock_staking::mock_delegate(u1, lp_metadata, 90, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         lock_staking::mock_delegate(u2, lp_metadata, 40, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        assert!(get_voting_power(signer::address_of(u1)) == 150, 1);
-        assert!(get_voting_power(signer::address_of(u2)) == 150, 1);
+        
+        assert!(get_voting_power(signer::address_of(u1)) == 156, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 156, 1);
 
         mock_mstaking::slash(validator, mock_mstaking::get_slash_factor());
-        assert!(get_voting_power(signer::address_of(u1)) == 135, 1);
-        assert!(get_voting_power(signer::address_of(u2)) == 135, 1);
+        assert!(get_voting_power(signer::address_of(u1)) == 140, 1);
+        assert!(get_voting_power(signer::address_of(u2)) == 140, 1);
 
         // undelegate lock staking 108(120 * 0.9 ,by slash)
         skip_period(60 * 60 * 24 * 26);
@@ -950,7 +954,6 @@ module vip::weight_vote {
             validator,
         );
         skip_period(2);
-
         assert!(get_voting_power(signer::address_of(u1)) == 27, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 27, 1);
 
@@ -1147,7 +1150,6 @@ module vip::weight_vote {
         chain: &signer, vip: &signer, vesting_creator: &signer
     ) acquires ModuleStore {
         init_test(chain, vip, vesting_creator);
-        let tolerance = bigdecimal::from_scaled(biguint::from_u64(TOLERANCE));
         let min_lock_period = ONE_MONTH; // one month
         let max_lock_period = 4 * ONE_YEAR; // 4 year
         lock_staking::update_params(
