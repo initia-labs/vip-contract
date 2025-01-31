@@ -33,8 +33,9 @@ module vip::weight_vote {
     const EINVALID_PARAMETER: u64 = 6;
     const EINVALID_BRIDGE: u64 = 7;
     const EINVALID_VOTING_POWER: u64 = 8;
+    const EARGS_LENGTH: u64 = 9;
     // NOT FOUND ERROR
-    const ECYCLE_NOT_FOUND: u64 = 9;
+    const ECYCLE_NOT_FOUND: u64 = 10;
 
     // LOCK TIME WEIGHT MULTIPLIER
     const DEFAULT_MIN_WEIGHT_MULTIPLIER: u64 = 1;
@@ -233,6 +234,7 @@ module vip::weight_vote {
         let addr = signer::address_of(account);
         let max_voting_power = get_voting_power(addr);
         assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
+        assert!(vector::length(&bridge_ids) == vector::length(&weights),EARGS_LENGTH );
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, time) = get_block_info();
