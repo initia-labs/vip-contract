@@ -42,7 +42,7 @@ module vip::lock_staking {
     const EMAX_SLOT: u64 = 13;
     const EZERO_AMOUNT: u64 = 14;
     const EINVALID_MIN_MAX: u64 = 15;
-    const EARGS_LENGTH: u64 = 16;
+    const EINVALID_ARGS_LENGTH: u64 = 16;
 
     struct LockedDelegationResponse has drop {
         metadata: Object<Metadata>,
@@ -361,7 +361,6 @@ module vip::lock_staking {
                     locked_amount >= redelegate_amount,
                     error::invalid_argument(ENOT_ENOUGH_DELEGATION),
                 );
-
 
                 if (redelegate_amount == locked_amount) {
                     (locked_amount, option::none())
