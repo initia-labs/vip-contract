@@ -234,7 +234,6 @@ module vip::lock_staking {
         release_time: u64,
         validator_address: String
     ) acquires StakingAccount, ModuleStore {
-        // TODO: disable this
         let fa = coin::withdraw(account, metadata, amount);
         delegate_internal(
             account,
@@ -253,7 +252,6 @@ module vip::lock_staking {
         release_time: u64,
         validator_address: String
     ) acquires StakingAccount, ModuleStore {
-        // TODO: disable this
         let pair = object::convert(metadata);
         let (coin_a_amount_in, coin_b_amount_in) =
             get_exact_provide_amount(pair, coin_a_amount_in, coin_b_amount_in);
@@ -284,7 +282,6 @@ module vip::lock_staking {
         release_time: u64,
         validator_address: String
     ) acquires StakingAccount, ModuleStore {
-        // TODO: disable this
         let pair = object::convert(metadata);
         let fa =
             dex::single_asset_provide_liquidity(
@@ -539,7 +536,7 @@ module vip::lock_staking {
             && len == vector::length(&release_times)
             && len == vector::length(&validators)
             && len == vector::length(&new_release_times),
-            error::invalid_argument(EARGS_LENGTH),
+            error::invalid_argument(EINVALID_ARGS_LENGTH),
         );
 
         let i = 0;

@@ -914,7 +914,9 @@ module vip::vip {
         // so if vesting position of prev stage is claimed, then it will be okay but if it's not, make the error
         if (start_stage >= init_stage + 1) {
             assert!(
+                // first claim of vesting position (vesting_store doesn't exist)
                 !is_vesting_store_registered
+                // or not the next claim must be the stage immediately following the last claimed stage
                     || vesting::get_user_last_claimed_stage(
                         account_addr, bridge_id, version
                     ) == start_stage - 1,
