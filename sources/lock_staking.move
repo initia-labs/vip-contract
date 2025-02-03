@@ -536,9 +536,9 @@ module vip::lock_staking {
         let len = vector::length(&metadata);
         assert!(
             len == vector::length(&amounts)
-            || len == vector::length(&release_times)
-            || len == vector::length(&validators)
-            || len == vector::length(&new_release_times),
+            && len == vector::length(&release_times)
+            && len == vector::length(&validators)
+            && len == vector::length(&new_release_times),
             error::invalid_argument(EARGS_LENGTH),
         );
 
