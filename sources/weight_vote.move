@@ -33,8 +33,9 @@ module vip::weight_vote {
     const EINVALID_PARAMETER: u64 = 6;
     const EINVALID_BRIDGE: u64 = 7;
     const EINVALID_VOTING_POWER: u64 = 8;
+    const EINVALID_ARGS_LENGTH: u64 = 9;
     // NOT FOUND ERROR
-    const ECYCLE_NOT_FOUND: u64 = 9;
+    const ECYCLE_NOT_FOUND: u64 = 10;
 
     // LOCK TIME WEIGHT MULTIPLIER
     const DEFAULT_MIN_WEIGHT_MULTIPLIER: u64 = 1;
@@ -233,6 +234,9 @@ module vip::weight_vote {
         let addr = signer::address_of(account);
         let max_voting_power = get_voting_power(addr);
         assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
+        assert!(
+            vector::length(&bridge_ids) == vector::length(&weights), EINVALID_ARGS_LENGTH
+        );
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (_, time) = get_block_info();
@@ -379,13 +383,9 @@ module vip::weight_vote {
                 table_key::encode_u64(module_store.current_cycle),
             );
 
-        if (proposal.voting_end_time >= time) {
-            return
-        };
+        if (proposal.voting_end_time >= time) { return };
 
-        if (proposal.executed) {
-            return
-        };
+        if (proposal.executed) { return };
 
         execute_proposal_internal(proposal, module_store.current_cycle);
     }
@@ -540,7 +540,9 @@ module vip::weight_vote {
         allocation * (time - start_time) / vesting_period - claimed_amount
     }
 
-    fun get_lock_period_multiplier(module_store: &ModuleStore, lock_period: u64): BigDecimal {
+    fun get_lock_period_multiplier(
+        module_store: &ModuleStore, lock_period: u64
+    ): BigDecimal {
         let (min_lock_period, max_lock_period) = lock_staking::get_lock_period_limits();
         let max_multiplier = module_store.max_lock_period_multiplier;
         let min_multiplier = module_store.min_lock_period_multiplier;
@@ -666,13 +668,15 @@ module vip::weight_vote {
                         &bigdecimal::one(),
                     );
 
-                let lock_period = if (release_time > curr_time){
-                    release_time - curr_time
-                } else {
-                    0
-                };
-                let lock_time_weight = get_lock_period_multiplier(module_store, lock_period);
-                voting_power = bigdecimal::mul_by_u64_truncate(lock_time_weight, voting_power);
+                let lock_period =
+                    if (release_time > curr_time) {
+                        release_time - curr_time
+                    } else { 0 };
+                let lock_time_weight =
+                    get_lock_period_multiplier(module_store, lock_period);
+                voting_power = bigdecimal::mul_by_u64_truncate(
+                    lock_time_weight, voting_power
+                );
 
                 lock_staking_voting_power = lock_staking_voting_power
                     + bigdecimal::mul_by_u64_truncate(*pair_multiplier, voting_power);
@@ -899,7 +903,7 @@ module vip::weight_vote {
         // check the mstaking delegation makes the voting power
         mock_mstaking::delegate(u1, validator, init_metadata, 10);
         mock_mstaking::delegate(u2, validator, init_metadata, 30);
-        
+
         assert!(get_voting_power(signer::address_of(u1)) == 10, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 30, 1);
 
@@ -912,23 +916,21 @@ module vip::weight_vote {
         mock_mstaking::undelegate(u2, validator, init_metadata, 10);
         assert!(get_voting_power(signer::address_of(u1)) == 30, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 30, 1);
-       
+
         // check the lock staking delegation makes the voting power
         lock_staking::mock_delegate(u1, lp_metadata, 30, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         lock_staking::mock_delegate(u2, lp_metadata, 80, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        
-         
+
         assert!(get_voting_power(signer::address_of(u1)) == 61, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 114, 1);
 
-        
         lock_staking::mock_delegate(u1, lp_metadata, 90, 60 * 60 * 24 * 26, validator);
         skip_period(2);
         lock_staking::mock_delegate(u2, lp_metadata, 40, 60 * 60 * 24 * 26, validator);
         skip_period(2);
-        
+
         assert!(get_voting_power(signer::address_of(u1)) == 156, 1);
         assert!(get_voting_power(signer::address_of(u2)) == 156, 1);
 
@@ -1164,16 +1166,14 @@ module vip::weight_vote {
         // 1) lock period < ONE MONTH
         let lock_period = ONE_WEEK;
         assert!(
-            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
-                min_multiplier
-            ),
+            get_lock_period_multiplier(module_store, lock_period)
+                == bigdecimal::from_u64(min_multiplier),
             1,
         );
         lock_period = min_lock_period;
         assert!(
-            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
-                min_multiplier
-            ),
+            get_lock_period_multiplier(module_store, lock_period)
+                == bigdecimal::from_u64(min_multiplier),
             2,
         );
         // 2) lock period >= ONE MONTH && lock period =< 4 year
@@ -1197,17 +1197,15 @@ module vip::weight_vote {
 
         lock_period = max_lock_period;
         assert!(
-            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
-                max_multiplier
-            ),
+            get_lock_period_multiplier(module_store, lock_period)
+                == bigdecimal::from_u64(max_multiplier),
             5,
         );
         // 3) lock period > 4 year
         lock_period = 5 * ONE_YEAR;
         assert!(
-            get_lock_period_multiplier(module_store, lock_period) == bigdecimal::from_u64(
-                max_multiplier
-            ),
+            get_lock_period_multiplier(module_store, lock_period)
+                == bigdecimal::from_u64(max_multiplier),
             6,
         );
     }
