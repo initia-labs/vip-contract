@@ -276,14 +276,14 @@ module vip::vip {
         chain: &signer,
         stage_start_time: u64,
         agent: address,
-        api: string::String
+        api_uri: string::String
     ) {
         utils::check_chain_permission(chain);
         move_to(
             chain,
             ModuleStore {
                 stage: DEFAULT_VIP_START_STAGE,
-                stage_start_time: stage_start_time,
+                stage_start_time,
                 stage_end_time: stage_start_time,
                 stage_interval: DEFAULT_STAGE_INTERVAL,
                 vesting_period: DEFAULT_VESTING_PERIOD,
@@ -295,7 +295,7 @@ module vip::vip {
                 pool_split_ratio: bigdecimal::from_ratio_u64(
                     DEFAULT_POOL_SPLIT_RATIO, 10
                 ),
-                agent_data: AgentData { agent: agent, api_uri: api, },
+                agent_data: AgentData { agent, api_uri, },
                 maximum_tvl_ratio: bigdecimal::from_ratio_u64(
                     DEFAULT_MAXIMUM_TVL_RATIO, 10
                 ),
@@ -1030,7 +1030,7 @@ module vip::vip {
         let create_time = snapshot.create_time;
         // upsert snapshot data
         *snapshot = Snapshot {
-            create_time: create_time,
+            create_time,
             upsert_time: execution_time,
             merkle_root: new_merkle_root,
             total_l2_score: new_l2_total_score,
