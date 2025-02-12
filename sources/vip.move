@@ -240,6 +240,7 @@ module vip::vip {
         minimum_score_ratio: BigDecimal,
     }
 
+    // DEPRECATED
     #[event]
     struct ReleaseTimeUpdateEvent has drop, store {
         stage: u64,

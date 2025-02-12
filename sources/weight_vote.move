@@ -201,6 +201,12 @@ module vip::weight_vote {
             module_store.voting_period < module_store.cycle_interval,
             error::invalid_argument(EINVALID_PARAMETER),
         );
+
+        // check lock period multiplier
+        assert!(
+            module_store.min_lock_period_multiplier <= module_store.max_lock_period_multiplier,
+            error::invalid_argument(EINVALID_PARAMETER),
+        );
     }
 
     public entry fun update_pair_multiplier(

@@ -443,7 +443,15 @@ module vip::vesting {
         vector::for_each(
             finalized_keys,
             |stage_key| {
-                table::remove(operator_vestings, stage_key);
+                let vesting = table::remove(operator_vestings, stage_key);
+                event::emit(
+                    OperatorVestingFinalizedEvent {
+                        account: operator_addr,
+                        bridge_id,
+                        version,
+                        start_stage: vesting.start_stage,
+                    },
+                );
             },
         );
 
