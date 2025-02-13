@@ -728,6 +728,18 @@ module vip::weight_vote {
         }
     }
 
+    #[view]
+    public fun get_pair_multipliers(metadata: vector<Object<Metadata>>): vector<BigDecimal> {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        vector::map_ref(&metadata, |metadata| {
+            *table::borrow_with_default(
+                &module_store.pair_multipliers,
+                *metadata,
+                &bigdecimal::one(),
+            )
+        })
+    }
+
     inline fun use_weight(_v: Weight) {}
 
     #[test_only]
