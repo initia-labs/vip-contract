@@ -729,7 +729,7 @@ module vip::weight_vote {
     }
 
     #[view]
-    public fun get_pair_multipliers(metadata: vector<Object<Metadata>>): vector<BigDecimal> {
+    public fun get_pair_multipliers(metadata: vector<Object<Metadata>>): vector<BigDecimal> acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         vector::map_ref(&metadata, |metadata| {
             *table::borrow_with_default(
