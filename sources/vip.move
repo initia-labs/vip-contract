@@ -498,14 +498,16 @@ module vip::vip {
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
         let esinit_metadata = fungible_asset::asset_metadata(&esinit);
 
-        let (coin_a_metadata, _) = dex::pool_metadata(pair);
+        let (coin_a_metadata, coin_b_metadata) = dex::pool_metadata(pair);
 
-        // if pair is reversed, swap coin_a and co  gin_b
+        // if pair is reversed, swap coin_a and coin_b
         let (coin_a, coin_b) =
             if (coin_a_metadata == esinit_metadata) {
                 (esinit, stakelisted)
-            } else {
+            } else if (coin_b_metadata == esinit_metadata){
                 (stakelisted, esinit)
+            } else {
+                abort error::invalid_argument(EINVALID_POOL)
             };
 
         let liquidity = dex::provide_liquidity(pair, coin_a, coin_b, min_liquidity);
