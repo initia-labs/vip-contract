@@ -493,18 +493,7 @@ module vip::vip {
                 stakelisted_amount
             );
 
-        let (_, curr_time) = block::get_block_info();
-        let release_time =
-            if (option::is_some(&release_time_option)) {
-                assert!(
-                    *option::borrow(&release_time_option) - curr_time
-                        >= module_store.minimum_lock_staking_period,
-                    error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD)
-                );
-                *option::borrow(&release_time_option)
-            } else {
-                curr_time + module_store.minimum_lock_staking_period
-            };
+        let release_time = get_release_time(module_store, release_time_option);
 
         let pair = object::convert<Metadata, dex::Config>(lp_metadata);
         let esinit_metadata = fungible_asset::asset_metadata(&esinit);
@@ -572,21 +561,60 @@ module vip::vip {
         };
         fungible_asset::destroy_zero(esinit);
 
-        let (_, curr_time) = block::get_block_info();
-        let release_time =
-            if (option::is_some(&release_time_option)) {
-                assert!(
-                    *option::borrow(&release_time_option) - curr_time
-                        >= module_store.minimum_lock_staking_period,
-                    error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD)
-                );
-                *option::borrow(&release_time_option)
-            } else {
-                curr_time + module_store.minimum_lock_staking_period
-            };
+        let release_time = get_release_time(module_store, release_time_option);
 
         let liquidity = stableswap::provide_liquidity(pool, coins, min_liquidity);
         lock_staking::delegate_internal(account, liquidity, release_time, validator);
+    }
+
+    fun get_release_time(
+        module_store: &ModuleStore, release_time_option: Option<u64>
+    ): u64 {
+        let (_, curr_time) = block::get_block_info();
+        if (option::is_some(&release_time_option)) {
+            assert!(
+                *option::borrow(&release_time_option) - curr_time
+                    >= module_store.minimum_lock_staking_period,
+                error::invalid_argument(EINVALID_LOCK_STKAING_PERIOD)
+            );
+            *option::borrow(&release_time_option)
+        } else {
+            curr_time + module_store.minimum_lock_staking_period
+        }
+    }
+
+    fun withdraw_esinit_for_lock_stake(
+        account: &signer,
+        bridge_id: u64,
+        version: u64,
+        stage: vector<u64>,
+        esinit_amount: vector<u64>
+    ): FungibleAsset acquires ModuleStore {
+        let account_addr = signer::address_of(account);
+
+        assert!(
+            vector::length(&esinit_amount) == vector::length(&stage),
+            error::invalid_argument(EINVALID_BATCH_ARGUMENT)
+        );
+
+        let esinit_metadata = vault::reward_metadata();
+        let esinit = fungible_asset::zero(esinit_metadata);
+
+        vector::enumerate_ref(
+            &stage,
+            |i, s| {
+                check_lock_stakable(account_addr, bridge_id, version, *s);
+                let amount = *vector::borrow(&esinit_amount, i);
+                let withdrawn_asset =
+                    vesting::withdraw_vesting(
+                        account_addr, bridge_id, version, *s, amount
+                    );
+
+                fungible_asset::merge(&mut esinit, withdrawn_asset);
+            }
+        );
+
+        esinit
     }
 
     fun calc_operator_and_user_reward_amount(
@@ -1745,29 +1773,14 @@ module vip::vip {
         stakelisted_amount: u64,
         lock_stake_period: Option<u64>
     ) acquires ModuleStore {
-        let account_addr = signer::address_of(account);
-
-        assert!(
-            vector::length(&esinit_amount) == vector::length(&stage),
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT)
-        );
-
-        let esinit_metadata = vault::reward_metadata();
-        let esinit = fungible_asset::zero(esinit_metadata);
-
-        vector::enumerate_ref(
-            &stage,
-            |i, s| {
-                check_lock_stakable(account_addr, bridge_id, version, *s);
-                let amount = *vector::borrow(&esinit_amount, i);
-                let withdrawn_asset =
-                    vesting::withdraw_vesting(
-                        account_addr, bridge_id, version, *s, amount
-                    );
-
-                fungible_asset::merge(&mut esinit, withdrawn_asset);
-            }
-        );
+        let esinit =
+            withdraw_esinit_for_lock_stake(
+                account,
+                bridge_id,
+                version,
+                stage,
+                esinit_amount
+            );
 
         lock_stake(
             account,
@@ -1792,29 +1805,14 @@ module vip::vip {
         esinit_amount: vector<u64>,
         lock_stake_period: Option<u64>
     ) acquires ModuleStore {
-        let account_addr = signer::address_of(account);
-
-        assert!(
-            vector::length(&esinit_amount) == vector::length(&stage),
-            error::invalid_argument(EINVALID_BATCH_ARGUMENT)
-        );
-
-        let esinit_metadata = vault::reward_metadata();
-        let esinit = fungible_asset::zero(esinit_metadata);
-
-        vector::enumerate_ref(
-            &stage,
-            |i, s| {
-                check_lock_stakable(account_addr, bridge_id, version, *s);
-                let amount = *vector::borrow(&esinit_amount, i);
-                let withdrawn_asset =
-                    vesting::withdraw_vesting(
-                        account_addr, bridge_id, version, *s, amount
-                    );
-
-                fungible_asset::merge(&mut esinit, withdrawn_asset);
-            }
-        );
+        let esinit =
+            withdraw_esinit_for_lock_stake(
+                account,
+                bridge_id,
+                version,
+                stage,
+                esinit_amount
+            );
 
         stableswap_lock_stake(
             account,

@@ -543,9 +543,7 @@ module vip::vesting {
     }
 
     public(friend) fun build_operator_vesting_claim_info(
-        start_stage: u64,
-        end_stage: u64,
-        funded_reward: u64
+        start_stage: u64, end_stage: u64, funded_reward: u64
     ): OperatorVestingClaimInfo {
         OperatorVestingClaimInfo { start_stage, end_stage, funded_reward }
     }
@@ -800,8 +798,9 @@ module vip::vesting {
             operator_vesting_store.last_claimed_stage
         } else if (type_info::type_name<Vesting>()
             == type_info::type_name<UserVesting>()) {
-            let user_vesting_store =
-                table::borrow(&module_store.user_vestings, table_key);
+            let user_vesting_store = table::borrow(
+                &module_store.user_vestings, table_key
+            );
             user_vesting_store.last_claimed_stage
         } else {
             abort(error::invalid_argument(EINVALID_VESTING_TYPE))
@@ -912,9 +911,7 @@ module vip::vesting {
     }
 
     fun load_operator_vestings_imut(
-        module_store: &ModuleStore,
-        bridge_id: u64,
-        version: u64
+        module_store: &ModuleStore, bridge_id: u64, version: u64
     ): &Table<vector<u8>, OperatorVesting> {
         let vesting_table_key = generate_key(bridge_id, version, @0x0);
         assert!(

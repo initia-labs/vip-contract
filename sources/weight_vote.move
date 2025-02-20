@@ -213,9 +213,7 @@ module vip::weight_vote {
     }
 
     public entry fun update_pair_multiplier(
-        chain: &signer,
-        metadata: Object<Metadata>,
-        multiplier: BigDecimal
+        chain: &signer, metadata: Object<Metadata>, multiplier: BigDecimal
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -298,10 +296,7 @@ module vip::weight_vote {
             bridge_ids,
             weights,
             |bridge_id, weight| {
-                vector::push_back(
-                    &mut weight_vector,
-                    Weight { bridge_id, weight }
-                );
+                vector::push_back(&mut weight_vector, Weight { bridge_id, weight });
             }
         );
 
@@ -424,9 +419,7 @@ module vip::weight_vote {
         vip::update_vip_weights_for_friend(bridge_ids, weights);
 
         // emit event
-        event::emit(
-            ExecuteProposalEvent { cycle: current_cycle, bridge_ids, weights }
-        );
+        event::emit(ExecuteProposalEvent { cycle: current_cycle, bridge_ids, weights });
 
         // update proposal state
         proposal.executed = true;
@@ -1143,9 +1136,7 @@ module vip::weight_vote {
     const ONE_YEAR: u64 = 365 * 60 * 60 * 24;
     #[test_only]
     const TOLERANCE: u64 = 110; // denominator : DECIMAL_FRACTIONAL
-    #[test(
-        chain = @0x1, vip = @vip, vesting_creator = @initia_std
-    )]
+    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std)]
     fun test_lock_period_multiplier(
         chain: &signer, vip: &signer, vesting_creator: &signer
     ) acquires ModuleStore {
