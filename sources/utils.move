@@ -24,12 +24,7 @@ module vip::utils {
         order: u8,
         f: |K, &mut V| bool
     ) {
-        let iter = table::iter_mut(
-            mut_table,
-            start,
-            end,
-            order,
-        );
+        let iter = table::iter_mut(mut_table, start, end, order);
         loop {
             if (!table::prepare_mut<K, V>(iter)) { break };
             let (key, value) = table::next_mut<K, V>(iter);
@@ -45,12 +40,7 @@ module vip::utils {
         order: u8,
         f: |K, &V| bool
     ) {
-        let iter = table::iter(
-            table,
-            start,
-            end,
-            order,
-        );
+        let iter = table::iter(table, start, end, order);
         loop {
             if (!table::prepare<K, V>(iter)) { break };
             let (key, value) = table::next<K, V>(iter);
@@ -63,7 +53,7 @@ module vip::utils {
         let addr = signer::address_of(chain);
         assert!(
             addr == @initia_std || addr == @vip,
-            error::permission_denied(EUNAUTHORIZED),
+            error::permission_denied(EUNAUTHORIZED)
         );
     }
 
@@ -83,13 +73,13 @@ module vip::utils {
 
     struct DelegatorDelegationsResponse has drop {
         delegation_responses: vector<DelegationResponse>,
-        pagination: Option<PageResponse>,
+        pagination: Option<PageResponse>
     }
 
     struct PoolRequest has drop {}
 
     struct PoolResponse has drop {
-        pool: Pool,
+        pool: Pool
     }
 
     public fun get_voting_power(delegator_addr: String): u64 {
@@ -109,9 +99,9 @@ module vip::utils {
                         let voting_power =
                             bigdecimal::mul_by_u64_truncate(*weight, amount);
                         total_voting_power = total_voting_power + voting_power;
-                    },
+                    }
                 );
-            },
+            }
         );
 
         total_voting_power
@@ -147,12 +137,11 @@ module vip::utils {
                         let weight = simple_map::borrow(&weight_map, &denom);
                         let voting_power =
                             bigdecimal::mul_by_u64_truncate(*weight, amount);
-                        total_voting_power = total_voting_power + f(
-                            metadata, voting_power
-                        );
-                    },
+                        total_voting_power = total_voting_power
+                            + f(metadata, voting_power);
+                    }
                 );
-            },
+            }
         );
 
         total_voting_power
@@ -166,7 +155,7 @@ module vip::utils {
             |weight| {
                 let DecCoin { denom, amount } = *weight;
                 simple_map::add(&mut weight_map, denom, amount);
-            },
+            }
         );
         weight_map
     }
@@ -178,7 +167,7 @@ module vip::utils {
             offset: option::none(),
             limit: option::none(),
             count_total: option::none(),
-            reverse: option::none(),
+            reverse: option::none()
         };
 
         let path = b"/initia.mstaking.v1.Query/DelegatorDelegations";
@@ -194,7 +183,7 @@ module vip::utils {
                 );
             vector::append(
                 &mut delegation_responses,
-                response.delegation_responses,
+                response.delegation_responses
             );
 
             if (option::is_none(&response.pagination)) { break };
@@ -225,7 +214,7 @@ module vip::utils {
     struct Pool has drop {
         not_bonded_tokens: vector<Coin>,
         bonded_tokens: vector<Coin>,
-        voting_power_weights: vector<DecCoin>,
+        voting_power_weights: vector<DecCoin>
     }
 
     struct PageRequest has copy, drop {
@@ -233,12 +222,12 @@ module vip::utils {
         offset: Option<u64>,
         limit: Option<u64>,
         count_total: Option<bool>,
-        reverse: Option<bool>,
+        reverse: Option<bool>
     }
 
     struct PageResponse has drop {
         next_key: Option<String>,
-        total: Option<u64>,
+        total: Option<u64>
     }
 
     struct DelegationResponse has copy, drop {
@@ -254,12 +243,12 @@ module vip::utils {
 
     struct Coin has copy, drop {
         denom: String,
-        amount: u64,
+        amount: u64
     }
 
     struct DecCoin has copy, drop {
         denom: String,
-        amount: BigDecimal,
+        amount: BigDecimal
     }
 
     #[test_only]
