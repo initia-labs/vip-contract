@@ -350,10 +350,7 @@ module vip::vip {
             let score_data = vector::empty<u8>();
             vector::append(&mut score_data, bcs::to_bytes(&bridge_id));
             vector::append(&mut score_data, bcs::to_bytes(&stage));
-            vector::append(
-                &mut score_data,
-                bcs::to_bytes(&account_addr)
-            );
+            vector::append(&mut score_data, bcs::to_bytes(&account_addr));
             vector::append(&mut score_data, bcs::to_bytes(&l2_score));
             vector::append(
                 &mut score_data,
@@ -620,9 +617,7 @@ module vip::vip {
     }
 
     fun get_user_funded_reward_internal(
-        module_store: &ModuleStore,
-        bridge_id: u64,
-        stage: u64
+        module_store: &ModuleStore, bridge_id: u64, stage: u64
     ): u64 {
         let stage_key = table_key::encode_u64(stage);
         assert!(
@@ -639,9 +634,7 @@ module vip::vip {
     }
 
     fun get_operator_funded_reward_internal(
-        module_store: &ModuleStore,
-        bridge_id: u64,
-        stage: u64
+        module_store: &ModuleStore, bridge_id: u64, stage: u64
     ): u64 {
         let stage_key = table_key::encode_u64(stage);
         assert!(
@@ -1175,8 +1168,7 @@ module vip::vip {
                 let (_, bridge_id, _) = unpack_bridge_info_key(key);
                 let bridge_tvl =
                     primary_fungible_store::balance(
-                        bridge.bridge_addr,
-                        vault::reward_metadata()
+                        bridge.bridge_addr, vault::reward_metadata()
                     );
                 vector::push_back(&mut bridge_ids, bridge_id);
                 vector::push_back(&mut tvls, bridge_tvl);
@@ -1414,9 +1406,7 @@ module vip::vip {
     }
 
     public entry fun batch_claim_operator_reward_script(
-        operator: &signer,
-        bridge_id: u64,
-        version: u64
+        operator: &signer, bridge_id: u64, version: u64
     ) acquires ModuleStore {
         operator::check_operator_permission(operator, bridge_id, version);
 
@@ -1488,18 +1478,14 @@ module vip::vip {
     }
 
     public entry fun update_vip_weights(
-        chain: &signer,
-        bridge_ids: vector<u64>,
-        weights: vector<BigDecimal>
+        chain: &signer, bridge_ids: vector<u64>, weights: vector<BigDecimal>
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         update_vip_weights_for_friend(bridge_ids, weights)
     }
 
     public entry fun update_vip_weight(
-        chain: &signer,
-        bridge_id: u64,
-        weight: BigDecimal
+        chain: &signer, bridge_id: u64, weight: BigDecimal
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -1612,9 +1598,7 @@ module vip::vip {
     }
 
     public entry fun update_l2_score_contract(
-        chain: &signer,
-        bridge_id: u64,
-        new_vip_l2_score_contract: string::String
+        chain: &signer, bridge_id: u64, new_vip_l2_score_contract: string::String
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -1625,9 +1609,7 @@ module vip::vip {
     }
 
     public entry fun update_operator(
-        operator: &signer,
-        bridge_id: u64,
-        new_operator_addr: address
+        operator: &signer, bridge_id: u64, new_operator_addr: address
     ) acquires ModuleStore {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
@@ -3113,10 +3095,7 @@ module vip::vip {
 
         let module_store = borrow_global<ModuleStore>(@vip);
         let stage_data = load_stage_data_imut(module_store, 1);
-        assert!(
-            stage_data.vesting_period == vesting_period,
-            1
-        );
+        assert!(stage_data.vesting_period == vesting_period, 1);
 
         let expected_reward =
             (
@@ -3481,9 +3460,7 @@ module vip::vip {
         chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573
     )]
     fun operator_claim_valid_period(
-        chain: &signer,
-        vip: &signer,
-        operator: &signer
+        chain: &signer, vip: &signer, operator: &signer
     ) acquires ModuleStore {
         let bridge_id =
             test_setup(
@@ -3739,9 +3716,7 @@ module vip::vip {
         chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573
     )]
     fun test_fund_reward_script(
-        chain: &signer,
-        vip: &signer,
-        operator: &signer
+        chain: &signer, vip: &signer, operator: &signer
     ) acquires ModuleStore {
         let mint_amount = 100_000_000_000_000;
         primary_fungible_store::init_module_for_test();

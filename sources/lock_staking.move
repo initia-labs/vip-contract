@@ -181,18 +181,14 @@ module vip::lock_staking {
     }
 
     public entry fun withdraw_asset(
-        account: &signer,
-        metadata: Object<Metadata>,
-        amount: Option<u64>
+        account: &signer, metadata: Object<Metadata>, amount: Option<u64>
     ) acquires StakingAccount {
         let staking_account_signer = get_staking_account_signer(account);
         withdraw_asset_for_staking_account(&staking_account_signer, metadata, amount);
     }
 
     public entry fun withdraw_asset_for_staking_account(
-        staking_account_signer: &signer,
-        metadata: Object<Metadata>,
-        amount: Option<u64>
+        staking_account_signer: &signer, metadata: Object<Metadata>, amount: Option<u64>
     ) {
         let staking_account_addr = signer::address_of(staking_account_signer);
         assert_staking_account(staking_account_addr);
@@ -1094,8 +1090,7 @@ module vip::lock_staking {
         if (!is_registered(addr)) {
             let constructor_ref =
                 object::create_named_object(
-                    account,
-                    generate_staking_account_seed(addr)
+                    account, generate_staking_account_seed(addr)
                 );
             let extend_ref = object::generate_extend_ref(&constructor_ref);
             let transfer_ref = object::generate_transfer_ref(&constructor_ref);

@@ -393,10 +393,7 @@ module vip::test {
             let score_data = vector::empty<u8>();
             vector::append(&mut score_data, bcs::to_bytes(&bridge_id));
             vector::append(&mut score_data, bcs::to_bytes(&stage));
-            vector::append(
-                &mut score_data,
-                bcs::to_bytes(&account_addr)
-            );
+            vector::append(&mut score_data, bcs::to_bytes(&account_addr));
             vector::append(&mut score_data, bcs::to_bytes(&l2_score));
             vector::append(
                 &mut score_data,
@@ -1107,9 +1104,7 @@ module vip::test {
         )
     ]
     fun test_submit_snapshot_and_fund_reward_with_deregistered_bridge(
-        chain: &signer,
-        vip: &signer,
-        operator: &signer
+        chain: &signer, vip: &signer, operator: &signer
     ) {
         initialize(chain, vip, operator);
         vip::fund_reward_script(vip); // stage 1 distributed
