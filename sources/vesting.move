@@ -162,10 +162,10 @@ module vip::vesting {
             chain,
             ModuleStore {
                 user_vestings: table::new<vector<u8> /*table key*/, VestingStore<
-                        UserVesting>>(),
+                    UserVesting>>(),
                 operator_vestings: table::new<vector<u8> /*table key*/, VestingStore<
-                        OperatorVesting>>()
-            },
+                    OperatorVesting>>()
+            }
         )
     }
 
@@ -180,7 +180,7 @@ module vip::vesting {
         let table_key = generate_key(bridge_id, version, account_addr);
         assert!(
             !table::contains(&mut module_store.user_vestings, table_key),
-            error::already_exists(EVESTING_STORE_ALREADY_EXISTS),
+            error::already_exists(EVESTING_STORE_ALREADY_EXISTS)
         );
         table::add(
             &mut module_store.user_vestings,
@@ -188,7 +188,7 @@ module vip::vesting {
             VestingStore {
                 last_claimed_stage: 0,
                 vestings: table::new<vector<u8>, UserVesting>()
-            },
+            }
         );
     }
 
@@ -200,9 +200,9 @@ module vip::vesting {
         assert!(
             !table::contains(
                 &mut module_store.operator_vestings,
-                table_key,
+                table_key
             ),
-            error::already_exists(EVESTING_STORE_ALREADY_EXISTS),
+            error::already_exists(EVESTING_STORE_ALREADY_EXISTS)
         );
         table::add(
             &mut module_store.operator_vestings,
@@ -210,7 +210,7 @@ module vip::vesting {
             VestingStore {
                 last_claimed_stage: 0,
                 vestings: table::new<vector<u8>, OperatorVesting>()
-            },
+            }
         );
     }
 
@@ -240,7 +240,7 @@ module vip::vesting {
                         version,
                         &mut vestings_vec,
                         user_vestings,
-                        claim_info,
+                        claim_info
                     );
                 total_vested_reward = total_vested_reward + vested_reward;
                 total_penalty_reward = total_penalty_reward + penalty_reward;
@@ -252,15 +252,15 @@ module vip::vesting {
                         utils::mul_div_u64(
                             total_user_reward,
                             claim_info.l2_score,
-                            claim_info.total_l2_score,
+                            claim_info.total_l2_score
                         )
                     };
                 assert!(
                     !table::contains(
                         user_vestings,
-                        table_key::encode_u64(claim_info.start_stage),
+                        table_key::encode_u64(claim_info.start_stage)
                     ),
-                    error::already_exists(EVESTING_ALREADY_CLAIMED),
+                    error::already_exists(EVESTING_ALREADY_CLAIMED)
                 );
 
                 // create user vesting
@@ -272,7 +272,7 @@ module vip::vesting {
                         user_vestings,
                         &mut vestings_vec,
                         claim_info,
-                        initial_reward_amount,
+                        initial_reward_amount
                     );
                 } else {
                     // if user score is 0 emit create, finalize event
@@ -286,7 +286,7 @@ module vip::vesting {
                             l2_score: claim_info.l2_score,
                             minimum_score: 0,
                             initial_reward: 0
-                        },
+                        }
                     );
                     event::emit(
                         UserVestingFinalizedEvent {
@@ -295,12 +295,12 @@ module vip::vesting {
                             version,
                             start_stage: claim_info.start_stage,
                             penalty_reward: 0
-                        },
+                        }
                     );
                 };
 
                 last_claimed_stage = claim_info.start_stage;
-            },
+            }
         );
 
         // update or insert from unfinalized vestings to vesting data of module store
@@ -311,7 +311,7 @@ module vip::vesting {
                 table::upsert(
                     user_vestings,
                     table_key::encode_u64(vesting.start_stage),
-                    vesting,
+                    vesting
                 );
                 // emit only user vesting happen
                 if (vesting.initial_reward != vesting.remaining_reward) {
@@ -324,10 +324,10 @@ module vip::vesting {
                             initial_reward: vesting.initial_reward,
                             remaining_reward: vesting.remaining_reward,
                             penalty_reward: vesting.penalty_reward
-                        },
+                        }
                     );
                 };
-            },
+            }
         );
 
         // update last claimed stage
@@ -337,7 +337,7 @@ module vip::vesting {
                 bridge_id,
                 version,
                 account_addr,
-                last_claimed_stage,
+                last_claimed_stage
             );
         };
 
@@ -372,9 +372,9 @@ module vip::vesting {
                 assert!(
                     !table::contains(
                         operator_vestings,
-                        table_key::encode_u64(start_stage),
+                        table_key::encode_u64(start_stage)
                     ),
-                    error::already_exists(EVESTING_ALREADY_CLAIMED),
+                    error::already_exists(EVESTING_ALREADY_CLAIMED)
                 );
 
                 // create operator vesting position
@@ -384,10 +384,10 @@ module vip::vesting {
                     version,
                     operator_vestings,
                     claim_info,
-                    initial_reward,
+                    initial_reward
                 );
                 last_claimed_stage = start_stage;
-            },
+            }
         );
 
         utils::walk_mut(
@@ -413,10 +413,10 @@ module vip::vesting {
                             utils::mul_div_u64(
                                 operator_vesting.initial_reward,
                                 stage_diff,
-                                vesting_period,
+                                vesting_period
                             ) - vested_amount;
-                        operator_vesting.remaining_reward = operator_vesting.remaining_reward
-                            - reward_amount;
+                        operator_vesting.remaining_reward =
+                            operator_vesting.remaining_reward - reward_amount;
                         reward_amount
                     };
 
@@ -428,12 +428,12 @@ module vip::vesting {
                         start_stage: operator_vesting.start_stage,
                         initial_reward: operator_vesting.initial_reward,
                         remaining_reward: operator_vesting.remaining_reward
-                    },
+                    }
                 );
 
                 total_vested_reward = total_vested_reward + reward_amount;
                 false
-            },
+            }
         );
 
         // remove finalized vesting
@@ -447,9 +447,9 @@ module vip::vesting {
                         bridge_id,
                         version,
                         start_stage: vesting.start_stage
-                    },
+                    }
                 );
-            },
+            }
         );
 
         // update last claimed stage
@@ -458,7 +458,7 @@ module vip::vesting {
                 module_store,
                 bridge_id,
                 version,
-                last_claimed_stage,
+                last_claimed_stage
             );
         };
 
@@ -477,20 +477,20 @@ module vip::vesting {
         let user_vesting_store =
             table::borrow_mut(
                 &mut module_store.user_vestings,
-                generate_key(bridge_id, version, account_addr),
+                generate_key(bridge_id, version, account_addr)
             );
         let stage_key = table_key::encode_u64(stage);
         // force claim_vesting
         assert!(
             table::contains(&user_vesting_store.vestings, stage_key),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
 
         let user_vesting = table::borrow_mut(&mut user_vesting_store.vestings, stage_key);
 
         assert!(
             user_vesting.remaining_reward >= withdraw_amount,
-            error::invalid_argument(EREWARD_NOT_ENOUGH),
+            error::invalid_argument(EREWARD_NOT_ENOUGH)
         );
         user_vesting.remaining_reward = user_vesting.remaining_reward - withdraw_amount;
         event::emit(
@@ -502,7 +502,7 @@ module vip::vesting {
                 initial_reward: user_vesting.initial_reward,
                 remaining_reward: user_vesting.remaining_reward,
                 penalty_reward: user_vesting.penalty_reward
-            },
+            }
         );
         // handle vesting positions
         if (user_vesting.remaining_reward == 0) {
@@ -517,7 +517,7 @@ module vip::vesting {
                     version,
                     start_stage,
                     penalty_reward
-                },
+                }
             );
         };
 
@@ -558,7 +558,7 @@ module vip::vesting {
         let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.user_vestings,
-            generate_key(bridge_id, version, account_addr),
+            generate_key(bridge_id, version, account_addr)
         )
     }
 
@@ -568,7 +568,7 @@ module vip::vesting {
         let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_vestings,
-            generate_key(bridge_id, version, @0x0),
+            generate_key(bridge_id, version, @0x0)
         )
     }
 
@@ -611,20 +611,21 @@ module vip::vesting {
                         utils::mul_div_u64(
                             value.vest_max_amount,
                             claim_info.l2_score,
-                            value.minimum_score,
+                            value.minimum_score
                         )
                     };
                 if (value.remaining_reward >= value.vest_max_amount) {
                     net_vested_reward = net_vested_reward + vest_amount;
                     let penalty_amount = value.vest_max_amount - vest_amount;
                     net_penalty_reward = net_penalty_reward + penalty_amount;
-                    value.remaining_reward = value.remaining_reward - value.vest_max_amount;
+                    value.remaining_reward = value.remaining_reward
+                        - value.vest_max_amount;
                     value.penalty_reward = value.penalty_reward + penalty_amount;
                 } else if (value.remaining_reward > vest_amount) {
                     net_vested_reward = net_vested_reward + vest_amount;
                     let penalty_amount = value.remaining_reward - vest_amount;
-                    net_penalty_reward = net_penalty_reward + value.remaining_reward
-                        - vest_amount;
+                    net_penalty_reward =
+                        net_penalty_reward + value.remaining_reward - vest_amount;
                     value.remaining_reward = 0;
                     value.penalty_reward = value.penalty_reward + penalty_amount;
                 } else {
@@ -633,7 +634,8 @@ module vip::vesting {
                 };
 
                 // position finalized when stage is over the end stage or remaining reward is 0
-                if (claim_info.start_stage == value.end_stage || value.remaining_reward == 0) {
+                if (claim_info.start_stage == value.end_stage
+                    || value.remaining_reward == 0) {
                     event::emit(
                         UserVestingFinalizedEvent {
                             account: account_addr,
@@ -641,7 +643,7 @@ module vip::vesting {
                             version,
                             start_stage: value.start_stage,
                             penalty_reward: value.penalty_reward
-                        },
+                        }
                     );
                     // give the remaining reward occured by rounding error to user
                     if (value.remaining_reward > 0) {
@@ -650,7 +652,7 @@ module vip::vesting {
                     };
                     vector::push_back(&mut finalized_vestings_idx, idx);
                 };
-            },
+            }
         );
 
         // cleanup finalized vestings
@@ -666,7 +668,7 @@ module vip::vesting {
                 if (table::contains(user_vestings, key)) {
                     table::remove(user_vestings, key);
                 }
-            },
+            }
         );
 
         (net_vested_reward, net_penalty_reward)
@@ -684,7 +686,7 @@ module vip::vesting {
         let minimum_score =
             bigdecimal::mul_by_u64_truncate(
                 claim_info.minimum_score_ratio,
-                claim_info.l2_score,
+                claim_info.l2_score
             );
 
         let user_vesting = UserVesting {
@@ -703,7 +705,7 @@ module vip::vesting {
         table::add(
             user_vestings,
             table_key::encode_u64(claim_info.start_stage),
-            user_vesting,
+            user_vesting
         );
 
         // add user vestings
@@ -719,7 +721,7 @@ module vip::vesting {
                 l2_score: claim_info.l2_score,
                 minimum_score,
                 initial_reward: vesting_reward_amount
-            },
+            }
         );
     }
 
@@ -739,7 +741,7 @@ module vip::vesting {
                 remaining_reward: initial_reward,
                 start_stage: claim_info.start_stage,
                 end_stage: claim_info.end_stage
-            },
+            }
         );
 
         event::emit(
@@ -750,7 +752,7 @@ module vip::vesting {
                 start_stage: claim_info.start_stage,
                 end_stage: claim_info.end_stage,
                 initial_reward: initial_reward
-            },
+            }
         );
     }
 
@@ -780,7 +782,7 @@ module vip::vesting {
                 use_user_vesting_ref(user_vesting);
                 vector::push_back(&mut unfinalized_vestings, *user_vesting);
                 false
-            },
+            }
         );
         unfinalized_vestings
     }
@@ -794,7 +796,8 @@ module vip::vesting {
             let operator_vesting_store =
                 table::borrow(&module_store.operator_vestings, table_key);
             operator_vesting_store.last_claimed_stage
-        } else if (type_info::type_name<Vesting>() == type_info::type_name<UserVesting>()) {
+        } else if (type_info::type_name<Vesting>()
+            == type_info::type_name<UserVesting>()) {
             let user_vesting_store = table::borrow(
                 &module_store.user_vestings, table_key
             );
@@ -814,14 +817,14 @@ module vip::vesting {
         assert!(
             table::contains(
                 &mut module_store.user_vestings,
-                vesting_table_key,
+                vesting_table_key
             ),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
         let user_vesting_store =
             table::borrow_mut(
                 &mut module_store.user_vestings,
-                vesting_table_key,
+                vesting_table_key
             );
         &mut user_vesting_store.vestings
     }
@@ -836,14 +839,14 @@ module vip::vesting {
         assert!(
             table::contains(
                 &module_store.user_vestings,
-                vesting_table_key,
+                vesting_table_key
             ),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
         let user_vesting_store =
             table::borrow(
                 &module_store.user_vestings,
-                vesting_table_key,
+                vesting_table_key
             );
         &user_vesting_store.vestings
     }
@@ -860,7 +863,7 @@ module vip::vesting {
         let stage_key = table_key::encode_u64(stage);
         assert!(
             table::contains(user_vestings, stage_key),
-            error::not_found(EINVALID_STAGE),
+            error::not_found(EINVALID_STAGE)
         );
         table::borrow(user_vestings, stage_key)
     }
@@ -876,14 +879,14 @@ module vip::vesting {
         assert!(
             table::contains(
                 &mut module_store.user_vestings,
-                vesting_table_key,
+                vesting_table_key
             ),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
         let user_vesting_store =
             table::borrow_mut(
                 &mut module_store.user_vestings,
-                vesting_table_key,
+                vesting_table_key
             );
         user_vesting_store.last_claimed_stage = last_claimed_stage;
     }
@@ -895,14 +898,14 @@ module vip::vesting {
         assert!(
             table::contains(
                 &mut module_store.operator_vestings,
-                vesting_table_key,
+                vesting_table_key
             ),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
         let operator_vesting_store =
             table::borrow_mut(
                 &mut module_store.operator_vestings,
-                vesting_table_key,
+                vesting_table_key
             );
         &mut operator_vesting_store.vestings
     }
@@ -914,14 +917,14 @@ module vip::vesting {
         assert!(
             table::contains(
                 &module_store.operator_vestings,
-                vesting_table_key,
+                vesting_table_key
             ),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
         let operator_vesting_store =
             table::borrow(
                 &module_store.operator_vestings,
-                vesting_table_key,
+                vesting_table_key
             );
         &operator_vesting_store.vestings
     }
@@ -937,7 +940,7 @@ module vip::vesting {
         let stage_key = table_key::encode_u64(stage);
         assert!(
             table::contains(operator_vestings, stage_key),
-            error::not_found(EINVALID_STAGE),
+            error::not_found(EINVALID_STAGE)
         );
         table::borrow(operator_vestings, stage_key)
     }
@@ -952,14 +955,14 @@ module vip::vesting {
         assert!(
             table::contains(
                 &mut module_store.operator_vestings,
-                vesting_table_key,
+                vesting_table_key
             ),
-            error::not_found(EVESTING_NOT_FOUND),
+            error::not_found(EVESTING_NOT_FOUND)
         );
         let operator_vesting_store =
             table::borrow_mut(
                 &mut module_store.operator_vestings,
-                vesting_table_key,
+                vesting_table_key
             );
         operator_vesting_store.last_claimed_stage = last_claimed_stage;
     }
@@ -994,7 +997,7 @@ module vip::vesting {
                 bridge_id,
                 version,
                 account_addr,
-                stage,
+                stage
             );
         UserVestingResponse {
             initial_reward: user_vesting.initial_reward,
@@ -1133,8 +1136,9 @@ module vip::vesting {
     }
 
     #[test_only]
-    public fun initialize_coin(account: &signer, symbol: string::String)
-        : (
+    public fun initialize_coin(
+        account: &signer, symbol: string::String
+    ): (
         coin::BurnCapability,
         coin::FreezeCapability,
         coin::MintCapability,
@@ -1148,7 +1152,7 @@ module vip::vesting {
                 symbol,
                 6,
                 string::utf8(b""),
-                string::utf8(b""),
+                string::utf8(b"")
             );
         let metadata = coin::metadata(signer::address_of(account), symbol);
 
@@ -1163,12 +1167,12 @@ module vip::vesting {
         let account_addr = signer::address_of(account);
         assert!(
             !is_user_vesting_store_registered(account_addr, 1, 1),
-            1,
+            1
         );
         register_user_vesting_store(account, 1, 1);
         assert!(
             is_user_vesting_store_registered(account_addr, 1, 1),
-            2,
+            2
         );
         register_user_vesting_store(account, 2, 1);
     }

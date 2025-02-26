@@ -52,7 +52,9 @@ module vip::operator {
     fun init_module(vip: &signer) {
         move_to(
             vip,
-            ModuleStore { operator_infos: table::new<vector<u8>, OperatorInfo>() },
+            ModuleStore {
+                operator_infos: table::new<vector<u8>, OperatorInfo>()
+            }
         );
     }
 
@@ -63,7 +65,7 @@ module vip::operator {
     fun check_valid_rate(rate: &BigDecimal) {
         assert!(
             bigdecimal::le(*rate, bigdecimal::one()),
-            error::invalid_argument(EINVALID_COMMISSION_RATE),
+            error::invalid_argument(EINVALID_COMMISSION_RATE)
         );
     }
 
@@ -77,7 +79,7 @@ module vip::operator {
         check_valid_rate(commission_rate);
         assert!(
             bigdecimal::le(*commission_rate, *commission_max_rate),
-            error::invalid_argument(EOVER_MAX_COMMISSION_RATE),
+            error::invalid_argument(EOVER_MAX_COMMISSION_RATE)
         );
     }
 
@@ -106,13 +108,13 @@ module vip::operator {
         let key = generate_key(bridge_id, version);
         assert!(
             !table::contains(&module_store.operator_infos, key),
-            error::already_exists(EOPERATOR_STORE_ALREADY_EXISTS),
+            error::already_exists(EOPERATOR_STORE_ALREADY_EXISTS)
         );
 
         check_valid_commission_rates(
             &commission_max_rate,
             &commission_max_change_rate,
-            &commission_rate,
+            &commission_rate
         );
 
         table::add<vector<u8>, OperatorInfo>(
@@ -124,7 +126,7 @@ module vip::operator {
                 commission_max_rate,
                 commission_max_change_rate,
                 commission_rate
-            },
+            }
         );
     }
 
@@ -142,17 +144,17 @@ module vip::operator {
         let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
         assert!(
             operator_addr == operator_info.operator_addr,
-            error::permission_denied(EUNAUTHORIZED),
+            error::permission_denied(EUNAUTHORIZED)
         );
         // commission can be updated once per a stage.
         assert!(
             stage > operator_info.last_changed_stage,
-            error::invalid_argument(EINVALID_STAGE),
+            error::invalid_argument(EINVALID_STAGE)
         );
 
         assert!(
             bigdecimal::le(commission_rate, operator_info.commission_max_rate),
-            error::invalid_argument(EOVER_MAX_COMMISSION_RATE),
+            error::invalid_argument(EOVER_MAX_COMMISSION_RATE)
         );
 
         // operator max change rate limits
@@ -165,7 +167,7 @@ module vip::operator {
 
         assert!(
             bigdecimal::le(change, operator_info.commission_max_change_rate),
-            error::invalid_argument(EINVALID_COMMISSION_CHANGE_RATE),
+            error::invalid_argument(EINVALID_COMMISSION_CHANGE_RATE)
         );
 
         operator_info.commission_rate = commission_rate;
@@ -178,7 +180,7 @@ module vip::operator {
                 version,
                 stage: operator_info.last_changed_stage,
                 commission_rate
-            },
+            }
         );
     }
 
@@ -193,7 +195,7 @@ module vip::operator {
         let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
         assert!(
             operator_info.operator_addr == signer::address_of(old_operator),
-            error::permission_denied(EUNAUTHORIZED),
+            error::permission_denied(EUNAUTHORIZED)
         );
 
         operator_info.operator_addr = new_operator_addr;
@@ -208,7 +210,7 @@ module vip::operator {
 
         assert!(
             operator_info.operator_addr == signer::address_of(operator),
-            error::permission_denied(EUNAUTHORIZED),
+            error::permission_denied(EUNAUTHORIZED)
         );
     }
 
@@ -217,14 +219,14 @@ module vip::operator {
         assert!(
             table::contains(
                 &module_store.operator_infos,
-                generate_key(bridge_id, version),
+                generate_key(bridge_id, version)
             ),
-            error::not_found(EOPERATOR_STORE_NOT_FOUND),
+            error::not_found(EOPERATOR_STORE_NOT_FOUND)
         );
         let operator_info =
             table::borrow(
                 &module_store.operator_infos,
-                generate_key(bridge_id, version),
+                generate_key(bridge_id, version)
             );
         operator_info.commission_rate
     }
@@ -233,7 +235,7 @@ module vip::operator {
         let module_store = borrow_global<ModuleStore>(@vip);
         table::contains(
             &module_store.operator_infos,
-            generate_key(bridge_id, version),
+            generate_key(bridge_id, version)
         )
     }
 
@@ -255,19 +257,21 @@ module vip::operator {
     }
 
     #[test_only]
-    public fun get_operator_info(bridge_id: u64, version: u64): OperatorInfoResponse acquires ModuleStore {
+    public fun get_operator_info(
+        bridge_id: u64, version: u64
+    ): OperatorInfoResponse acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         assert!(
             table::contains(
                 &module_store.operator_infos,
-                generate_key(bridge_id, version),
+                generate_key(bridge_id, version)
             ),
-            error::not_found(EOPERATOR_STORE_NOT_FOUND),
+            error::not_found(EOPERATOR_STORE_NOT_FOUND)
         );
         let operator_info =
             table::borrow(
                 &module_store.operator_infos,
-                generate_key(bridge_id, version),
+                generate_key(bridge_id, version)
             );
 
         OperatorInfoResponse {
@@ -293,7 +297,7 @@ module vip::operator {
             10,
             bigdecimal::from_ratio_u64(2, 10),
             bigdecimal::from_ratio_u64(2, 10),
-            bigdecimal::zero(),
+            bigdecimal::zero()
         );
 
         assert!(
@@ -305,7 +309,7 @@ module vip::operator {
                     commission_max_change_rate: bigdecimal::from_ratio_u64(2, 10),
                     commission_rate: bigdecimal::zero()
                 },
-            1,
+            1
         );
 
         update_operator_commission(
@@ -313,7 +317,7 @@ module vip::operator {
             bridge_id,
             1,
             11,
-            bigdecimal::from_ratio_u64(2, 10),
+            bigdecimal::from_ratio_u64(2, 10)
         );
 
         assert!(
@@ -325,7 +329,7 @@ module vip::operator {
                     commission_max_change_rate: bigdecimal::from_ratio_u64(2, 10),
                     commission_rate: bigdecimal::from_ratio_u64(2, 10)
                 },
-            2,
+            2
         );
 
         update_operator_commission(
@@ -333,7 +337,7 @@ module vip::operator {
             bridge_id,
             1,
             12,
-            bigdecimal::from_ratio_u64(1, 10),
+            bigdecimal::from_ratio_u64(1, 10)
         );
 
         assert!(
@@ -345,7 +349,7 @@ module vip::operator {
                     commission_max_change_rate: bigdecimal::from_ratio_u64(2, 10),
                     commission_rate: bigdecimal::from_ratio_u64(1, 10)
                 },
-            3,
+            3
         );
     }
 
@@ -364,7 +368,7 @@ module vip::operator {
             10,
             bigdecimal::from_ratio_u64(2, 10),
             bigdecimal::from_ratio_u64(1, 10),
-            bigdecimal::zero(),
+            bigdecimal::zero()
         );
 
         update_operator_commission(
@@ -372,7 +376,7 @@ module vip::operator {
             bridge_id,
             1,
             11,
-            bigdecimal::from_ratio_u64(2, 10),
+            bigdecimal::from_ratio_u64(2, 10)
         );
     }
 
@@ -391,7 +395,7 @@ module vip::operator {
             10,
             bigdecimal::from_ratio_u64(2, 10),
             bigdecimal::from_ratio_u64(2, 10),
-            bigdecimal::zero(),
+            bigdecimal::zero()
         );
 
         update_operator_commission(
@@ -399,7 +403,7 @@ module vip::operator {
             bridge_id,
             1,
             11,
-            bigdecimal::from_ratio_u64(3, 10),
+            bigdecimal::from_ratio_u64(3, 10)
         );
     }
 
@@ -418,7 +422,7 @@ module vip::operator {
             10,
             bigdecimal::from_ratio_u64(2, 10),
             bigdecimal::from_ratio_u64(2, 10),
-            bigdecimal::zero(),
+            bigdecimal::zero()
         );
 
         update_operator_commission(operator, bridge_id, 1, 10, bigdecimal::zero());
@@ -439,7 +443,7 @@ module vip::operator {
             10,
             bigdecimal::from_ratio_u64(2, 10),
             bigdecimal::from_ratio_u64(2, 10),
-            bigdecimal::from_ratio_u64(15, 10),
+            bigdecimal::from_ratio_u64(15, 10)
         );
     }
 }
