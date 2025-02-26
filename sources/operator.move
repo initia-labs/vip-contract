@@ -34,7 +34,7 @@ module vip::operator {
         last_changed_stage: u64,
         commission_max_rate: BigDecimal,
         commission_max_change_rate: BigDecimal,
-        commission_rate: BigDecimal,
+        commission_rate: BigDecimal
     }
 
     //
@@ -46,7 +46,7 @@ module vip::operator {
         bridge_id: u64,
         version: u64,
         stage: u64,
-        commission_rate: BigDecimal,
+        commission_rate: BigDecimal
     }
 
     fun init_module(vip: &signer) {
@@ -105,10 +105,7 @@ module vip::operator {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         let key = generate_key(bridge_id, version);
         assert!(
-            !table::contains(
-                &module_store.operator_infos,
-                key,
-            ),
+            !table::contains(&module_store.operator_infos, key),
             error::already_exists(EOPERATOR_STORE_ALREADY_EXISTS),
         );
 
@@ -126,7 +123,7 @@ module vip::operator {
                 last_changed_stage: stage,
                 commission_max_rate,
                 commission_max_change_rate,
-                commission_rate,
+                commission_rate
             },
         );
     }
@@ -189,7 +186,7 @@ module vip::operator {
         old_operator: &signer,
         bridge_id: u64,
         version: u64,
-        new_operator_addr: address,
+        new_operator_addr: address
     ) acquires ModuleStore {
         let key = generate_key(bridge_id, version);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -249,7 +246,7 @@ module vip::operator {
         last_changed_stage: u64,
         commission_max_rate: BigDecimal,
         commission_max_change_rate: BigDecimal,
-        commission_rate: BigDecimal,
+        commission_rate: BigDecimal
     }
 
     #[test_only]
@@ -306,7 +303,7 @@ module vip::operator {
                     last_changed_stage: 10,
                     commission_max_rate: bigdecimal::from_ratio_u64(2, 10),
                     commission_max_change_rate: bigdecimal::from_ratio_u64(2, 10),
-                    commission_rate: bigdecimal::zero(),
+                    commission_rate: bigdecimal::zero()
                 },
             1,
         );
@@ -326,7 +323,7 @@ module vip::operator {
                     last_changed_stage: 11,
                     commission_max_rate: bigdecimal::from_ratio_u64(2, 10),
                     commission_max_change_rate: bigdecimal::from_ratio_u64(2, 10),
-                    commission_rate: bigdecimal::from_ratio_u64(2, 10),
+                    commission_rate: bigdecimal::from_ratio_u64(2, 10)
                 },
             2,
         );
@@ -346,7 +343,7 @@ module vip::operator {
                     last_changed_stage: 12,
                     commission_max_rate: bigdecimal::from_ratio_u64(2, 10),
                     commission_max_change_rate: bigdecimal::from_ratio_u64(2, 10),
-                    commission_rate: bigdecimal::from_ratio_u64(1, 10),
+                    commission_rate: bigdecimal::from_ratio_u64(1, 10)
                 },
             3,
         );
@@ -424,13 +421,7 @@ module vip::operator {
             bigdecimal::zero(),
         );
 
-        update_operator_commission(
-            operator,
-            bridge_id,
-            1,
-            10,
-            bigdecimal::zero(),
-        );
+        update_operator_commission(operator, bridge_id, 1, 10, bigdecimal::zero());
     }
 
     #[test(vip = @vip, operator = @0x999)]

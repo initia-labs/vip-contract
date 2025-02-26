@@ -19,12 +19,12 @@ module vip::tvl_manager {
         last_snapshot_stage: u64,
         snapshot_interval: u64, // minimum snapshot interval
         // The average tvl each stage(vip stage) and bridge id
-        summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>,
+        summary: table::Table<vector<u8> /*stage + bridge id*/, TvlSummary>
     }
 
     struct TvlSummary has drop, store, copy {
         count: u64, // snapshot count
-        tvl: u64,
+        tvl: u64
     }
 
     #[event]
@@ -32,7 +32,7 @@ module vip::tvl_manager {
         stage: u64,
         bridge_id: u64,
         time: u64,
-        tvl: u64,
+        tvl: u64
     }
 
     fun init_module(chain: &signer) {
@@ -42,7 +42,7 @@ module vip::tvl_manager {
                 last_snapshot_time: 0,
                 last_snapshot_stage: 0,
                 snapshot_interval: DEFAULT_SNAPSHOT_INTERVAL,
-                summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>(),
+                summary: table::new<vector<u8> /*stage + bridge id*/, TvlSummary>()
             },
         );
     }
@@ -92,7 +92,7 @@ module vip::tvl_manager {
                     table::borrow_mut_with_default(
                         &mut module_store.summary,
                         summary_table_key,
-                        TvlSummary { count: 0, tvl: 0, },
+                        TvlSummary { count: 0, tvl: 0 },
                     );
                 // new average tvl = (snapshot_count * average_tvl + balance) / (snapshot_count + 1)
                 let new_count = summary.count + 1;
@@ -104,14 +104,14 @@ module vip::tvl_manager {
                 table::upsert(
                     &mut module_store.summary,
                     summary_table_key,
-                    TvlSummary { count: new_count, tvl: (new_average_tvl as u64), },
+                    TvlSummary { count: new_count, tvl: (new_average_tvl as u64) },
                 );
                 event::emit(
                     TVLSnapshotEvent {
                         stage,
                         bridge_id: *bridge_id,
                         time: curr_time,
-                        tvl: *tvl,
+                        tvl: *tvl
                     },
                 );
             },

@@ -61,7 +61,7 @@ module vip::weight_vote {
         // max lock staking multplier for voting
         max_lock_period_multiplier: u64,
         // min lock staking multplier for voting
-        min_lock_period_multiplier: u64,
+        min_lock_period_multiplier: u64
     }
 
     struct Proposal has store {
@@ -69,7 +69,7 @@ module vip::weight_vote {
         total_tally: u64,
         tallies: Table<vector<u8> /* bridge id */, u64 /* tally */>,
         voting_end_time: u64,
-        executed: bool,
+        executed: bool
     }
 
     struct WeightVote has store {
@@ -80,12 +80,12 @@ module vip::weight_vote {
 
     struct Weight has copy, drop, store {
         bridge_id: u64,
-        weight: BigDecimal,
+        weight: BigDecimal
     }
 
     struct Vote has store {
         vote_option: bool,
-        voting_power: u64,
+        voting_power: u64
     }
 
     //
@@ -94,13 +94,13 @@ module vip::weight_vote {
     struct ProposalResponse has drop {
         total_tally: u64,
         voting_end_time: u64,
-        executed: bool,
+        executed: bool
     }
 
     struct WeightVoteResponse has drop {
         max_voting_power: u64,
         voting_power: u64,
-        weights: vector<Weight>,
+        weights: vector<Weight>
     }
 
     struct TallyResponse has drop {
@@ -116,14 +116,14 @@ module vip::weight_vote {
         cycle: u64,
         max_voting_power: u64,
         voting_power: u64,
-        weights: vector<Weight>,
+        weights: vector<Weight>
     }
 
     #[event]
     struct ExecuteProposalEvent has drop, store {
         cycle: u64,
         bridge_ids: vector<u64>,
-        weights: vector<BigDecimal>,
+        weights: vector<BigDecimal>
     }
 
     // initialize function
@@ -133,7 +133,7 @@ module vip::weight_vote {
         cycle_start_time: u64,
         cycle_interval: u64,
         voting_period: u64,
-        vesting_creator: address,
+        vesting_creator: address
     ) {
         assert!(
             signer::address_of(chain) == @vip,
@@ -181,7 +181,9 @@ module vip::weight_vote {
         };
 
         if (option::is_some(&core_vesting_creator)) {
-            module_store.core_vesting_creator = option::extract(&mut core_vesting_creator);
+            module_store.core_vesting_creator = option::extract(
+                &mut core_vesting_creator
+            );
         };
 
         if (option::is_some(&max_lock_period_multiplier)) {
@@ -204,15 +206,14 @@ module vip::weight_vote {
 
         // check lock period multiplier
         assert!(
-            module_store.min_lock_period_multiplier <= module_store.max_lock_period_multiplier,
+            module_store.min_lock_period_multiplier
+                <= module_store.max_lock_period_multiplier,
             error::invalid_argument(EINVALID_PARAMETER),
         );
     }
 
     public entry fun update_pair_multiplier(
-        chain: &signer,
-        metadata: Object<Metadata>,
-        multiplier: BigDecimal,
+        chain: &signer, metadata: Object<Metadata>, multiplier: BigDecimal
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -233,7 +234,7 @@ module vip::weight_vote {
         account: &signer,
         cycle: u64,
         bridge_ids: vector<u64>,
-        weights: vector<BigDecimal>,
+        weights: vector<BigDecimal>
     ) acquires ModuleStore {
         create_proposal();
         vip::add_tvl_snapshot();
@@ -241,7 +242,8 @@ module vip::weight_vote {
         let max_voting_power = get_voting_power(addr);
         assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
         assert!(
-            vector::length(&bridge_ids) == vector::length(&weights), EINVALID_ARGS_LENGTH
+            vector::length(&bridge_ids) == vector::length(&weights),
+            EINVALID_ARGS_LENGTH,
         );
 
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -294,19 +296,12 @@ module vip::weight_vote {
             bridge_ids,
             weights,
             |bridge_id, weight| {
-                vector::push_back(
-                    &mut weight_vector,
-                    Weight { bridge_id, weight, },
-                );
+                vector::push_back(&mut weight_vector, Weight { bridge_id, weight });
             },
         );
 
         // apply vote
-        apply_vote(
-            proposal,
-            max_voting_power,
-            weight_vector,
-        );
+        apply_vote(proposal, max_voting_power, weight_vector);
 
         // store user votes
         table::add(
@@ -326,7 +321,7 @@ module vip::weight_vote {
                 cycle,
                 max_voting_power,
                 voting_power: voting_power_used,
-                weights: weight_vector,
+                weights: weight_vector
             },
         )
     }
@@ -347,10 +342,7 @@ module vip::weight_vote {
                     table_key::encode_u64(module_store.current_cycle),
                 );
             if (!proposal.executed && proposal.voting_end_time < time) {
-                execute_proposal_internal(
-                    proposal,
-                    module_store.current_cycle,
-                );
+                execute_proposal_internal(proposal, module_store.current_cycle);
             };
         };
         // update cycle
@@ -371,7 +363,7 @@ module vip::weight_vote {
                 total_tally: 0,
                 tallies: table::new(),
                 voting_end_time,
-                executed: false,
+                executed: false
             },
         );
     }
@@ -417,10 +409,7 @@ module vip::weight_vote {
                 if (proposal.total_tally == 0) {
                     bigdecimal::from_ratio_u64(1, len)
                 } else {
-                    bigdecimal::from_ratio_u64(
-                        *tally,
-                        proposal.total_tally,
-                    )
+                    bigdecimal::from_ratio_u64(*tally, proposal.total_tally)
                 };
             vector::push_back(&mut weights, weight);
             index = index + 1;
@@ -429,9 +418,7 @@ module vip::weight_vote {
         vip::update_vip_weights_for_friend(bridge_ids, weights);
 
         // emit event
-        event::emit(
-            ExecuteProposalEvent { cycle: current_cycle, bridge_ids, weights, },
-        );
+        event::emit(ExecuteProposalEvent { cycle: current_cycle, bridge_ids, weights });
 
         // update proposal state
         proposal.executed = true;
@@ -633,7 +620,7 @@ module vip::weight_vote {
         ProposalResponse {
             total_tally: proposal.total_tally,
             voting_end_time: proposal.voting_end_time,
-            executed: proposal.executed,
+            executed: proposal.executed
         }
     }
 
@@ -731,13 +718,16 @@ module vip::weight_vote {
     #[view]
     public fun get_pair_multipliers(metadata: vector<Object<Metadata>>): vector<BigDecimal> acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        vector::map_ref(&metadata, |metadata| {
-            *table::borrow_with_default(
-                &module_store.pair_multipliers,
-                *metadata,
-                &bigdecimal::one(),
-            )
-        })
+        vector::map_ref(
+            &metadata,
+            |metadata| {
+                *table::borrow_with_default(
+                    &module_store.pair_multipliers,
+                    *metadata,
+                    &bigdecimal::one(),
+                )
+            },
+        )
     }
 
     inline fun use_weight(_v: Weight) {}
@@ -853,55 +843,15 @@ module vip::weight_vote {
         let init_metadata = mock_mstaking::get_init_metadata();
         let lp_metadata = mock_mstaking::get_lp_metadata();
 
-        coin::transfer(
-            chain,
-            @0x101,
-            init_metadata,
-            200,
-        );
-        coin::transfer(
-            chain,
-            @0x102,
-            init_metadata,
-            200,
-        );
+        coin::transfer(chain, @0x101, init_metadata, 200);
+        coin::transfer(chain, @0x102, init_metadata, 200);
 
-        coin::transfer(
-            chain,
-            @0x103,
-            init_metadata,
-            200,
-        );
-        coin::transfer(
-            chain,
-            @0x104,
-            init_metadata,
-            200,
-        );
-        coin::transfer(
-            chain,
-            @0x101,
-            lp_metadata,
-            200,
-        );
-        coin::transfer(
-            chain,
-            @0x102,
-            lp_metadata,
-            200,
-        );
-        coin::transfer(
-            chain,
-            @0x103,
-            lp_metadata,
-            200,
-        );
-        coin::transfer(
-            chain,
-            @0x104,
-            lp_metadata,
-            200,
-        );
+        coin::transfer(chain, @0x103, init_metadata, 200);
+        coin::transfer(chain, @0x104, init_metadata, 200);
+        coin::transfer(chain, @0x101, lp_metadata, 200);
+        coin::transfer(chain, @0x102, lp_metadata, 200);
+        coin::transfer(chain, @0x103, lp_metadata, 200);
+        coin::transfer(chain, @0x104, lp_metadata, 200);
     }
 
     // test calculate voting power by comsos staking(mstaking), lock staking
@@ -911,7 +861,7 @@ module vip::weight_vote {
         vip: &signer,
         vesting_creator: &signer,
         u1: &signer,
-        u2: &signer,
+        u2: &signer
     ) acquires ModuleStore {
         init_test(chain, vip, vesting_creator);
         let validator = mock_mstaking::get_validator1();
@@ -1065,7 +1015,7 @@ module vip::weight_vote {
         u1: &signer,
         u2: &signer,
         u3: &signer,
-        u4: &signer,
+        u4: &signer
     ) acquires ModuleStore {
         init_test(chain, vip, vesting_creator);
         let cycle = 1;
@@ -1165,7 +1115,7 @@ module vip::weight_vote {
     const ONE_YEAR: u64 = 365 * 60 * 60 * 24;
     #[test_only]
     const TOLERANCE: u64 = 110; // denominator : DECIMAL_FRACTIONAL
-    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std,)]
+    #[test(chain = @0x1, vip = @vip, vesting_creator = @initia_std)]
     fun test_lock_period_multiplier(
         chain: &signer, vip: &signer, vesting_creator: &signer
     ) acquires ModuleStore {

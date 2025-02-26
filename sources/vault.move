@@ -25,7 +25,7 @@ module vip::vault {
     struct ModuleStore has key {
         extend_ref: ExtendRef,
         reward_per_stage: u64,
-        vault_store_addr: address,
+        vault_store_addr: address
     }
 
     //
@@ -136,7 +136,7 @@ module vip::vault {
     #[test_only]
     fun initialize_coin(account: &signer, symbol: string::String)
         : (
-        coin::BurnCapability, coin::FreezeCapability, coin::MintCapability,
+        coin::BurnCapability, coin::FreezeCapability, coin::MintCapability
     ) {
         let (mint_cap, burn_cap, freeze_cap) =
             coin::initialize(
