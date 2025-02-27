@@ -367,11 +367,6 @@ module vip::test {
             100000,
             100000
         );
-        let lp_metadata =
-            coin::metadata(
-                signer::address_of(chain),
-                string::utf8(b"INIT-USDC")
-            );
         stableswap::create_pool_script(
             chain,
             string::utf8(b"pair"),
@@ -381,6 +376,8 @@ module vip::test {
             vector[100000, 100000],
             6000
         );
+
+        let lp_metadata = get_lp_metadata();
         let stable_lp_metadata = get_stable_lp_metadata();
         staking::init_module_for_test();
         staking::initialize_for_chain(chain, lp_metadata);
