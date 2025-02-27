@@ -1,6 +1,7 @@
 module vip::lock_staking {
     use std::bcs::to_bytes;
     use std::error;
+    use std::event;
     use std::option::{Self, Option};
     use std::signer;
     use std::string::{Self, String};
@@ -46,6 +47,27 @@ module vip::lock_staking {
     const EINVALID_ARGS_LENGTH: u64 = 16;
 
     const EDEPRECATED: u64 =0x100;
+
+    //
+    // Events
+    //
+    #[event]
+    struct DepositDelegationEvent has drop, store {
+        staking_account: address,
+        metadata: Object<Metadata>,
+        release_time: u64,
+        validator: String,
+        locked_share: BigDecimal,
+    }
+
+    #[event]
+    struct WithdrawDelegationEvent has drop, store {
+        staking_account: address,
+        metadata: Object<Metadata>,
+        release_time: u64,
+        validator: String,
+        locked_share: BigDecimal,
+    }
 
     struct LockedDelegationResponse has drop {
         metadata: Object<Metadata>,
@@ -1248,6 +1270,15 @@ module vip::lock_staking {
         } else {
             *locked_share_stored = bigdecimal::sub(*locked_share_stored, locked_share);
         };
+
+        event::emit(WithdrawDelegationEvent {
+            staking_account: object::address_from_extend_ref(&staking_account.extend_ref),
+            metadata,
+            release_time,
+            validator,
+            locked_share
+        });
+
         locked_share
     }
 
@@ -1299,6 +1330,14 @@ module vip::lock_staking {
                 <= module_store.max_delegation_slot,
             error::invalid_state(EMAX_SLOT)
         );
+
+        event::emit(DepositDelegationEvent {
+            staking_account: object::address_from_extend_ref(&staking_account.extend_ref),
+            metadata,
+            release_time,
+            validator,
+            locked_share
+        });
     }
 
     fun get_share(
