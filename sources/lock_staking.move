@@ -16,6 +16,7 @@ module vip::lock_staking {
     use initia_std::json::{marshal, unmarshal};
     use initia_std::object::{Self, ExtendRef, Object};
     use initia_std::simple_map::{Self, SimpleMap};
+    use initia_std::stableswap;
     use initia_std::staking;
     use initia_std::table::{Self, Table};
     use initia_std::table_key;
@@ -267,6 +268,36 @@ module vip::lock_staking {
                 coin::withdraw(account, offer_asset_metadata, amount_in),
                 min_liquidity
             );
+
+        delegate_internal(account, fa, release_time, validator_address);
+
+    }
+
+    public entry fun stableswap_provide_delegate(
+        account: &signer,
+        metadata: Object<Metadata>,
+        coin_amounts: vector<u64>,
+        min_liquidity: Option<u64>,
+        release_time: u64,
+        validator_address: String
+    ) acquires StakingAccount, ModuleStore {
+        let pool = object::convert(metadata);
+        let (coin_metadata, _, _, _) = stableswap::pool_info(pool);
+        let coins: vector<FungibleAsset> = vector[];
+
+        let i = 0;
+        let n = vector::length(&coin_amounts);
+        while (i < n) {
+            let metadata = *vector::borrow(&coin_metadata, i);
+            let amount = *vector::borrow(&coin_amounts, i);
+            vector::push_back(
+                &mut coins,
+                coin::withdraw(account, metadata, amount)
+            );
+            i = i + 1;
+        };
+
+        let fa = stableswap::provide_liquidity(pool, coins, min_liquidity);
 
         delegate_internal(account, fa, release_time, validator_address);
     }

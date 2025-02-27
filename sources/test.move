@@ -10,6 +10,7 @@ module vip::test {
     use initia_std::block;
     use initia_std::coin;
     use initia_std::dex;
+    use initia_std::stableswap;
     use initia_std::bigdecimal::{Self, BigDecimal};
     use initia_std::fungible_asset::Metadata;
     use initia_std::object::Object;
@@ -277,6 +278,7 @@ module vip::test {
     ) {
         lock_staking::init_module_for_test(vip);
         primary_fungible_store::init_module_for_test();
+        stableswap::init_module_for_test();
         dex::init_module_for_test();
         let init_metadata =
             init_and_mint_coin(
@@ -370,11 +372,28 @@ module vip::test {
                 signer::address_of(chain),
                 string::utf8(b"INIT-USDC")
             );
+        stableswap::create_pool_script(
+            chain,
+            string::utf8(b"pair"),
+            string::utf8(b"STABLE-INIT-USDC"),
+            bigdecimal::from_ratio_u64(3, 1000),
+            vector[init_metadata, usdc_metadata],
+            vector[100000, 100000],
+            6000
+        );
+        let stable_lp_metadata = get_stable_lp_metadata();
         staking::init_module_for_test();
         staking::initialize_for_chain(chain, lp_metadata);
+        staking::initialize_for_chain(chain, stable_lp_metadata);
         staking::set_staking_share_ratio(
             *string::bytes(&get_validator()),
             &lp_metadata,
+            &bigdecimal::one(),
+            1
+        );
+        staking::set_staking_share_ratio(
+            *string::bytes(&get_validator()),
+            &stable_lp_metadata,
             &bigdecimal::one(),
             1
         );
@@ -406,6 +425,10 @@ module vip::test {
 
     fun get_lp_metadata(): Object<Metadata> {
         coin::metadata(@0x1, string::utf8(b"INIT-USDC"))
+    }
+
+    fun get_stable_lp_metadata(): Object<Metadata> {
+        coin::metadata(@0x1, string::utf8(b"STABLE-INIT-USDC"))
     }
 
     fun usdc_metadata(): Object<Metadata> {
@@ -1014,7 +1037,7 @@ module vip::test {
             receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37
         )
     ]
-    #[expected_failure(abort_code = 0xC0020, location = vip)]
+    #[expected_failure(abort_code = 0xC0021, location = vip)]
     fun fail_lock_stake_vesting_position_without_claim(
         chain: &signer,
         vip: &signer,
@@ -2536,5 +2559,129 @@ module vip::test {
             operator_distributed_reward1 * 25 == operator_distributed_reward2 * 20,
             2
         );
+    }
+
+    // Stable swap lock staking
+    #[
+        test(
+            chain = @0x1,
+            vip = @vip,
+            operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573,
+            receiver = @0x19c9b6007d21a996737ea527f46b160b0a057c37
+        )
+    ]
+    fun test_batch_stableswap_lock_stake(
+        chain: &signer,
+        vip: &signer,
+        operator: &signer,
+        receiver: &signer
+    ) acquires TestState {
+        initialize(chain, vip, operator);
+        let receiver_addr = signer::address_of(receiver);
+        coin::transfer(
+            chain,
+            receiver_addr,
+            usdc_metadata(),
+            1_000_000_000
+        );
+        let (stages, merkle_proofs, l2_scores) = reset_claim_args();
+        // submit snapshot of stage 1; total score: 1000, receiver's score : 100
+        // stage 1 snapshot submitted
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            get_version(),
+            receiver_addr,
+            100,
+            1000,
+            &mut stages,
+            &mut merkle_proofs,
+            &mut l2_scores
+        );
+        // stage 2
+        // total score: 1000, receiver's score : 500
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            get_version(),
+            receiver_addr,
+            500,
+            1000,
+            &mut stages,
+            &mut merkle_proofs,
+            &mut l2_scores
+        );
+        // stage 3
+        // total score: 1000, receiver's score : 200
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            get_version(),
+            receiver_addr,
+            200,
+            1000,
+            &mut stages,
+            &mut merkle_proofs,
+            &mut l2_scores
+        );
+
+        // stage 4
+        // total score: 1000, receiver's score : 100
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            get_version(),
+            receiver_addr,
+            100,
+            1000,
+            &mut stages,
+            &mut merkle_proofs,
+            &mut l2_scores
+        );
+        // claim stage 1,2,3,4
+        vip::batch_claim_user_reward_script(
+            receiver,
+            get_bridge_id(),
+            get_version(),
+            stages,
+            merkle_proofs,
+            l2_scores
+        );
+        let stage = 1;
+        let lock_staking_amounts = vector::empty<u64>();
+        let stakelisted_amount: u64 = 0;
+        let stakelist_metadatas = vector::empty<Object<Metadata>>();
+        while (stage < 5) {
+            let remaining =
+                vesting::get_user_vesting_remaining(
+                    receiver_addr, get_bridge_id(), 1, stage
+                );
+            vector::push_back(&mut lock_staking_amounts, remaining);
+            stakelisted_amount = stakelisted_amount + remaining;
+            vector::push_back(&mut stakelist_metadatas, usdc_metadata());
+            stage = stage + 1;
+        };
+
+        vip::batch_stableswap_lock_stake_script(
+            receiver,
+            get_bridge_id(),
+            get_version(),
+            get_stable_lp_metadata(),
+            option::none(),
+            get_validator(),
+            stages,
+            lock_staking_amounts,
+            option::none()
+        );
+
+        while (stage < 5) {
+            assert!(
+                !vesting::has_user_vesting_position(
+                    receiver_addr, get_bridge_id(), 1, stage
+                ),
+                1
+            );
+            stage = stage + 1;
+        };
     }
 }
