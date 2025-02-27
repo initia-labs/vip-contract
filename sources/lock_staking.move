@@ -45,6 +45,8 @@ module vip::lock_staking {
     const EINVALID_MIN_MAX: u64 = 15;
     const EINVALID_ARGS_LENGTH: u64 = 16;
 
+    const EDEPRECATED: u64 =0x100;
+
     struct LockedDelegationResponse has drop {
         metadata: Object<Metadata>,
         validator: String,
@@ -400,7 +402,7 @@ module vip::lock_staking {
             &staking_account_signer,
             @vip,
             string::utf8(b"lock_staking"),
-            string::utf8(b"redelegate_hook"),
+            string::utf8(b"redelegate_hook_v2"),
             vector[],
             vector[
                 to_bytes(&metadata),
@@ -762,7 +764,20 @@ module vip::lock_staking {
         );
     }
 
+    #[deprecated]
     entry fun redelegate_hook(
+        _staking_account_signer: &signer,
+        _metadata: Object<Metadata>,
+        _src_release_time: u64,
+        _validator_src_address: String,
+        _dst_release_time: u64,
+        _validator_dst_address: String,
+        _src_share_before: Option<BigDecimal>, // if none, redelegate all
+    ) {
+        abort(error::unavailable(EDEPRECATED));
+    }
+
+    entry fun redelegate_hook_v2(
         staking_account_signer: &signer,
         metadata: Object<Metadata>,
         src_release_time: u64,
@@ -1659,7 +1674,7 @@ module vip::lock_staking {
             amount
         );
         // execute redelegate hook
-        redelegate_hook(
+        redelegate_hook_v2(
             &staking_account_signer,
             metadata,
             src_release_time,
