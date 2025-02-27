@@ -43,7 +43,7 @@ module vip::vault {
                 extend_ref,
                 reward_per_stage: 0, // set zero for safety
                 vault_store_addr
-            },
+            }
         );
     }
 
@@ -55,7 +55,7 @@ module vip::vault {
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             module_store.reward_per_stage > 0,
-            error::invalid_state(EINVALID_REWARD_PER_STAGE),
+            error::invalid_state(EINVALID_REWARD_PER_STAGE)
         );
         let vault_signer =
             object::generate_signer_for_extending(&module_store.extend_ref);
@@ -70,13 +70,13 @@ module vip::vault {
         let vault_store_addr = get_vault_store_address();
         assert!(
             amount > 0,
-            error::invalid_argument(EINVALID_AMOUNT),
+            error::invalid_argument(EINVALID_AMOUNT)
         );
         primary_fungible_store::transfer(
             funder,
             reward_metadata(),
             vault_store_addr,
-            amount,
+            amount
         );
     }
 
@@ -88,7 +88,7 @@ module vip::vault {
         let vault_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
             reward_per_stage > 0,
-            error::invalid_argument(EINVALID_REWARD_PER_STAGE),
+            error::invalid_argument(EINVALID_REWARD_PER_STAGE)
         );
         vault_store.reward_per_stage = reward_per_stage;
     }
@@ -134,10 +134,9 @@ module vip::vault {
     use initia_std::fungible_asset;
 
     #[test_only]
-    fun initialize_coin(account: &signer, symbol: string::String)
-        : (
-        coin::BurnCapability, coin::FreezeCapability, coin::MintCapability
-    ) {
+    fun initialize_coin(
+        account: &signer, symbol: string::String
+    ): (coin::BurnCapability, coin::FreezeCapability, coin::MintCapability) {
         let (mint_cap, burn_cap, freeze_cap) =
             coin::initialize(
                 account,
@@ -146,7 +145,7 @@ module vip::vault {
                 symbol,
                 6,
                 string::utf8(b""),
-                string::utf8(b""),
+                string::utf8(b"")
             );
 
         (burn_cap, freeze_cap, mint_cap)
@@ -160,7 +159,7 @@ module vip::vault {
         coin::mint_to(
             &mint_cap,
             signer::address_of(funder),
-            1000000,
+            1000000
         );
 
         // udpate reward_per_stage

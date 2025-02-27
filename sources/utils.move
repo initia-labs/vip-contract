@@ -53,7 +53,7 @@ module vip::utils {
         let addr = signer::address_of(chain);
         assert!(
             addr == @initia_std || addr == @vip,
-            error::permission_denied(EUNAUTHORIZED),
+            error::permission_denied(EUNAUTHORIZED)
         );
     }
 
@@ -99,9 +99,9 @@ module vip::utils {
                         let voting_power =
                             bigdecimal::mul_by_u64_truncate(*weight, amount);
                         total_voting_power = total_voting_power + voting_power;
-                    },
+                    }
                 );
-            },
+            }
         );
 
         total_voting_power
@@ -137,12 +137,11 @@ module vip::utils {
                         let weight = simple_map::borrow(&weight_map, &denom);
                         let voting_power =
                             bigdecimal::mul_by_u64_truncate(*weight, amount);
-                        total_voting_power = total_voting_power + f(
-                            metadata, voting_power
-                        );
-                    },
+                        total_voting_power = total_voting_power
+                            + f(metadata, voting_power);
+                    }
                 );
-            },
+            }
         );
 
         total_voting_power
@@ -156,7 +155,7 @@ module vip::utils {
             |weight| {
                 let DecCoin { denom, amount } = *weight;
                 simple_map::add(&mut weight_map, denom, amount);
-            },
+            }
         );
         weight_map
     }
@@ -184,7 +183,7 @@ module vip::utils {
                 );
             vector::append(
                 &mut delegation_responses,
-                response.delegation_responses,
+                response.delegation_responses
             );
 
             if (option::is_none(&response.pagination)) { break };
