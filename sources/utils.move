@@ -83,29 +83,12 @@ module vip::utils {
     }
 
     #[deprecated]
+    // depreacated, use `get_customized_voting_power` instead
     public fun get_voting_power(delegator_addr: String): u64 {
-        let weight_map = get_weight_map();
-        let total_voting_power = 0;
-
-        let delegations = get_delegations(delegator_addr);
-        vector::for_each_ref(
-            &delegations,
-            |delegation| {
-                let DelegationResponse { delegation: _, balance } = *delegation;
-                vector::for_each_ref(
-                    &balance,
-                    |coin| {
-                        let Coin { denom, amount } = *coin;
-                        let weight = simple_map::borrow(&weight_map, &denom);
-                        let voting_power =
-                            bigdecimal::mul_by_u64_truncate(*weight, amount);
-                        total_voting_power = total_voting_power + voting_power;
-                    }
-                );
-            }
-        );
-
-        total_voting_power
+        get_customized_voting_power(
+            initia_std::address::from_sdk(delegator_addr),
+            |_metadata, voting_power| { voting_power }
+        )
     }
 
     public fun unpack_delegation_response(

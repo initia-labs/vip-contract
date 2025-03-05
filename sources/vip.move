@@ -842,8 +842,7 @@ module vip::vip {
     }
 
     fun calculate_weight_share(module_store: &ModuleStore): SimpleMap<u64, BigDecimal> {
-        let weight_shares: SimpleMap<u64, BigDecimal> =
-            simple_map::new<u64, BigDecimal>();
+        let weight_shares: SimpleMap<u64, BigDecimal> = simple_map::new<u64, BigDecimal>();
         utils::walk(
             &module_store.bridges,
             option::some(
