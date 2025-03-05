@@ -1,6 +1,7 @@
 module vip::lock_staking {
     use std::bcs::to_bytes;
     use std::error;
+    use std::event;
     use std::option::{Self, Option};
     use std::signer;
     use std::string::{Self, String};
@@ -44,6 +45,29 @@ module vip::lock_staking {
     const EZERO_AMOUNT: u64 = 14;
     const EINVALID_MIN_MAX: u64 = 15;
     const EINVALID_ARGS_LENGTH: u64 = 16;
+
+    const EDEPRECATED: u64 =0x100;
+
+    //
+    // Events
+    //
+    #[event]
+    struct DepositDelegationEvent has drop, store {
+        staking_account: address,
+        metadata: Object<Metadata>,
+        release_time: u64,
+        validator: String,
+        locked_share: BigDecimal,
+    }
+
+    #[event]
+    struct WithdrawDelegationEvent has drop, store {
+        staking_account: address,
+        metadata: Object<Metadata>,
+        release_time: u64,
+        validator: String,
+        locked_share: BigDecimal,
+    }
 
     struct LockedDelegationResponse has drop {
         metadata: Object<Metadata>,
@@ -270,6 +294,7 @@ module vip::lock_staking {
             );
 
         delegate_internal(account, fa, release_time, validator_address);
+
     }
 
     public entry fun stableswap_provide_delegate(
@@ -319,8 +344,8 @@ module vip::lock_staking {
             dst_release_time >= src_release_time,
             error::invalid_argument(ESMALL_RELEASE_TIME)
         );
-        // get current delegation share
-        let delegation =
+        // get current delegation shares
+        let src_delegation =
             get_delegation(
                 staking_account,
                 validator_src_address,
@@ -334,23 +359,36 @@ module vip::lock_staking {
                 src_release_time,
                 validator_src_address
             );
-        let share_before =
+        let src_share_before =
             get_share(
-                &delegation.delegation.shares,
+                &src_delegation.delegation.shares,
                 coin::metadata_to_denom(metadata),
                 true
+            );
+        let dst_delegation =
+            get_delegation(
+                staking_account,
+                validator_dst_address,
+                staking_account_addr,
+                false
+            );
+        let dst_share_before =
+            get_share(
+                &dst_delegation.delegation.shares,
+                coin::metadata_to_denom(metadata),
+                false
             );
         let locked_amount =
             locked_share_to_amount(
                 staking_account,
                 validator_src_address,
                 metadata,
-                &share_before,
+                &src_share_before,
                 &locked_share
             );
 
         // get redelegate amount and share before
-        let (amount, share_before) =
+        let (amount, src_share_before) =
             if (option::is_none(&amount)) {
                 // redelegate all
                 (locked_amount, option::none())
@@ -365,7 +403,7 @@ module vip::lock_staking {
                 if (redelegate_amount == locked_amount) {
                     (locked_amount, option::none())
                 } else {
-                    (redelegate_amount, option::some(share_before))
+                    (redelegate_amount, option::some(src_share_before))
                 }
             };
 
@@ -386,15 +424,16 @@ module vip::lock_staking {
             &staking_account_signer,
             @vip,
             string::utf8(b"lock_staking"),
-            string::utf8(b"redelegate_hook"),
+            string::utf8(b"redelegate_hook_v2"),
             vector[],
             vector[
                 to_bytes(&metadata),
                 to_bytes(&src_release_time),
                 to_bytes(&validator_src_address),
+                to_bytes(&src_share_before),
                 to_bytes(&dst_release_time),
                 to_bytes(&validator_dst_address),
-                to_bytes(&share_before)
+                to_bytes(&dst_share_before)
             ]
         )
     }
@@ -730,35 +769,13 @@ module vip::lock_staking {
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
         assert_staking_account(staking_account_addr);
 
-        // calculate share diff
-        let denom = coin::metadata_to_denom(metadata);
-
-        let delegation =
-            get_delegation(
-                staking_account,
-                validator,
-                staking_account_addr,
-                true
-            );
-
-        let share_after = get_share(&delegation.delegation.shares, denom, true);
-        let share_diff = bigdecimal::sub(share_after, share_before);
-        let new_locked_share =
-            share_to_locked_share(
-                staking_account,
-                validator,
-                metadata,
-                &share_before,
-                &share_diff
-            );
-
-        // store delegation
-        deposit_delegation(
+        delegate_hook_internal(
             staking_account,
+            staking_account_addr,
             metadata,
+            release_time,
             validator,
-            new_locked_share,
-            release_time
+            share_before
         );
 
         // withdraw uinit from staking account
@@ -769,132 +786,48 @@ module vip::lock_staking {
         );
     }
 
+    #[deprecated]
     entry fun redelegate_hook(
+        _staking_account_signer: &signer,
+        _metadata: Object<Metadata>,
+        _src_release_time: u64,
+        _validator_src_address: String,
+        _dst_release_time: u64,
+        _validator_dst_address: String,
+        _src_share_before: Option<BigDecimal>, // if none, redelegate all
+    ) {
+        abort(error::unavailable(EDEPRECATED));
+    }
+
+    entry fun redelegate_hook_v2(
         staking_account_signer: &signer,
         metadata: Object<Metadata>,
         src_release_time: u64,
         validator_src_address: String,
+        src_share_before: Option<BigDecimal>, // if none, redelegate all
         dst_release_time: u64,
         validator_dst_address: String,
-        src_share_before: Option<BigDecimal> // if none, redelegate all
+        dst_share_before: BigDecimal
     ) acquires StakingAccount, ModuleStore {
         let staking_account_addr = signer::address_of(staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
         assert_staking_account(staking_account_addr);
-        let (height, _) = block::get_block_info();
-        let denom = coin::metadata_to_denom(metadata);
 
-        // get redelegation
-        let redelegations =
-            get_redelegations(
-                to_sdk(staking_account_addr),
-                validator_src_address,
-                validator_dst_address
-            );
-        assert!(
-            vector::length(&redelegations.redelegation_responses) == 1,
-            error::internal(EREDELEGATION_LENGTH)
-        );
-        let redelegation_response = vector::borrow_mut(
-            &mut redelegations.redelegation_responses, 0
-        );
-
-        // the last entry is the most recent creation
-        let RedelegationEntryResponse { redelegation_entry, balance: _ } = vector::pop_back(
-            &mut redelegation_response.entries
-        );
-
-        // check redelegation to be sure there is no query ordering changes
-        assert!(
-            (redelegation_entry.creation_height as u64) == height,
-            error::internal(ECREATION_HEIGHT_MISMATCH)
-        );
-        assert!(
-            vector::length(&redelegation_entry.shares_dst) == 1,
-            error::internal(ENOT_SINGLE_COIN)
-        );
-        let redelegation_share = vector::borrow(&redelegation_entry.shares_dst, 0);
-        assert!(
-            redelegation_share.denom == denom,
-            error::internal(EDENOM_MISMATCH)
-        );
-
-        // withdraw src locked delegation
-        let locked_share_to_withdraw =
-            if (option::is_none(&src_share_before)) {
-                option::none()
-            } else {
-                // calculate share diff
-                let share_before = option::extract(&mut src_share_before);
-                let delegation =
-                    get_delegation(
-                        staking_account,
-                        validator_src_address,
-                        staking_account_addr,
-                        false
-                    );
-
-                // redelegation always decreses the share from the src validator
-                let share_after = get_share(&delegation.delegation.shares, denom, false);
-
-                let share_diff = bigdecimal::sub(share_before, share_after);
-
-                let locked_share =
-                    share_to_locked_share(
-                        staking_account,
-                        validator_src_address,
-                        metadata,
-                        &share_before,
-                        &share_diff
-                    );
-                option::some(locked_share)
-            };
-
-        withdraw_delegation(
+        undelegate_hook_internal(
             staking_account,
+            staking_account_addr,
             metadata,
             src_release_time,
             validator_src_address,
-            locked_share_to_withdraw
+            src_share_before
         );
-
-        // deposit locked delegation
-        let delegation =
-            get_delegation(
-                staking_account,
-                validator_dst_address,
-                staking_account_addr,
-                true
-            );
-
-        // total delegation share after redelegation
-        let current_total_share =
-            get_share(
-                &delegation.delegation.shares,
-                redelegation_share.denom,
-                true
-            );
-
-        // get total delegation share before redelegation
-        let dst_share_before =
-            bigdecimal::sub(current_total_share, redelegation_share.amount);
-
-        // get new locked share
-        let new_locked_share =
-            share_to_locked_share(
-                staking_account,
-                validator_dst_address,
-                metadata,
-                &dst_share_before,
-                &redelegation_share.amount
-            );
-
-        deposit_delegation(
+        delegate_hook_internal(
             staking_account,
+            staking_account_addr,
             metadata,
+            dst_release_time,
             validator_dst_address,
-            new_locked_share,
-            dst_release_time
+            dst_share_before
         );
 
         // withdraw uinit from staking account
@@ -926,7 +859,7 @@ module vip::lock_staking {
         // the last entry is the most recent creation
         let unbond_entry = vector::pop_back(&mut unbond.entries);
 
-        // check redelegation to check query ordering changed
+        // check unbond to check query ordering changed
         assert!(
             unbond_entry.creation_height == height,
             error::internal(ECREATION_HEIGHT_MISMATCH)
@@ -940,6 +873,73 @@ module vip::lock_staking {
             initial_balance.denom == denom,
             error::internal(EDENOM_MISMATCH)
         );
+
+        undelegate_hook_internal(
+            staking_account,
+            staking_account_addr,
+            metadata,
+            release_time,
+            validator,
+            share_before
+        );
+
+        // withdraw uinit from staking account
+        withdraw_asset_for_staking_account(
+            staking_account_signer,
+            coin::metadata(@initia_std, string::utf8(b"uinit")),
+            option::none()
+        );
+    }
+
+    fun delegate_hook_internal(
+        staking_account: &mut StakingAccount,
+        staking_account_addr: address,
+        metadata: Object<Metadata>,
+        release_time: u64,
+        validator: String,
+        share_before: BigDecimal
+    ) acquires ModuleStore {
+        // calculate share diff
+        let denom = coin::metadata_to_denom(metadata);
+
+        let delegation =
+            get_delegation(
+                staking_account,
+                validator,
+                staking_account_addr,
+                true
+            );
+
+        let share_after = get_share(&delegation.delegation.shares, denom, true);
+        let share_diff = bigdecimal::sub(share_after, share_before);
+        let new_locked_share =
+            share_to_locked_share(
+                staking_account,
+                validator,
+                metadata,
+                &share_before,
+                &share_diff
+            );
+
+        // store delegation
+        deposit_delegation(
+            staking_account,
+            metadata,
+            validator,
+            new_locked_share,
+            release_time
+        );
+    }
+
+    fun undelegate_hook_internal(
+        staking_account: &mut StakingAccount,
+        staking_account_addr: address,
+        metadata: Object<Metadata>,
+        release_time: u64,
+        validator: String,
+        share_before: Option<BigDecimal> // if none, undelegate all
+    ) {
+        let denom = coin::metadata_to_denom(metadata);
 
         // withdraw delegation
         let locked_share_to_withdraw =
@@ -977,13 +977,6 @@ module vip::lock_staking {
             release_time,
             validator,
             locked_share_to_withdraw
-        );
-
-        // withdraw uinit from staking account
-        withdraw_asset_for_staking_account(
-            staking_account_signer,
-            coin::metadata(@initia_std, string::utf8(b"uinit")),
-            option::none()
         );
     }
 
@@ -1277,6 +1270,15 @@ module vip::lock_staking {
         } else {
             *locked_share_stored = bigdecimal::sub(*locked_share_stored, locked_share);
         };
+
+        event::emit(WithdrawDelegationEvent {
+            staking_account: object::address_from_extend_ref(&staking_account.extend_ref),
+            metadata,
+            release_time,
+            validator,
+            locked_share
+        });
+
         locked_share
     }
 
@@ -1328,6 +1330,14 @@ module vip::lock_staking {
                 <= module_store.max_delegation_slot,
             error::invalid_state(EMAX_SLOT)
         );
+
+        event::emit(DepositDelegationEvent {
+            staking_account: object::address_from_extend_ref(&staking_account.extend_ref),
+            metadata,
+            release_time,
+            validator,
+            locked_share
+        });
     }
 
     fun get_share(
@@ -1634,8 +1644,8 @@ module vip::lock_staking {
             dst_release_time >= src_release_time,
             error::invalid_argument(ESMALL_RELEASE_TIME)
         );
-        // get current delegation share
-        let delegation =
+        // get current delegation shares
+        let src_delegation =
             get_delegation(
                 staking_account,
                 validator_src_address,
@@ -1649,11 +1659,24 @@ module vip::lock_staking {
                 src_release_time,
                 validator_src_address
             );
-        let share_before =
+        let src_share_before =
             get_share(
-                &delegation.delegation.shares,
+                &src_delegation.delegation.shares,
                 coin::metadata_to_denom(metadata),
                 true
+            );
+        let dst_delegation =
+            get_delegation(
+                staking_account,
+                validator_dst_address,
+                staking_account_addr,
+                false
+            );
+        let dst_share_before =
+            get_share(
+                &dst_delegation.delegation.shares,
+                coin::metadata_to_denom(metadata),
+                false
             );
 
         let locked_amount =
@@ -1661,12 +1684,12 @@ module vip::lock_staking {
                 staking_account,
                 validator_src_address,
                 metadata,
-                &share_before,
+                &src_share_before,
                 &locked_share
             );
 
         // get redelegate amount and share before
-        let (amount, share_before) =
+        let (amount, src_share_before) =
             if (option::is_none(&amount)) {
                 // redelegate all
                 (locked_amount, option::none())
@@ -1678,7 +1701,7 @@ module vip::lock_staking {
                     error::invalid_argument(ENOT_ENOUGH_DELEGATION)
                 );
 
-                (redelegate_amount, option::some(share_before))
+                (redelegate_amount, option::some(src_share_before))
             };
 
         // execute begin redelegate
@@ -1690,14 +1713,15 @@ module vip::lock_staking {
             amount
         );
         // execute redelegate hook
-        redelegate_hook(
+        redelegate_hook_v2(
             &staking_account_signer,
             metadata,
             src_release_time,
             validator_src_address,
+            src_share_before,
             dst_release_time,
             validator_dst_address,
-            share_before
+            dst_share_before
         );
     }
 
