@@ -1511,7 +1511,10 @@ module vip::lock_staking {
         let res = vector[];
 
         let delegations: SimpleMap<String, DelegationResponseInner> =
-            simple_map::create();
+            simple_map::new();
+
+        let metadata_denom_map: SimpleMap<Object<Metadata>, String> =
+            simple_map::new();
 
         loop {
             if (!table::prepare<DelegationKey, BigDecimal>(iter)) { break };
@@ -1529,11 +1532,15 @@ module vip::lock_staking {
                     );
                 simple_map::add(&mut delegations, validator, delegation);
             };
+            if (!simple_map::contains_key(&metadata_denom_map, &metadata)) {
+                simple_map::add(&mut metadata_denom_map, metadata, coin::metadata_to_denom(metadata));
+            };
+
             let delegation = simple_map::borrow(&delegations, &validator);
             let total_share =
                 get_share(
                     &delegation.delegation.shares,
-                    coin::metadata_to_denom(metadata),
+                    *simple_map::borrow(&metadata_denom_map, &metadata),
                     true
                 );
             let amount =
