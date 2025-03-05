@@ -171,7 +171,7 @@ module vip::utils {
 
     public fun get_weight_map(): SimpleMap<String, BigDecimal> {
         let PoolResponse { pool } = get_pool();
-        let weight_map = simple_map::create<String, BigDecimal>();
+        let weight_map = simple_map::new<String, BigDecimal>();
         vector::for_each_ref(
             &pool.voting_power_weights,
             |weight| {

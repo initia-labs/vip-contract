@@ -793,8 +793,8 @@ module vip::vip {
     fun calculate_balance_share(
         module_store: &ModuleStore, bridge_ids: vector<u64>
     ): SimpleMap<u64, BigDecimal> {
-        let bridge_balances: SimpleMap<u64, u64> = simple_map::create();
-        let balance_shares = simple_map::create<u64, BigDecimal>();
+        let bridge_balances: SimpleMap<u64, u64> = simple_map::new();
+        let balance_shares = simple_map::new<u64, BigDecimal>();
         let total_balance = 0;
         // sum total balance for calculating shares
         vector::for_each_ref(
@@ -843,7 +843,7 @@ module vip::vip {
 
     fun calculate_weight_share(module_store: &ModuleStore): SimpleMap<u64, BigDecimal> {
         let weight_shares: SimpleMap<u64, BigDecimal> =
-            simple_map::create<u64, BigDecimal>();
+            simple_map::new<u64, BigDecimal>();
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -2419,10 +2419,10 @@ module vip::vip {
         SimpleMap<u64, u64>,
         SimpleMap<u64, u64>
     ) {
-        let root_map = simple_map::create<u64, vector<u8>>();
-        let proofs_map = simple_map::create<u64, vector<vector<u8>>>();
-        let score_map = simple_map::create<u64, u64>();
-        let total_score_map = simple_map::create<u64, u64>();
+        let root_map = simple_map::new<u64, vector<u8>>();
+        let proofs_map = simple_map::new<u64, vector<vector<u8>>>();
+        let score_map = simple_map::new<u64, u64>();
+        let total_score_map = simple_map::new<u64, u64>();
 
         simple_map::add(
             &mut root_map,
@@ -2715,9 +2715,9 @@ module vip::vip {
         SimpleMap<u64, u64>,
         SimpleMap<u64, u64>
     ) {
-        let root_map = simple_map::create<u64, vector<u8>>();
-        let proofs_map = simple_map::create<u64, vector<vector<u8>>>();
-        let total_score_map = simple_map::create<u64, u64>();
+        let root_map = simple_map::new<u64, vector<u8>>();
+        let proofs_map = simple_map::new<u64, vector<vector<u8>>>();
+        let total_score_map = simple_map::new<u64, u64>();
 
         simple_map::add(
             &mut root_map,
