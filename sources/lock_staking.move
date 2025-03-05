@@ -1219,11 +1219,11 @@ module vip::lock_staking {
         }
     }
 
-    fun reentry_check(staking_account: &mut StakingAccount, with_update: bool) {
+    fun reentry_check(
+        staking_account: &mut StakingAccount, with_update: bool
+    ) {
         let (height, _) = block::get_block_info();
-        assert!(
-            staking_account.last_height != height, error::invalid_state(EREENTER)
-        );
+        assert!(staking_account.last_height != height, error::invalid_state(EREENTER));
 
         if (with_update) {
             staking_account.last_height = height;
