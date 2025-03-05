@@ -79,7 +79,7 @@ module vip::lock_staking {
 
     struct StakingAccount has key {
         extend_ref: ExtendRef,
-        last_height: u64, // record the last executed height to prevent the stargate sequential problem.
+        last_height: u64, // record the locked height to prevent the stargate sequential problem.
         validators: Table<String, u16>, // validator => number of delegation
         delegations: Table<DelegationKey, BigDecimal>, // key => locked share
         // This share variable is specific to the lock_staking.move module
