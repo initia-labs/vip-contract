@@ -1233,10 +1233,3 @@ module vip::weight_vote {
         );
     }
 }
-
-script {
-    use vip::weight_vote;
-    fun a(account: &signer, addr: address) {
-        weight_vote::get_voting_power(addr);
-    }
-}
