@@ -82,6 +82,7 @@ module vip::utils {
         pool: Pool
     }
 
+    #[deprecated]
     public fun get_voting_power(delegator_addr: String): u64 {
         let weight_map = get_weight_map();
         let total_voting_power = 0;
@@ -120,11 +121,22 @@ module vip::utils {
     public inline fun get_customized_voting_power(
         delegator_addr: address, f: |Object<Metadata>, u64| u64
     ): u64 {
-        let weight_map = get_weight_map();
-        let total_voting_power = 0;
         let delegator_addr = to_sdk(delegator_addr);
-
         let delegations = get_delegations(delegator_addr);
+
+        // denom => voting power map
+        let weight_map = get_weight_map();
+        // denom => delegate amount map
+        let delegate_amount_map = simple_map::new<String, u64>();
+        // initialize
+        vector::for_each_ref(
+            &simple_map::keys(&weight_map),
+            |denom| {
+                simple_map::add(&mut delegate_amount_map, *denom, 0);
+            }
+        );
+
+        // get total delegated amounts
         vector::for_each_ref(
             &delegations,
             |delegation| {
@@ -133,14 +145,24 @@ module vip::utils {
                     &balance,
                     |coin| {
                         let (denom, amount) = unpack_coin(coin);
-                        let metadata = coin::denom_to_metadata(denom);
-                        let weight = simple_map::borrow(&weight_map, &denom);
-                        let voting_power =
-                            bigdecimal::mul_by_u64_truncate(*weight, amount);
-                        total_voting_power = total_voting_power
-                            + f(metadata, voting_power);
+                        let amount_before =
+                            simple_map::borrow_mut(&mut delegate_amount_map, &denom);
+                        *amount_before = *amount_before + amount;
                     }
                 );
+            }
+        );
+
+        // get total voting power
+        let total_voting_power = 0;
+        vector::for_each_ref(
+            &simple_map::keys(&weight_map),
+            |denom| {
+                let metadata = coin::denom_to_metadata(*denom);
+                let amount = *simple_map::borrow(&delegate_amount_map, denom);
+                let weight = simple_map::borrow(&weight_map, denom);
+                let voting_power = bigdecimal::mul_by_u64_truncate(*weight, amount);
+                total_voting_power = total_voting_power + f(metadata, voting_power);
             }
         );
 

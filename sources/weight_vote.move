@@ -560,6 +560,74 @@ module vip::weight_vote {
         )
     }
 
+    fun get_lock_staking_voting_power(
+        module_store: &ModuleStore,
+        weight_map: &simple_map::SimpleMap<string::String, BigDecimal>,
+        addr: address
+    ): u64 {
+        let (_, curr_time) = get_block_info();
+
+        // lock period multiplier adjusted amounts
+        let delegate_amount_map = simple_map::new<Object<Metadata>, u64>();
+        vector::for_each_ref(
+            &simple_map::keys(weight_map),
+            |denom| {
+                simple_map::add(
+                    &mut delegate_amount_map, coin::denom_to_metadata(*denom), 0
+                );
+            }
+        );
+
+        // get total delegate amounts
+        let locked_delegations = lock_staking::get_locked_delegations(addr);
+        vector::for_each_ref(
+            &locked_delegations,
+            |delegation| {
+                let (metadata, _, amount, release_time) =
+                    lock_staking::unpack_locked_delegation(delegation);
+
+                let lock_period =
+                    if (release_time > curr_time) {
+                        release_time - curr_time
+                    } else { 0 };
+                let lock_time_weight =
+                    get_lock_period_multiplier(module_store, lock_period);
+
+                let amount_before =
+                    simple_map::borrow_mut(&mut delegate_amount_map, &metadata);
+
+                *amount_before =
+                    *amount_before
+                        + bigdecimal::mul_by_u64_truncate(lock_time_weight, amount);
+            }
+        );
+
+        // get total voting power
+        let total_voting_power = 0;
+        vector::for_each_ref(
+            &simple_map::keys(weight_map),
+            |denom| {
+                let metadata = coin::denom_to_metadata(*denom);
+                let amount = *simple_map::borrow(&delegate_amount_map, &metadata);
+                let weight = simple_map::borrow(weight_map, denom);
+                let pair_multiplier =
+                    table::borrow_with_default(
+                        &module_store.pair_multipliers,
+                        metadata,
+                        &bigdecimal::one()
+                    );
+                let voting_power =
+                    bigdecimal::mul_by_u64_truncate(
+                        *pair_multiplier,
+                        bigdecimal::mul_by_u64_truncate(*weight, amount)
+                    );
+                total_voting_power = total_voting_power + voting_power;
+            }
+        );
+
+        return total_voting_power
+    }
+
     //
     // views
     //
@@ -629,7 +697,6 @@ module vip::weight_vote {
     #[view]
     public fun get_voting_power(addr: address): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (_, curr_time) = get_block_info();
         let cosmos_voting_power =
             utils::get_customized_voting_power(
                 addr,
@@ -644,42 +711,9 @@ module vip::weight_vote {
                 }
             );
 
-        let lock_staking_voting_power = 0;
-        let locked_delegations = lock_staking::get_locked_delegations(addr);
         let weight_map = utils::get_weight_map();
-        vector::for_each_ref(
-            &locked_delegations,
-            |delegation| {
-                let (metadata, _, amount, release_time) =
-                    lock_staking::unpack_locked_delegation(delegation);
-                let denom = coin::metadata_to_denom(metadata);
-                let voting_power_weight = simple_map::borrow(&weight_map, &denom);
-                let voting_power =
-                    bigdecimal::mul_by_u64_truncate(*voting_power_weight, amount);
-                let pair_multiplier =
-                    table::borrow_with_default(
-                        &module_store.pair_multipliers,
-                        metadata,
-                        &bigdecimal::one()
-                    );
-
-                let lock_period =
-                    if (release_time > curr_time) {
-                        release_time - curr_time
-                    } else { 0 };
-                let lock_time_weight =
-                    get_lock_period_multiplier(module_store, lock_period);
-                voting_power = bigdecimal::mul_by_u64_truncate(
-                    lock_time_weight, voting_power
-                );
-
-                lock_staking_voting_power =
-                    lock_staking_voting_power
-                        + bigdecimal::mul_by_u64_truncate(
-                            *pair_multiplier, voting_power
-                        );
-            }
-        );
+        let lock_staking_voting_power =
+            get_lock_staking_voting_power(module_store, &weight_map, addr);
 
         let vesting_voting_power =
             get_vesting_voting_power(module_store.core_vesting_creator, addr);
@@ -1197,5 +1231,12 @@ module vip::weight_vote {
                 == bigdecimal::from_u64(max_multiplier),
             6
         );
+    }
+}
+
+script {
+    use vip::weight_vote;
+    fun a(account: &signer, addr: address) {
+        weight_vote::get_voting_power(addr);
     }
 }
