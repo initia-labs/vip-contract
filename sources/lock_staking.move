@@ -46,7 +46,7 @@ module vip::lock_staking {
     const EINVALID_MIN_MAX: u64 = 15;
     const EINVALID_ARGS_LENGTH: u64 = 16;
 
-    const EDEPRECATED: u64 =0x100;
+    const EDEPRECATED: u64 = 0x100;
 
     //
     // Events
@@ -57,7 +57,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String,
-        locked_share: BigDecimal,
+        locked_share: BigDecimal
     }
 
     #[event]
@@ -66,7 +66,7 @@ module vip::lock_staking {
         metadata: Object<Metadata>,
         release_time: u64,
         validator: String,
-        locked_share: BigDecimal,
+        locked_share: BigDecimal
     }
 
     struct LockedDelegationResponse has drop {
@@ -794,7 +794,7 @@ module vip::lock_staking {
         _validator_src_address: String,
         _dst_release_time: u64,
         _validator_dst_address: String,
-        _src_share_before: Option<BigDecimal>, // if none, redelegate all
+        _src_share_before: Option<BigDecimal> // if none, redelegate all
     ) {
         abort(error::unavailable(EDEPRECATED));
     }
@@ -1271,13 +1271,17 @@ module vip::lock_staking {
             *locked_share_stored = bigdecimal::sub(*locked_share_stored, locked_share);
         };
 
-        event::emit(WithdrawDelegationEvent {
-            staking_account: object::address_from_extend_ref(&staking_account.extend_ref),
-            metadata,
-            release_time,
-            validator,
-            locked_share
-        });
+        event::emit(
+            WithdrawDelegationEvent {
+                staking_account: object::address_from_extend_ref(
+                    &staking_account.extend_ref
+                ),
+                metadata,
+                release_time,
+                validator,
+                locked_share
+            }
+        );
 
         locked_share
     }
@@ -1331,13 +1335,17 @@ module vip::lock_staking {
             error::invalid_state(EMAX_SLOT)
         );
 
-        event::emit(DepositDelegationEvent {
-            staking_account: object::address_from_extend_ref(&staking_account.extend_ref),
-            metadata,
-            release_time,
-            validator,
-            locked_share
-        });
+        event::emit(
+            DepositDelegationEvent {
+                staking_account: object::address_from_extend_ref(
+                    &staking_account.extend_ref
+                ),
+                metadata,
+                release_time,
+                validator,
+                locked_share
+            }
+        );
     }
 
     fun get_share(
@@ -1510,8 +1518,9 @@ module vip::lock_staking {
 
         let res = vector[];
 
-        let delegations: SimpleMap<String, DelegationResponseInner> =
-            simple_map::create();
+        let delegations: SimpleMap<String, DelegationResponseInner> = simple_map::new();
+
+        let metadata_denom_map: SimpleMap<Object<Metadata>, String> = simple_map::new();
 
         loop {
             if (!table::prepare<DelegationKey, BigDecimal>(iter)) { break };
@@ -1529,11 +1538,19 @@ module vip::lock_staking {
                     );
                 simple_map::add(&mut delegations, validator, delegation);
             };
+            if (!simple_map::contains_key(&metadata_denom_map, &metadata)) {
+                simple_map::add(
+                    &mut metadata_denom_map,
+                    metadata,
+                    coin::metadata_to_denom(metadata)
+                );
+            };
+
             let delegation = simple_map::borrow(&delegations, &validator);
             let total_share =
                 get_share(
                     &delegation.delegation.shares,
-                    coin::metadata_to_denom(metadata),
+                    *simple_map::borrow(&metadata_denom_map, &metadata),
                     true
                 );
             let amount =
