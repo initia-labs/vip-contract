@@ -38,7 +38,7 @@ module vip::lock_staking {
     const ENOT_ENOUGH_BALANCE: u64 = 7;
     const ESMALL_RELEASE_TIME: u64 = 8;
     const ENOT_RELEASE: u64 = 9;
-    const ESAME_HEIGHT: u64 = 10;
+    const EREENTER: u64 = 10;
     const ENOT_ENOUGH_DELEGATION: u64 = 11;
     const EMAX_LOCK_PERIOD: u64 = 12;
     const EMAX_SLOT: u64 = 13;
@@ -79,7 +79,7 @@ module vip::lock_staking {
 
     struct StakingAccount has key {
         extend_ref: ExtendRef,
-        last_height: u64, // record the last executed height to prevent the stargate sequential problem.
+        last_height: u64, // record the locked height to prevent the stargate sequential problem.
         validators: Table<String, u16>, // validator => number of delegation
         delegations: Table<DelegationKey, BigDecimal>, // key => locked share
         // This share variable is specific to the lock_staking.move module
@@ -339,7 +339,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, true);
         assert!(
             dst_release_time >= src_release_time,
             error::invalid_argument(ESMALL_RELEASE_TIME)
@@ -449,7 +449,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, true);
 
         // check can undelegate
         let (_, curr_time) = block::get_block_info();
@@ -547,7 +547,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, false);
 
         extend_internal(
             staking_account_addr,
@@ -572,7 +572,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, false);
 
         let len = vector::length(&metadata);
         assert!(
@@ -712,7 +712,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, true);
         let metadata = fungible_asset::metadata_from_asset(&fa);
         let amount = fungible_asset::amount(&fa);
         let denom = coin::metadata_to_denom(metadata);
@@ -784,6 +784,8 @@ module vip::lock_staking {
             coin::metadata(@initia_std, string::utf8(b"uinit")),
             option::none()
         );
+
+        unlock_reentry_check(staking_account);
     }
 
     #[deprecated]
@@ -836,6 +838,8 @@ module vip::lock_staking {
             coin::metadata(@initia_std, string::utf8(b"uinit")),
             option::none()
         );
+
+        unlock_reentry_check(staking_account);
     }
 
     entry fun undelegate_hook(
@@ -889,6 +893,8 @@ module vip::lock_staking {
             coin::metadata(@initia_std, string::utf8(b"uinit")),
             option::none()
         );
+
+        unlock_reentry_check(staking_account);
     }
 
     fun delegate_hook_internal(
@@ -1213,12 +1219,19 @@ module vip::lock_staking {
         }
     }
 
-    fun assert_height(staking_account: &mut StakingAccount) {
+    fun reentry_check(
+        staking_account: &mut StakingAccount, with_update: bool
+    ) {
         let (height, _) = block::get_block_info();
-        assert!(
-            staking_account.last_height != height, error::invalid_state(ESAME_HEIGHT)
-        );
-        staking_account.last_height = height;
+        assert!(staking_account.last_height != height, error::invalid_state(EREENTER));
+
+        if (with_update) {
+            staking_account.last_height = height;
+        };
+    }
+
+    fun unlock_reentry_check(staking_account: &mut StakingAccount) {
+        staking_account.last_height = 0;
     }
 
     fun withdraw_delegation(
@@ -1606,7 +1619,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, true);
         let metadata = fungible_asset::metadata_from_asset(&fa);
         let amount = fungible_asset::amount(&fa);
         let denom = coin::metadata_to_denom(metadata);
@@ -1656,7 +1669,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, true);
         assert!(
             dst_release_time >= src_release_time,
             error::invalid_argument(ESMALL_RELEASE_TIME)
@@ -1754,7 +1767,7 @@ module vip::lock_staking {
         let staking_account_addr = signer::address_of(&staking_account_signer);
         let staking_account = borrow_global_mut<StakingAccount>(staking_account_addr);
 
-        assert_height(staking_account);
+        reentry_check(staking_account, true);
 
         // check can undelegate
         let (_, curr_time) = block::get_block_info();
