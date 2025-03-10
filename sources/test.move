@@ -302,7 +302,7 @@ module vip::test {
             option::some(TEST_VESTING_PERIOD),
             option::none(),
             option::some(TEST_MIN_ELIGIBLE_TVL),
-            option::some(bigdecimal::one()),
+            option::some(bigdecimal::zero()), // deprecated
             option::some(bigdecimal::from_ratio_u64(TEST_MAX_WEIGHT_RATIO, 10)),
             option::some(bigdecimal::from_ratio_u64(TEST_MIN_SCORE_RATIO, 10)),
             option::some(bigdecimal::from_ratio_u64(TEST_POOL_RATIO, 10)),
@@ -2474,13 +2474,14 @@ module vip::test {
             &mut bridge2_merkle_proofs,
             &mut bridge2_l2_scores
         );
-        // weight 0.6 / 0.4
-        // max weight: 0.5
+        // voting weight 0.6 : 0.4
+        // tvl ratio 0.5: 0.5
         // if total reward is 100
-        // weight pool reward (50) (bridge 1) : (bridge 2) = 25 : 20, 5 -> return to vault
-        // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
-        // total pool reward (bridge 1) : (bridge 2) =  50 : 45
-        // reward1: reward2 = 25: 22.5
+        // weight is 0.6 * 0.5 + 0.5 * 0.5 : 0.4 * 0.5 + 0.5 * 0.5
+        // => 0.55 : 0.45
+        // max_weight_ratio is 0.5 so cut 0.55 to 0.5
+        // 0.5 : 0.45
+        // reward amount 50 : 45
         user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 3);
         user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 3);
         operator_distributed_reward1 = vip::get_operator_funded_reward(
@@ -2533,13 +2534,14 @@ module vip::test {
             &mut bridge2_l2_scores
         );
 
-        // weight 0.3 / 0.7
-        // max weight: 0.5
+        // voting weight 0.7 : 0.3
+        // tvl ratio 0.5: 0.5
         // if total reward is 100
-        // weight pool reward (50) (bridge 1) : (bridge 2) = 15 : 25, 15 -> return to vault
-        // liquidity pool reward (50)) (bridge 1) : (bridge 2) = 25 : 25
-        // total pool reward (bridge 1) : (bridge 2) =  40 : 50
-        // reward1 : reward2 = 20: 25
+        // weight is 0.7 * 0.5 + 0.5 * 0.5 : 0.3 * 0.5 + 0.5 * 0.5
+        // => 0.6 : 0.4
+        // max_weight_ratio is 0.5 so cut 0.6 to 0.4
+        // 0.5 : 0.4
+        // reward amount 50 : 40
         user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 4);
         user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 4);
         operator_distributed_reward1 = vip::get_operator_funded_reward(
@@ -2549,11 +2551,11 @@ module vip::test {
             get_bridge2_id(), 4
         );
         assert!(
-            user_distributed_reward1 * 25 == user_distributed_reward2 * 20,
+            user_distributed_reward1 * 50 == user_distributed_reward2 * 40,
             2
         );
         assert!(
-            operator_distributed_reward1 * 25 == operator_distributed_reward2 * 20,
+            operator_distributed_reward1 * 50 == operator_distributed_reward2 * 40,
             2
         );
     }

@@ -117,13 +117,13 @@ module vip::vip {
         // to vest whole vesting rewards.
         minimum_score_ratio: BigDecimal,
         // if pool_split_ratio is 0.4,
-        // balance pool takes 0.4 and weight pool takes 0.6
+        // balance pool takes 0.4 and voting weight pool takes 0.6
         pool_split_ratio: BigDecimal,
-        // TVL cap of L2 INIT token to receive the reward. (% of total whitelisted l2 balance)
+        // DEPRECATED
         maximum_tvl_ratio: BigDecimal,
         // minimum eligible TVL of L2 INIT token to receive the reward.
         minimum_eligible_tvl: u64,
-        // maximum weight of VIP reward
+        // maximum weight (voting weight + tvl) of VIP reward
         maximum_weight_ratio: BigDecimal,
         // a set of stage data
         stage_data: Table<vector<u8> /* stage */, StageData>,
@@ -299,8 +299,8 @@ module vip::vip {
                 ),
                 agent_data: AgentData { agent: agent, api_uri: api },
                 maximum_tvl_ratio: bigdecimal::from_ratio_u64(
-                    DEFAULT_MAXIMUM_TVL_RATIO, 10
-                ),
+                    0, 1
+                ), // DEPRECATED
                 minimum_eligible_tvl: DEFAULT_MINIMUM_ELIGIBLE_TVL,
                 maximum_weight_ratio: bigdecimal::from_ratio_u64(
                     DEFAULT_MAXIMUM_WEIGHT_RATIO, 10
@@ -631,10 +631,8 @@ module vip::vip {
 
     fun split_reward(
         stage: u64,
-        balance_shares: &SimpleMap<u64, BigDecimal>,
-        weight_shares: &SimpleMap<u64, BigDecimal>,
-        initial_balance_pool_reward_amount: u64,
-        initial_weight_pool_reward_amount: u64,
+        shares: &SimpleMap<u64, BigDecimal>,
+        total_reward_amount: u64,
         bridge_ids: vector<u64>,
         versions: vector<u64>
     ): (u64, u64, Table<u64, u64>, Table<u64, u64>) {
@@ -647,19 +645,11 @@ module vip::vip {
             |i, bridge_id| {
                 let version = *vector::borrow(&versions, i);
                 // split the reward of balance pool
-                let balance_reward_amount =
+                let reward_amount =
                     split_reward_with_share_internal(
-                        balance_shares,
+                        shares,
                         *bridge_id,
-                        initial_balance_pool_reward_amount
-                    );
-
-                // split the reward of weight pool
-                let weight_reward_amount =
-                    split_reward_with_share_internal(
-                        weight_shares,
-                        *bridge_id,
-                        initial_weight_pool_reward_amount
+                        total_reward_amount
                     );
 
                 // (weight + balance) reward splited to operator and user reward
@@ -667,7 +657,7 @@ module vip::vip {
                     calc_operator_and_user_reward_amount(
                         *bridge_id,
                         version,
-                        balance_reward_amount + weight_reward_amount
+                        reward_amount
                     );
                 total_operator_funded_reward =
                     total_operator_funded_reward + operator_funded_reward;
@@ -753,9 +743,7 @@ module vip::vip {
         module_store: &mut ModuleStore, stage: u64, initial_reward_amount: u64
     ): (u64, u64, Table<u64, u64>, Table<u64, u64>) {
         let (bridge_ids, versions) = get_whitelisted_bridge_ids_internal(module_store);
-        // fill the balance shares of bridges
-        let balance_shares = calculate_balance_share(module_store, bridge_ids);
-        let weight_shares = calculate_weight_share(module_store);
+        let shares = calculate_share(module_store);
 
         // fill the weight shares of bridges
         let balance_pool_reward_amount =
@@ -773,10 +761,8 @@ module vip::vip {
         ) =
             split_reward(
                 stage,
-                &balance_shares,
-                &weight_shares,
-                balance_pool_reward_amount,
-                weight_pool_reward_amount,
+                &shares,
+                balance_pool_reward_amount + weight_pool_reward_amount,
                 bridge_ids,
                 versions
             );
@@ -789,60 +775,11 @@ module vip::vip {
         )
     }
 
-    // calculate balance share
-    fun calculate_balance_share(
-        module_store: &ModuleStore, bridge_ids: vector<u64>
-    ): SimpleMap<u64, BigDecimal> {
+    fun calculate_share(module_store: &ModuleStore): SimpleMap<u64, BigDecimal> {
         let bridge_balances: SimpleMap<u64, u64> = simple_map::new();
-        let balance_shares = simple_map::new<u64, BigDecimal>();
         let total_balance = 0;
-        // sum total balance for calculating shares
-        vector::for_each_ref(
-            &bridge_ids,
-            |bridge_id| {
-                // bridge balance from tvl manager
-                let bridge_balance =
-                    tvl_manager::get_average_tvl(module_store.stage, *bridge_id);
-                total_balance = total_balance + bridge_balance;
-                simple_map::add(
-                    &mut bridge_balances,
-                    *bridge_id,
-                    bridge_balance
-                );
-            }
-        );
-        assert!(
-            vector::length(&bridge_ids) == 0 || total_balance > 0,
-            error::invalid_state(EINVALID_TOTAL_SHARE)
-        );
-        let max_effective_balance =
-            bigdecimal::mul_by_u64_truncate(
-                module_store.maximum_tvl_ratio,
-                total_balance
-            );
-        // calculate balance share by total balance
-        vector::for_each_ref(
-            &bridge_ids,
-            |bridge_id| {
-                let bridge_balance = simple_map::borrow(&bridge_balances, bridge_id);
-                let effective_bridge_balance =
-                    if (*bridge_balance > max_effective_balance) {
-                        max_effective_balance
-                    } else if (*bridge_balance < module_store.minimum_eligible_tvl) { 0 }
-                    else {
-                        *bridge_balance
-                    };
-
-                let share =
-                    bigdecimal::from_ratio_u64(effective_bridge_balance, total_balance);
-                simple_map::add(&mut balance_shares, *bridge_id, share);
-            }
-        );
-        balance_shares
-    }
-
-    fun calculate_weight_share(module_store: &ModuleStore): SimpleMap<u64, BigDecimal> {
-        let weight_shares: SimpleMap<u64, BigDecimal> = simple_map::new<u64, BigDecimal>();
+        let shares: SimpleMap<u64, BigDecimal> = simple_map::new<u64, BigDecimal>();
+        let weight_vote_ratio = bigdecimal::sub(bigdecimal::one(), module_store.pool_split_ratio);
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -858,21 +795,37 @@ module vip::vip {
                 use_bridge(bridge);
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
-                    let weight =
-                        if (bigdecimal::gt(
-                            bridge.vip_weight, module_store.maximum_weight_ratio
-                        )) {
-                            module_store.maximum_weight_ratio
-                        } else {
-                            bridge.vip_weight
-                        };
-                    simple_map::add(&mut weight_shares, bridge_id, weight);
+                    simple_map::add(&mut shares, bridge_id, bigdecimal::mul(bridge.vip_weight, weight_vote_ratio));
+                    let bridge_balance =
+                        tvl_manager::get_average_tvl(module_store.stage, bridge_id);
+                    total_balance = total_balance + bridge_balance;
+                    simple_map::add(
+                        &mut bridge_balances,
+                        bridge_id,
+                        bridge_balance
+                    );
                 };
                 false
             }
         );
 
-        weight_shares
+        let bridge_ids = simple_map::keys(&shares);
+        // calculate balance share by total balance
+        vector::for_each_ref(
+            &bridge_ids,
+            |bridge_id| {
+                let bridge_balance = *simple_map::borrow(&bridge_balances, bridge_id);
+                let balance_share =
+                    bigdecimal::from_ratio_u64(bridge_balance, total_balance);
+                let share = simple_map::borrow_mut(&mut shares, bridge_id);
+                *share = bigdecimal::add(*share, bigdecimal::mul(balance_share, module_store.pool_split_ratio));
+                if (bigdecimal::gt(*share, module_store.maximum_weight_ratio)) {
+                    *share = module_store.maximum_weight_ratio;
+                };
+            }
+        );
+
+        shares
     }
 
     fun validate_vip_weights(module_store: &ModuleStore) {
@@ -1599,7 +1552,7 @@ module vip::vip {
         vesting_period: Option<u64>,
         minimum_lock_staking_period: Option<u64>,
         minimum_eligible_tvl: Option<u64>,
-        maximum_tvl_ratio: Option<BigDecimal>,
+        _maximum_tvl_ratio: Option<BigDecimal>, // DEPRECATED
         maximum_weight_ratio: Option<BigDecimal>,
         minimum_score_ratio: Option<BigDecimal>,
         pool_split_ratio: Option<BigDecimal>,
@@ -1636,14 +1589,6 @@ module vip::vip {
         if (option::is_some(&minimum_eligible_tvl)) {
             module_store.minimum_eligible_tvl = option::extract(
                 &mut minimum_eligible_tvl
-            );
-        };
-
-        if (option::is_some(&maximum_tvl_ratio)) {
-            module_store.maximum_tvl_ratio = option::extract(&mut maximum_tvl_ratio);
-            assert!(
-                bigdecimal::le(module_store.maximum_tvl_ratio, bigdecimal::one()),
-                error::invalid_argument(EINVALID_MAX_TVL)
             );
         };
 
@@ -2672,8 +2617,7 @@ module vip::vip {
     ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
         let (bridge_ids, _) = get_whitelisted_bridge_ids_internal(module_store);
-        let balance_shares = calculate_balance_share(module_store, bridge_ids);
-        let weight_shares = calculate_weight_share(module_store);
+        let shares = calculate_share(module_store);
         assert!(
             fund_reward_amount > 0,
             error::invalid_argument(EINVALID_TOTAL_REWARD)
@@ -2691,19 +2635,13 @@ module vip::vip {
             );
         let weight_pool_reward_amount =
             bigdecimal::mul_by_u64_truncate(weight_ratio, fund_reward_amount);
-        let balance_split_amount =
+        let reward_amount =
             split_reward_with_share_internal(
-                &balance_shares,
+                &shares,
                 bridge_id,
-                balance_pool_reward_amount
+                balance_pool_reward_amount + weight_pool_reward_amount
             );
-        let weight_split_amount =
-            split_reward_with_share_internal(
-                &weight_shares,
-                bridge_id,
-                weight_pool_reward_amount
-            );
-        balance_split_amount + weight_split_amount
+        reward_amount
     }
 
     #[test_only]
