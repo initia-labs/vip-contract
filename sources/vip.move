@@ -75,6 +75,9 @@ module vip::vip {
     // CLAIM
     const ECLAIMABLE_REWARD_CAN_BE_EXIST: u64 = 33;
 
+    // MIN ELIGIBLE TVL
+    const EMIN_ELIGIBLE_TVL: u64 = 34;
+
     //
     //  Constants
     //
@@ -824,6 +827,11 @@ module vip::vip {
                 if (bigdecimal::gt(*share, module_store.maximum_weight_ratio)) {
                     *share = module_store.maximum_weight_ratio;
                 };
+
+                // make zero share if tvl is less than `minimum_eligible_tvl`
+                if (bridge_balance < module_store.minimum_eligible_tvl) {
+                    *share = bigdecimal::zero();
+                };
             }
         );
 
@@ -1119,6 +1127,11 @@ module vip::vip {
         assert!(
             vm_type == MOVEVM || vm_type == WASMVM || vm_type == EVM,
             error::unavailable(EINVALID_VM_TYPE)
+        );
+        assert!(
+            primary_fungible_store::balance(bridge_address, vault::reward_metadata())
+                >= module_store.minimum_eligible_tvl,
+            error::unavailable(EMIN_ELIGIBLE_TVL)
         );
         // bridge info
         table::add(
@@ -1561,7 +1574,7 @@ module vip::vip {
         challenge_period: Option<u64>
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
-        let module_store = borrow_global_mut<ModuleStore>(signer::address_of(chain));
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
         if (option::is_some(&stage_interval)) {
             module_store.stage_interval = option::extract(&mut stage_interval);
             assert!(
@@ -2618,7 +2631,6 @@ module vip::vip {
         bridge_id: u64, fund_reward_amount: u64
     ): u64 acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let (bridge_ids, _) = get_whitelisted_bridge_ids_internal(module_store);
         let shares = calculate_share(module_store);
         assert!(
             fund_reward_amount > 0,
@@ -4432,6 +4444,45 @@ module vip::vip {
             stakelisted_metadata,
             esinit_amount,
             option::none()
+        );
+    }
+
+    #[test(
+        chain = @0x1, vip = @vip, operator = @0x56ccf33c45b99546cd1da172cf6849395bbf8573
+    )]
+    #[expected_failure(abort_code = 0xd0022, location = Self)]
+    fun test_min_eligible_tvl_failure(
+        chain: &signer, vip: &signer, operator: &signer
+    ) acquires ModuleStore {
+        primary_fungible_store::init_module_for_test();
+        vesting::init_module_for_test(vip);
+        initialize_coin(chain, string::utf8(b"uinit"));
+        init_module_for_test(vip);
+
+        update_params(
+            chain,
+            option::none(), //stage_interval: Option<u64>,
+            option::none(), //vesting_period: Option<u64>,
+            option::none(), //minimum_lock_staking_period: Option<u64>,
+            option::some(100), //minimum_eligible_tvl: Option<u64>,
+            option::none(), //maximum_tvl_ratio: Option<BigDecimal>,
+            option::none(), //maximum_weight_ratio: Option<BigDecimal>,
+            option::none(), //minimum_score_ratio: Option<BigDecimal>,
+            option::none(), //pool_split_ratio: Option<BigDecimal>,
+            option::none() //challenge_period: Option<u64>,
+        );
+
+        // initialize vip_reward
+        register(
+            vip,
+            signer::address_of(operator),
+            1,
+            @0x90,
+            string::utf8(DEFAULT_VIP_L2_CONTRACT_FOR_TEST),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_MAX_CHANGE_RATE_FOR_TEST, 10),
+            bigdecimal::from_ratio_u64(DEFAULT_COMMISSION_RATE_FOR_TEST, 10),
+            MOVEVM
         );
     }
 }

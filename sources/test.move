@@ -2558,6 +2558,88 @@ module vip::test {
             operator_distributed_reward1 * 50 == operator_distributed_reward2 * 40,
             2
         );
+
+        // check min eligible tvl
+        vip::update_params(
+            vip,
+            option::none(),
+            option::none(),
+            option::none(),
+            option::some(100_000_001), // update min eligible tvl
+            option::none(),
+            option::none(),
+            option::none(),
+            option::none(),
+            option::none()
+        );
+
+        // stage 5
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            get_version(),
+            receiver_addr,
+            200,
+            1000,
+            &mut bridge1_stages,
+            &mut bridge1_merkle_proofs,
+            &mut bridge1_l2_scores
+        );
+
+        submit_snapshot(
+            vip,
+            get_bridge2_id(),
+            get_version(),
+            receiver_addr,
+            400,
+            1000,
+            &mut bridge2_stages,
+            &mut bridge2_merkle_proofs,
+            &mut bridge2_l2_scores
+        );
+
+        user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 5);
+        user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 5);
+        assert!(user_distributed_reward1 == 0, 2);
+        assert!(user_distributed_reward2 == 0, 2);
+
+        // transfer some coin to bridge_id()
+        coin::transfer(
+            chain,
+            get_bridge_address(),
+            vault::reward_metadata(),
+            1
+        );
+
+        // stage 6
+        submit_snapshot_and_fund_reward(
+            vip,
+            get_bridge_id(),
+            get_version(),
+            receiver_addr,
+            200,
+            1000,
+            &mut bridge1_stages,
+            &mut bridge1_merkle_proofs,
+            &mut bridge1_l2_scores
+        );
+
+        submit_snapshot(
+            vip,
+            get_bridge2_id(),
+            get_version(),
+            receiver_addr,
+            400,
+            1000,
+            &mut bridge2_stages,
+            &mut bridge2_merkle_proofs,
+            &mut bridge2_l2_scores
+        );
+
+        user_distributed_reward1 = vip::get_user_funded_reward(get_bridge_id(), 6);
+        user_distributed_reward2 = vip::get_user_funded_reward(get_bridge2_id(), 6);
+        assert!(user_distributed_reward1 == 20000000, 2);
+        assert!(user_distributed_reward2 == 0, 2);
     }
 
     // Stable swap lock staking
