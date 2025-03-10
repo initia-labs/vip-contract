@@ -298,9 +298,7 @@ module vip::vip {
                     DEFAULT_POOL_SPLIT_RATIO, 10
                 ),
                 agent_data: AgentData { agent: agent, api_uri: api },
-                maximum_tvl_ratio: bigdecimal::from_ratio_u64(
-                    0, 1
-                ), // DEPRECATED
+                maximum_tvl_ratio: bigdecimal::from_ratio_u64(0, 1), // DEPRECATED
                 minimum_eligible_tvl: DEFAULT_MINIMUM_ELIGIBLE_TVL,
                 maximum_weight_ratio: bigdecimal::from_ratio_u64(
                     DEFAULT_MAXIMUM_WEIGHT_RATIO, 10
@@ -647,17 +645,13 @@ module vip::vip {
                 // split the reward of balance pool
                 let reward_amount =
                     split_reward_with_share_internal(
-                        shares,
-                        *bridge_id,
-                        total_reward_amount
+                        shares, *bridge_id, total_reward_amount
                     );
 
                 // (weight + balance) reward splited to operator and user reward
                 let (operator_funded_reward, user_funded_reward) =
                     calc_operator_and_user_reward_amount(
-                        *bridge_id,
-                        version,
-                        reward_amount
+                        *bridge_id, version, reward_amount
                     );
                 total_operator_funded_reward =
                     total_operator_funded_reward + operator_funded_reward;
@@ -779,7 +773,8 @@ module vip::vip {
         let bridge_balances: SimpleMap<u64, u64> = simple_map::new();
         let total_balance = 0;
         let shares: SimpleMap<u64, BigDecimal> = simple_map::new<u64, BigDecimal>();
-        let weight_vote_ratio = bigdecimal::sub(bigdecimal::one(), module_store.pool_split_ratio);
+        let weight_vote_ratio =
+            bigdecimal::sub(bigdecimal::one(), module_store.pool_split_ratio);
         utils::walk(
             &module_store.bridges,
             option::some(
@@ -795,7 +790,11 @@ module vip::vip {
                 use_bridge(bridge);
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
-                    simple_map::add(&mut shares, bridge_id, bigdecimal::mul(bridge.vip_weight, weight_vote_ratio));
+                    simple_map::add(
+                        &mut shares,
+                        bridge_id,
+                        bigdecimal::mul(bridge.vip_weight, weight_vote_ratio)
+                    );
                     let bridge_balance =
                         tvl_manager::get_average_tvl(module_store.stage, bridge_id);
                     total_balance = total_balance + bridge_balance;
@@ -818,7 +817,10 @@ module vip::vip {
                 let balance_share =
                     bigdecimal::from_ratio_u64(bridge_balance, total_balance);
                 let share = simple_map::borrow_mut(&mut shares, bridge_id);
-                *share = bigdecimal::add(*share, bigdecimal::mul(balance_share, module_store.pool_split_ratio));
+                *share = bigdecimal::add(
+                    *share,
+                    bigdecimal::mul(balance_share, module_store.pool_split_ratio)
+                );
                 if (bigdecimal::gt(*share, module_store.maximum_weight_ratio)) {
                     *share = module_store.maximum_weight_ratio;
                 };
