@@ -742,14 +742,6 @@ module vip::vip {
         let (bridge_ids, versions) = get_whitelisted_bridge_ids_internal(module_store);
         let shares = calculate_share(module_store);
 
-        // fill the weight shares of bridges
-        let balance_pool_reward_amount =
-            bigdecimal::mul_by_u64_truncate(
-                module_store.pool_split_ratio,
-                initial_reward_amount
-            );
-        let weight_pool_reward_amount = initial_reward_amount
-            - balance_pool_reward_amount;
         let (
             total_operator_funded_reward,
             total_user_funded_reward,
@@ -759,7 +751,7 @@ module vip::vip {
             split_reward(
                 stage,
                 &shares,
-                balance_pool_reward_amount + weight_pool_reward_amount,
+                initial_reward_amount,
                 bridge_ids,
                 versions
             );
@@ -2637,23 +2629,11 @@ module vip::vip {
             error::invalid_argument(EINVALID_TOTAL_REWARD)
         );
 
-        let weight_ratio =
-            bigdecimal::sub(
-                bigdecimal::one(),
-                module_store.pool_split_ratio
-            );
-        let balance_pool_reward_amount =
-            bigdecimal::mul_by_u64_truncate(
-                module_store.pool_split_ratio,
-                fund_reward_amount
-            );
-        let weight_pool_reward_amount =
-            bigdecimal::mul_by_u64_truncate(weight_ratio, fund_reward_amount);
         let reward_amount =
             split_reward_with_share_internal(
                 &shares,
                 bridge_id,
-                balance_pool_reward_amount + weight_pool_reward_amount
+                fund_reward_amount,
             );
         reward_amount
     }
