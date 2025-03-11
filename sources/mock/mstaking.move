@@ -1,4 +1,4 @@
-#[test_only]
+
 module initia_std::mock_mstaking {
     use std::signer;
     use std::vector;
@@ -563,17 +563,18 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &total_shares,
             |s| {
-                let total_share_amount = s.amount;
+                let DecCoin { denom, amount } = *s;
+                let total_share_amount = amount;
                 let (_, idx) = vector::find(
                     &new_total_balances,
                     |new_total_balance| {
-                        new_total_balance.denom == s.denom
+                        new_total_balance.denom == denom
                     },
                 );
                 let total_balance = vector::borrow(&new_total_balances, idx);
                 staking::set_staking_share_ratio(
                     *string::bytes(&validator_addr),
-                    &coin::denom_to_metadata(s.denom),
+                    &coin::denom_to_metadata(denom),
                     &total_share_amount,
                     total_balance.amount,
                 );
@@ -1339,26 +1340,27 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &a,
             |a_c| {
+                let Coin {denom, amount} = *a_c;
                 let (find, idx) = vector::find(
                     &b,
                     |b_c| {
-                        b_c.denom == a_c.denom
+                        b_c.denom == denom
                     },
                 );
                 let amount =
                     if (find) {
                         let b_c = vector::borrow(&b, idx);
                         let _amount =
-                            if (a_c.amount > b_c.amount) {
+                            if (amount > b_c.amount) {
                                 b_c.amount
                             } else {
-                                a_c.amount
+                                amount
                             };
                         _amount
                     } else { 0 };
                 vector::push_back(
                     &mut results,
-                    Coin { denom: a_c.denom, amount, },
+                    Coin { denom: denom, amount, },
                 );
             },
         );
@@ -1372,15 +1374,16 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &b,
             |b_c| {
+                let Coin {denom, amount} = *b_c;
                 let (find, idx) = vector::find(
                     &results,
                     |r_c| {
-                        b_c.denom == r_c.denom
+                        denom == r_c.denom
                     },
                 );
                 assert!(find, 1);
                 let res_c = vector::borrow_mut(&mut results, idx);
-                res_c.amount = res_c.amount - b_c.amount;
+                res_c.amount = res_c.amount - amount;
             },
         );
         results
@@ -1392,15 +1395,16 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &b,
             |b_c| {
+                let Coin {denom, amount} = *b_c;
                 let (find, idx) = vector::find(
                     &results,
                     |r_c| {
-                        b_c.denom == r_c.denom
+                        denom == r_c.denom
                     },
                 );
                 if (find) {
                     let res_c = vector::borrow_mut(&mut results, idx);
-                    res_c.amount = res_c.amount + b_c.amount;
+                    res_c.amount = res_c.amount + amount;
                 } else {
                     vector::push_back(&mut results, *b_c);
                 }
@@ -1432,15 +1436,16 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &b,
             |b_c| {
+                let DecCoin {denom, amount} = *b_c;
                 let (find, idx) = vector::find(
                     &results,
                     |r_c| {
-                        b_c.denom == r_c.denom
+                        denom == r_c.denom
                     },
                 );
                 if (find) {
                     let res_c = vector::borrow_mut(&mut results, idx);
-                    res_c.amount = bigdecimal::add(res_c.amount, b_c.amount);
+                    res_c.amount = bigdecimal::add(res_c.amount, amount);
                 } else {
                     vector::push_back(&mut results, *b_c);
                 }
