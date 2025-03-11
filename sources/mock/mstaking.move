@@ -1,4 +1,4 @@
-
+#[test_only]
 module initia_std::mock_mstaking {
     use std::signer;
     use std::vector;
