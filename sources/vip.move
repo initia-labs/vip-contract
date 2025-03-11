@@ -781,7 +781,6 @@ module vip::vip {
             option::none(),
             1,
             |key, bridge| {
-                use_bridge(bridge);
                 let (is_registered, bridge_id, _) = unpack_bridge_info_key(key);
                 if (is_registered) {
                     simple_map::add(
@@ -846,7 +845,6 @@ module vip::vip {
             option::none(),
             1,
             |_key, bridge| {
-                use_bridge(bridge);
                 total_weight = bigdecimal::add(total_weight, bridge.vip_weight);
                 false
             }
@@ -1223,7 +1221,6 @@ module vip::vip {
             option::none(),
             1,
             |key, bridge| {
-                use_bridge(bridge);
                 let (_, bridge_id, _) = unpack_bridge_info_key(key);
                 let bridge_tvl =
                     primary_fungible_store::balance(
@@ -2016,7 +2013,6 @@ module vip::vip {
             option::none(),
             1,
             |key, bridge| {
-                use_bridge(bridge);
                 let (_, bridge_id, version) = unpack_bridge_info_key(key);
                 vector::push_back(
                     &mut bridge_infos,
@@ -2050,7 +2046,6 @@ module vip::vip {
             option::none(),
             1,
             |key, snapshot| {
-                use_snapshot(snapshot);
                 let (bridge_id, version) = unpack_snapshot_key(key);
                 let (is_registered, _) = get_last_bridge_version(
                     module_store, bridge_id
@@ -2070,15 +2065,6 @@ module vip::vip {
         );
         total_l2_scores
     }
-
-    //
-    // (only on compiler v1) for preventing compile error; because of inferring type issue
-    //
-    inline fun use_bridge(_bridge: &Bridge) {}
-
-    inline fun use_snapshot(_snapshot: &Snapshot) {}
-
-    inline fun use_bridge_respose(_response: &BridgeResponse) {}
 
     //
     // unpack

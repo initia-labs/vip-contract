@@ -462,7 +462,6 @@ module vip::weight_vote {
         vector::for_each(
             weights,
             |w| {
-                use_weight(w);
                 let bridge_vp =
                     bigdecimal::mul_by_u64_truncate(w.weight, max_voting_power);
                 voting_power_removed = voting_power_removed + bridge_vp;
@@ -485,7 +484,6 @@ module vip::weight_vote {
         vector::for_each(
             weights,
             |w| {
-                use_weight(w);
                 let bridge_vp =
                     bigdecimal::mul_by_u64_truncate(w.weight, max_voting_power);
                 voting_power_used = voting_power_used + bridge_vp;
@@ -770,8 +768,6 @@ module vip::weight_vote {
             }
         )
     }
-
-    inline fun use_weight(_v: Weight) {}
 
     #[test_only]
     struct TestState has key {

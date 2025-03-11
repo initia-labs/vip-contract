@@ -307,7 +307,6 @@ module vip::vesting {
         vector::for_each(
             vestings_vec,
             |vesting| {
-                use_user_vesting(vesting);
                 table::upsert(
                     user_vestings,
                     table_key::encode_u64(vesting.start_stage),
@@ -396,7 +395,6 @@ module vip::vesting {
             option::none(),
             1,
             |stage_key, operator_vesting| {
-                use_mut_operator_vesting(operator_vesting);
                 let reward_amount =
                     if (last_submitted_stage >= operator_vesting.end_stage) {
                         vector::push_back(&mut finalized_keys, stage_key);
@@ -603,7 +601,6 @@ module vip::vesting {
         vector::enumerate_mut<UserVesting>(
             vestings,
             |idx, value| {
-                use_mut_user_vesting(value);
                 let vest_amount =
                     if (claim_info.l2_score >= value.minimum_score) {
                         value.vest_max_amount
@@ -779,7 +776,6 @@ module vip::vesting {
             option::none(),
             1,
             |_stage_key, user_vesting| {
-                use_user_vesting_ref(user_vesting);
                 vector::push_back(&mut unfinalized_vestings, *user_vesting);
                 false
             }
@@ -1026,21 +1022,6 @@ module vip::vesting {
             end_stage: operator_vesting.end_stage
         }
     }
-
-    //
-    // (only on compiler v1) for preventing compile error; because of inferring type error
-    //
-    inline fun use_mut_user_vesting(_value: &mut UserVesting) {}
-
-    inline fun use_mut_operator_vesting(_value: &mut OperatorVesting) {}
-
-    inline fun use_user_vesting_ref(_value: &UserVesting) {}
-
-    inline fun use_operator_vesting_ref(_value: &OperatorVesting) {}
-
-    inline fun use_user_vesting(_value: UserVesting) {}
-
-    inline fun use_operator_vesting(_value: OperatorVesting) {}
 
     //
     // Tests

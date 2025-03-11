@@ -215,14 +215,12 @@ module initia_std::mock_mstaking {
             vector::for_each_mut(
                 &mut unbonding_entries,
                 |entry| {
-                    use_unbonding_delegation_entry(entry);
                     let initial_balance = entry.initial_balance;
                     let new_balance = entry.balance;
 
                     vector::enumerate_ref(
                         &initial_balance,
                         |i, initial_coin| {
-                            use_coin(initial_coin);
                             let coin = vector::borrow_mut(&mut new_balance, i);
                             let slashing_amount =
                                 bigdecimal::mul_by_u64_truncate(
@@ -294,14 +292,12 @@ module initia_std::mock_mstaking {
             vector::for_each_ref(
                 &redelegation_entries,
                 |entry| {
-                    use_response(entry);
                     let initial_balances = entry.redelegation_entry.initial_balance;
                     let slashing_coins = vector<Coin>[];
                     // calculate slash amount proportional to stake contributing to infraction
                     vector::enumerate_ref(
                         &initial_balances,
                         |_i, initial_balance| {
-                            use_coin(initial_balance);
                             let slashing_amount =
                                 bigdecimal::mul_by_u64_truncate(
                                     slash_factor, initial_balance.amount
@@ -337,7 +333,6 @@ module initia_std::mock_mstaking {
                         vector::for_each_ref(
                             &unbonding_entries,
                             |entry| {
-                                use_unbonding_delegation_entry(entry);
                                 // calc unbonding slashing coins,
                                 let unbonding_slashing_coins =
                                     min_coins(slashing_coins, entry.balance);
@@ -404,7 +399,6 @@ module initia_std::mock_mstaking {
                             vector::for_each_ref(
                                 &new_balances,
                                 |new_balance| {
-                                    use_coin(new_balance);
                                     vector::push_back(
                                         &mut new_shares,
                                         DecCoin {
@@ -507,7 +501,6 @@ module initia_std::mock_mstaking {
             vector::for_each_ref(
                 &balances,
                 |balance| {
-                    use_coin(balance);
                     let slashing_amount =
                         bigdecimal::mul_by_u64_truncate(slash_factor, balance.amount);
                     let reserve = balance.amount - slashing_amount;
@@ -570,12 +563,10 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &total_shares,
             |s| {
-                use_dec_coin(s);
                 let total_share_amount = s.amount;
                 let (_, idx) = vector::find(
                     &new_total_balances,
                     |new_total_balance| {
-                        use_coin(new_total_balance);
                         new_total_balance.denom == s.denom
                     },
                 );
@@ -730,7 +721,6 @@ module initia_std::mock_mstaking {
                 vector::for_each_ref(
                     &pool.not_bonded_tokens,
                     |token| {
-                        use_coin(token);
                         staking::set_staking_share_ratio(
                             *string::bytes(&v),
                             &coin::denom_to_metadata(token.denom),
@@ -742,7 +732,6 @@ module initia_std::mock_mstaking {
                 vector::for_each_ref(
                     &pool.bonded_tokens,
                     |token| {
-                        use_coin(token);
                         staking::set_staking_share_ratio(
                             *string::bytes(&v),
                             &coin::denom_to_metadata(token.denom),
@@ -1345,18 +1334,14 @@ module initia_std::mock_mstaking {
         amount: u64,
     }
 
-    inline fun use_coin(_c: &Coin) {}
-
     fun min_coins(a: vector<Coin>, b: vector<Coin>): vector<Coin> {
         let results = vector<Coin>[];
         vector::for_each_ref(
             &a,
             |a_c| {
-                use_coin(a_c);
                 let (find, idx) = vector::find(
                     &b,
                     |b_c| {
-                        use_coin(b_c);
                         b_c.denom == a_c.denom
                     },
                 );
@@ -1387,11 +1372,9 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &b,
             |b_c| {
-                use_coin(b_c);
                 let (find, idx) = vector::find(
                     &results,
                     |r_c| {
-                        use_coin(r_c);
                         b_c.denom == r_c.denom
                     },
                 );
@@ -1409,11 +1392,9 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &b,
             |b_c| {
-                use_coin(b_c);
                 let (find, idx) = vector::find(
                     &results,
                     |r_c| {
-                        use_coin(r_c);
                         b_c.denom == r_c.denom
                     },
                 );
@@ -1433,7 +1414,6 @@ module initia_std::mock_mstaking {
         vector::for_each_ref(
             &coins,
             |c| {
-                use_coin(c);
                 if (c.amount != 0) {
                     is_zero = false
                 }
@@ -1447,18 +1427,14 @@ module initia_std::mock_mstaking {
         amount: BigDecimal,
     }
 
-    inline fun use_dec_coin(_V: &DecCoin) {}
-
     fun add_dec_coins(a: vector<DecCoin>, b: vector<DecCoin>): vector<DecCoin> {
         let results = a;
         vector::for_each_ref(
             &b,
             |b_c| {
-                use_dec_coin(b_c);
                 let (find, idx) = vector::find(
                     &results,
                     |r_c| {
-                        use_dec_coin(r_c);
                         b_c.denom == r_c.denom
                     },
                 );
@@ -1498,10 +1474,6 @@ module initia_std::mock_mstaking {
         unbonding_on_hold_ref_count: u64,
     }
 
-    inline fun use_unbonding_delegation_entry(
-        _entry: &UnbondingDelegationEntry
-    ) {}
-
     struct RedelegationEntryResponse has copy, drop, store {
         redelegation_entry: RedelegationEntry,
         balance: vector<Coin>,
@@ -1534,8 +1506,6 @@ module initia_std::mock_mstaking {
         shares_dst: vector<DecCoin>,
         unbonding_id: u32,
     }
-
-    inline fun use_response(_response: &RedelegationEntryResponse) {}
 
     public fun set_reward(
         delegator_addr: String, validator_addr: String, amount: u64
