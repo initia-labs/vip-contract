@@ -808,8 +808,11 @@ module vip::vip {
             &bridge_ids,
             |bridge_id| {
                 let bridge_balance = *simple_map::borrow(&bridge_balances, bridge_id);
-                let balance_share =
-                    bigdecimal::from_ratio_u64(bridge_balance, total_balance);
+                let balance_share = if (total_balance == 0) {
+                    bigdecimal::zero()
+                } else {
+                    bigdecimal::from_ratio_u64(bridge_balance, total_balance)
+                };
                 let share = simple_map::borrow_mut(&mut shares, bridge_id);
                 *share = bigdecimal::add(
                     *share,
