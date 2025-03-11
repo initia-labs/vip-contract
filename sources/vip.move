@@ -48,9 +48,7 @@ module vip::vip {
     const EINVALID_MERKLE_PROOFS: u64 = 10;
     const EINVALID_PROOF_LENGTH: u64 = 11;
     const EINVALID_VEST_PERIOD: u64 = 12;
-    const EINVALID_MAX_TVL: u64 = 13;
     const EINVALID_RATIO: u64 = 14;
-    const EINVALID_TOTAL_SHARE: u64 = 15;
     const EINVALID_CLAIMABLE_STAGE: u64 = 16;
     const EINVALID_BATCH_ARGUMENT: u64 = 17;
     const EINVALID_TOTAL_REWARD: u64 = 18;
