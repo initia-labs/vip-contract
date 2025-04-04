@@ -1082,10 +1082,10 @@ module vip::lock_staking {
         query<RedelegationsRequest, RedelegationsResponse>(path, request)
     }
 
-    fun get_delegator_delegation_balance(delegator_addr: String): DelegationBalanceResponse {
+    fun get_delegator_delegation_balance(delegator_addr: String): TotalDelegationBalanceResponse {
         let path = b"/initia.mstaking.v1.Query/DelegatorTotalDelegationBalance";
         let request = TotalDelegationBalanceRequest { delegator_addr };
-        query<TotalDelegationBalanceRequest, DelegationBalanceResponse>(path, request)
+        query<TotalDelegationBalanceRequest, TotalDelegationBalanceResponse>(path, request)
     }
 
     fun query<Request: drop, Response: drop>(
