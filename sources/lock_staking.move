@@ -77,6 +77,12 @@ module vip::lock_staking {
         release_time: u64
     }
 
+    struct DelegationBalanceResponse has drop {
+        addr: address,
+        staking_account: address,
+        balance: vector<Coin>
+    }
+
     struct StakingAccount has key {
         extend_ref: ExtendRef,
         last_height: u64, // record the locked height to prevent the stargate sequential problem.
@@ -1017,6 +1023,14 @@ module vip::lock_staking {
         dst_validator_addr: String
     }
 
+    struct TotalDelegationBalanceRequest has copy, drop {
+        delegator_addr: String
+    }
+
+    struct TotalDelegationBalanceResponse has copy, drop {
+        balance: vector<Coin>
+    }
+
     struct RedelegationsResponse has drop, copy, store {
         redelegation_responses: vector<RedelegationResponse>, // Always contains exactly one item, as only single redelegation queries are allowed
         pagination: Option<PageResponse> // Always None, as only single redelegation queries are allowed
@@ -1066,6 +1080,12 @@ module vip::lock_staking {
             dst_validator_addr
         };
         query<RedelegationsRequest, RedelegationsResponse>(path, request)
+    }
+
+    fun get_delegator_delegation_balance(delegator_addr: String): TotalDelegationBalanceResponse {
+        let path = b"/initia.mstaking.v1.Query/DelegatorTotalDelegationBalance";
+        let request = TotalDelegationBalanceRequest { delegator_addr };
+        query<TotalDelegationBalanceRequest, TotalDelegationBalanceResponse>(path, request)
     }
 
     fun query<Request: drop, Response: drop>(
@@ -1589,6 +1609,60 @@ module vip::lock_staking {
         };
 
         res
+    }
+
+    #[view]
+    public fun get_total_delegation_balance(addr: address): DelegationBalanceResponse {
+        // check addr is staking account
+        let (addr, staking_account) =
+            if (exists<StakingAccount>(addr)) {
+                (object::owner(object::address_to_object<StakingAccount>(addr)), addr)
+            } else {
+                (addr, get_staking_address(addr))
+            };
+
+        let addr_delegations = get_delegator_delegation_balance(to_sdk(addr));
+        let staking_account_delegations =
+            get_delegator_delegation_balance(to_sdk(staking_account));
+        let balance_map = simple_map::new<String, u64>();
+
+        vector::for_each_ref(
+            &addr_delegations.balance,
+            |coin| {
+                if (!simple_map::contains_key(&balance_map, &coin.denom)) {
+                    simple_map::add(&mut balance_map, coin.denom, 0)
+                };
+                let amount = simple_map::borrow_mut(&mut balance_map, &coin.denom);
+                *amount = *amount + coin.amount
+            }
+        );
+
+        vector::for_each_ref(
+            &staking_account_delegations.balance,
+            |coin| {
+                if (!simple_map::contains_key(&balance_map, &coin.denom)) {
+                    simple_map::add(&mut balance_map, coin.denom, 0)
+                };
+                let amount = simple_map::borrow_mut(&mut balance_map, &coin.denom);
+                *amount = *amount + coin.amount
+            }
+        );
+
+        let balance: vector<Coin> = vector[];
+
+        vector::for_each_ref(
+            &simple_map::keys(&balance_map),
+            |denom| {
+                vector::push_back(
+                    &mut balance,
+                    Coin { denom: *denom, amount: *simple_map::borrow(
+                        &balance_map, denom
+                    ) }
+                );
+            }
+        );
+
+        return DelegationBalanceResponse { addr, staking_account, balance }
     }
 
     #[test_only]
