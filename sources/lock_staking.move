@@ -1030,7 +1030,7 @@ module vip::lock_staking {
 
     struct TotalDelegationBalanceRequestV2 has copy, drop {
         delegator_addr: String,
-        status: String,
+        status: String
     }
 
     struct TotalDelegationBalanceResponse has copy, drop {
@@ -1066,42 +1066,59 @@ module vip::lock_staking {
     }
 
     fun get_bonded_delegation_map(
-        staking_account_addr: address,
+        staking_account_addr: address
     ): SimpleMap<String, DelegationResponseInner> {
         let delegator_addr = to_sdk(staking_account_addr);
         let delegations = utils::get_delegations(delegator_addr);
 
-        let delegation_map: SimpleMap<String, DelegationResponseInner> = simple_map::new();
+        let delegation_map: SimpleMap<String, DelegationResponseInner> =
+            simple_map::new();
 
-        vector::for_each_ref(&delegations, |delegation_response| {
-            let (delegation, coins) = utils::unpack_delegation_response(delegation_response);
-            let (delegator_address, validator_address, shares) = utils::unpack_delegation(&delegation);
-            let delegation_inner = DelegationResponseInner {
-                delegation: Delegation {
-                    delegator_address,
-                    validator_address,
-                    shares: vector::map_ref(&shares, |share| {
-                        let (denom, amount) = utils::unpack_dec_coin(share);
-                        DecCoin{denom, amount}
-                    })
-                },
-                balance: vector::map_ref(&coins, |coin| {
-                    let (denom, amount) = utils::unpack_coin(coin);
-                    Coin{denom, amount}
-                }),
-            };
+        vector::for_each_ref(
+            &delegations,
+            |delegation_response| {
+                let (delegation, coins) =
+                    utils::unpack_delegation_response(delegation_response);
+                let (delegator_address, validator_address, shares) =
+                    utils::unpack_delegation(&delegation);
+                let delegation_inner = DelegationResponseInner {
+                    delegation: Delegation {
+                        delegator_address,
+                        validator_address,
+                        shares: vector::map_ref(
+                            &shares,
+                            |share| {
+                                let (denom, amount) = utils::unpack_dec_coin(share);
+                                DecCoin { denom, amount }
+                            }
+                        )
+                    },
+                    balance: vector::map_ref(
+                        &coins,
+                        |coin| {
+                            let (denom, amount) = utils::unpack_coin(coin);
+                            Coin { denom, amount }
+                        }
+                    )
+                };
 
-            simple_map::add(&mut delegation_map, validator_address, delegation_inner);
-        });
+                simple_map::add(&mut delegation_map, validator_address, delegation_inner);
+            }
+        );
 
         delegation_map
     }
-        
+
     inline fun get_locked_delegations_internal(
         res: &mut vector<LockedDelegationResponse>,
         staking_account_addr: address,
         delegations: SimpleMap<String, DelegationResponseInner>,
-        non_existence_handler: |(&mut SimpleMap<String, DelegationResponseInner>, &StakingAccount, String, address)| bool,
+        non_existence_handler: |(
+            &mut SimpleMap<String, DelegationResponseInner>,
+            &StakingAccount,
+            String,
+            address
+        )| bool
     ) acquires StakingAccount {
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
         let iter =
@@ -1122,7 +1139,12 @@ module vip::lock_staking {
 
             let skip = false;
             if (!simple_map::contains_key(&delegations, &validator)) {
-                skip = non_existence_handler(&mut delegations, staking_account, validator, staking_account_addr);
+                skip = non_existence_handler(
+                    &mut delegations,
+                    staking_account,
+                    validator,
+                    staking_account_addr
+                );
             };
             if (skip) continue;
 
@@ -1164,7 +1186,6 @@ module vip::lock_staking {
         };
     }
 
-
     fun get_unbonding_delegation(
         delegator_addr: address, validator_addr: String
     ): UnbondingDelegationResponse {
@@ -1188,10 +1209,14 @@ module vip::lock_staking {
         query<RedelegationsRequest, RedelegationsResponse>(path, request)
     }
 
-    fun get_delegator_delegation_balance(delegator_addr: String, status: String): TotalDelegationBalanceResponse {
+    fun get_delegator_delegation_balance(
+        delegator_addr: String, status: String
+    ): TotalDelegationBalanceResponse {
         let path = b"/initia.mstaking.v1.Query/DelegatorTotalDelegationBalance";
         let request = TotalDelegationBalanceRequestV2 { delegator_addr, status };
-        query<TotalDelegationBalanceRequestV2, TotalDelegationBalanceResponse>(path, request)
+        query<TotalDelegationBalanceRequestV2, TotalDelegationBalanceResponse>(
+            path, request
+        )
     }
 
     fun query<Request: drop, Response: drop>(
@@ -1647,17 +1672,22 @@ module vip::lock_staking {
         if (!exists<StakingAccount>(staking_account_addr)) {
             return res
         };
-        get_locked_delegations_internal(&mut res, staking_account_addr, simple_map::new(), |delegation_map, staking_account, validator, staking_account_addr| {
-            let delegation =
-                get_delegation(
-                    staking_account,
-                    validator,
-                    staking_account_addr,
-                    false
-                );
-            simple_map::add(delegation_map, validator, delegation);
-            false
-        });
+        get_locked_delegations_internal(
+            &mut res,
+            staking_account_addr,
+            simple_map::new(),
+            |delegation_map, staking_account, validator, staking_account_addr| {
+                let delegation =
+                    get_delegation(
+                        staking_account,
+                        validator,
+                        staking_account_addr,
+                        false
+                    );
+                simple_map::add(delegation_map, validator, delegation);
+                false
+            }
+        );
 
         res
     }
@@ -1674,9 +1704,12 @@ module vip::lock_staking {
         };
 
         let delegation_map = get_bonded_delegation_map(staking_account_addr);
-        get_locked_delegations_internal(&mut res, staking_account_addr, delegation_map, |_, _, _, _| {
-            true
-        });
+        get_locked_delegations_internal(
+            &mut res,
+            staking_account_addr,
+            delegation_map,
+            |_, _, _, _| { true }
+        );
 
         res
     }
@@ -1726,9 +1759,10 @@ module vip::lock_staking {
             |denom| {
                 vector::push_back(
                     &mut balance,
-                    Coin { denom: *denom, amount: *simple_map::borrow(
-                        &balance_map, denom
-                    ) }
+                    Coin {
+                        denom: *denom,
+                        amount: *simple_map::borrow(&balance_map, denom)
+                    }
                 );
             }
         );

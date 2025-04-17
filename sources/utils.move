@@ -2,8 +2,7 @@ module vip::utils {
     use std::error;
     use std::option::{Self, Option};
     use std::signer;
-    use std::string;
-    use std::string::String;
+    use std::string::{Self, String};
     use std::vector;
 
     use initia_std::address::to_sdk;
@@ -77,7 +76,7 @@ module vip::utils {
     struct DelegatorDelegationsRequestV2 has drop {
         delegator_addr: String,
         pagination: Option<PageRequest>,
-        status: String,
+        status: String
     }
 
     struct DelegatorDelegationsResponse has drop {
@@ -106,9 +105,7 @@ module vip::utils {
         (delegation_response.delegation, delegation_response.balance)
     }
 
-    public fun unpack_delegation(
-        delegation: &Delegation
-    ): (String, String, vector<DecCoin>) {
+    public fun unpack_delegation(delegation: &Delegation): (String, String, vector<DecCoin>) {
         (delegation.delegator_address, delegation.validator_address, delegation.shares)
     }
 
@@ -200,7 +197,7 @@ module vip::utils {
             let request = DelegatorDelegationsRequestV2 {
                 delegator_addr,
                 pagination: option::some(pagination),
-                status: string::utf8(b"BOND_STATUS_BONDED"),
+                status: string::utf8(b"BOND_STATUS_BONDED")
             };
             let response =
                 query<DelegatorDelegationsRequestV2, DelegatorDelegationsResponse>(
