@@ -1070,7 +1070,6 @@ module vip::lock_staking {
     ): SimpleMap<String, DelegationResponseInner> {
         let delegator_addr = to_sdk(staking_account_addr);
         let delegations = utils::get_delegations(delegator_addr);
-
         let delegation_map: SimpleMap<String, DelegationResponseInner> =
             simple_map::new();
 

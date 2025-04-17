@@ -1173,7 +1173,7 @@ module initia_std::mock_mstaking {
         set_query_response(
             b"/initia.mstaking.v1.Query/DelegatorDelegations",
             marshal(req),
-            vector[],
+            marshal(&DelegatorDelegationsResponse{delegation_responses: vector[], pagination: option::none()})
         );
     }
 
