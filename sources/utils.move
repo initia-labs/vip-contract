@@ -2,6 +2,7 @@ module vip::utils {
     use std::error;
     use std::option::{Self, Option};
     use std::signer;
+    use std::string;
     use std::string::String;
     use std::vector;
 
@@ -66,9 +67,17 @@ module vip::utils {
     }
 
     // stargate queries
+
+    // deprected
     struct DelegatorDelegationsRequest has drop {
         delegator_addr: String,
         pagination: Option<PageRequest>
+    }
+
+    struct DelegatorDelegationsRequestV2 has drop {
+        delegator_addr: String,
+        pagination: Option<PageRequest>,
+        status: String,
     }
 
     struct DelegatorDelegationsResponse has drop {
@@ -97,7 +106,17 @@ module vip::utils {
         (delegation_response.delegation, delegation_response.balance)
     }
 
+    public fun unpack_delegation(
+        delegation: &Delegation
+    ): (String, String, vector<DecCoin>) {
+        (delegation.delegator_address, delegation.validator_address, delegation.shares)
+    }
+
     public fun unpack_coin(coin: &Coin): (String, u64) {
+        (coin.denom, coin.amount)
+    }
+
+    public fun unpack_dec_coin(coin: &DecCoin): (String, BigDecimal) {
         (coin.denom, coin.amount)
     }
 
@@ -178,12 +197,13 @@ module vip::utils {
         let path = b"/initia.mstaking.v1.Query/DelegatorDelegations";
 
         loop {
-            let request = DelegatorDelegationsRequest {
+            let request = DelegatorDelegationsRequestV2 {
                 delegator_addr,
-                pagination: option::some(pagination)
+                pagination: option::some(pagination),
+                status: string::utf8(b"BOND_STATUS_BONDED"),
             };
             let response =
-                query<DelegatorDelegationsRequest, DelegatorDelegationsResponse>(
+                query<DelegatorDelegationsRequestV2, DelegatorDelegationsResponse>(
                     path, request
                 );
             vector::append(
