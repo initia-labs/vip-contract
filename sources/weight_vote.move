@@ -577,7 +577,7 @@ module vip::weight_vote {
         );
 
         // get total delegate amounts
-        let locked_delegations = lock_staking::get_locked_delegations(addr);
+        let locked_delegations = lock_staking::get_bonded_locked_delegations(addr);
         vector::for_each_ref(
             &locked_delegations,
             |delegation| {

@@ -27,7 +27,7 @@ module initia_std::mock_mstaking {
         whitelisted_validators: Table<String, bool>,
         // for check query is set
         delegation: Table<DelegationRequest, bool>,
-        delegator_delegations: Table<DelegatorDelegationsRequest, bool>,
+        delegator_delegations: Table<DelegatorDelegationsRequestV2, bool>,
         unbonding_delegation: Table<UnbondingDelegationRequest, bool>,
         redelegations: Table<RedelegationsRequest, bool>,
         // distributed reward
@@ -431,9 +431,10 @@ module initia_std::mock_mstaking {
                             );
 
                             // get delegator delegations
-                            let delegator_delegations_req = DelegatorDelegationsRequest {
+                            let delegator_delegations_req = DelegatorDelegationsRequestV2 {
                                 delegator_addr,
-                                pagination: option::none()
+                                pagination: option::none(),
+                                status: string::utf8(b"BOND_STATUS_BONDED")
                             };
                             let delegator_delegations =
                                 get_delegator_delegations(delegator_delegations_req);
@@ -529,9 +530,10 @@ module initia_std::mock_mstaking {
             );
 
             // get delegator delegations
-            let delegator_delegations_req = DelegatorDelegationsRequest {
+            let delegator_delegations_req = DelegatorDelegationsRequestV2 {
                 delegator_addr: delegation_req.delegator_addr,
-                pagination: option::none()
+                pagination: option::none(),
+                status: string::utf8(b"BOND_STATUS_BONDED")
             };
             let delegator_delegations =
                 get_delegator_delegations(delegator_delegations_req);
@@ -862,9 +864,10 @@ module initia_std::mock_mstaking {
         set_delegation(&delegation_req, &delegation);
 
         // get delegator delegations
-        let delegator_delegations_req = DelegatorDelegationsRequest {
+        let delegator_delegations_req = DelegatorDelegationsRequestV2 {
             delegator_addr,
-            pagination: option::none()
+            pagination: option::none(),
+            status: string::utf8(b"BOND_STATUS_BONDED")
         };
         let delegator_delegations =
             if (table::contains(
@@ -980,9 +983,10 @@ module initia_std::mock_mstaking {
             } else { false };
 
         // get delegator delegations
-        let delegator_delegations_req = DelegatorDelegationsRequest {
+        let delegator_delegations_req = DelegatorDelegationsRequestV2 {
             delegator_addr,
-            pagination: option::none()
+            pagination: option::none(),
+            status: string::utf8(b"BOND_STATUS_BONDED")
         };
         assert!(
             table::contains(&test_state.delegator_delegations, delegator_delegations_req),
@@ -1124,10 +1128,10 @@ module initia_std::mock_mstaking {
     }
 
     fun set_delegator_delegations(
-        req: &DelegatorDelegationsRequest, res: &DelegatorDelegationsResponse
+        req: &DelegatorDelegationsRequestV2, res: &DelegatorDelegationsResponse
     ) {
         let req = if(option::is_none(&req.pagination)) {
-            let new_req = &DelegatorDelegationsRequest{
+            let new_req = &DelegatorDelegationsRequestV2{
                 delegator_addr: req.delegator_addr,
                 pagination: option::some(PageRequest {
                     key: option::none(),
@@ -1135,7 +1139,8 @@ module initia_std::mock_mstaking {
                     limit: option::none(),
                     count_total: option::none(),
                     reverse: option::none(),
-                })
+                }),
+                status: req.status
             };
             new_req
         } else {
@@ -1148,9 +1153,9 @@ module initia_std::mock_mstaking {
         );
     }
 
-    fun unset_delegator_delegations(req: &DelegatorDelegationsRequest) {
+    fun unset_delegator_delegations(req: &DelegatorDelegationsRequestV2) {
         let req = if(option::is_none(&req.pagination)) {
-            let new_req = &DelegatorDelegationsRequest{
+            let new_req = &DelegatorDelegationsRequestV2{
                 delegator_addr: req.delegator_addr,
                 pagination: option::some(PageRequest {
                     key: option::none(),
@@ -1158,7 +1163,8 @@ module initia_std::mock_mstaking {
                     limit: option::none(),
                     count_total: option::none(),
                     reverse: option::none(),
-                })
+                }),
+                status: req.status
             };
             new_req
         } else {
@@ -1167,7 +1173,7 @@ module initia_std::mock_mstaking {
         set_query_response(
             b"/initia.mstaking.v1.Query/DelegatorDelegations",
             marshal(req),
-            vector[],
+            marshal(&DelegatorDelegationsResponse{delegation_responses: vector[], pagination: option::none()})
         );
     }
 
@@ -1214,10 +1220,10 @@ module initia_std::mock_mstaking {
         unmarshal<RedelegationsResponse>(response)
     }
 
-    fun get_delegator_delegations(req: DelegatorDelegationsRequest)
+    fun get_delegator_delegations(req: DelegatorDelegationsRequestV2)
         : DelegatorDelegationsResponse {
         let req = if(option::is_none(&req.pagination)) {
-            let new_req = DelegatorDelegationsRequest{
+            let new_req = DelegatorDelegationsRequestV2{
                 delegator_addr: req.delegator_addr,
                 pagination: option::some(PageRequest {
                     key: option::none(),
@@ -1225,7 +1231,8 @@ module initia_std::mock_mstaking {
                     limit: option::none(),
                     count_total: option::none(),
                     reverse: option::none(),
-                })
+                }),
+                status: req.status
             };
             new_req
         } else {
@@ -1253,9 +1260,10 @@ module initia_std::mock_mstaking {
     }
 
     // query req/res types
-    struct DelegatorDelegationsRequest has copy, drop, store {
+    struct DelegatorDelegationsRequestV2 has copy, drop, store {
         delegator_addr: String,
-        pagination: Option<PageRequest>
+        pagination: Option<PageRequest>,
+        status: String,
     }
 
     struct DelegatorDelegationsResponse has copy, drop, store {
@@ -1767,17 +1775,19 @@ module initia_std::mock_mstaking {
         // check get delegator delegations
         let delegator1_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator1)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
 
         let delegator2_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator2)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
 
@@ -1987,9 +1997,10 @@ module initia_std::mock_mstaking {
         // check get delegator delegations
         let delegator_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
         assert!(
@@ -2156,9 +2167,10 @@ module initia_std::mock_mstaking {
 
         let delegator_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
 
@@ -2235,9 +2247,10 @@ module initia_std::mock_mstaking {
         // check state of delegations
         let delegations1 =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator1)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
 
@@ -2298,9 +2311,10 @@ module initia_std::mock_mstaking {
 
         let delegations2 =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator2)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
         assert!(
@@ -2497,9 +2511,10 @@ module initia_std::mock_mstaking {
         // check delegator delegations
         let delegator_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
         assert!(
@@ -2735,9 +2750,10 @@ module initia_std::mock_mstaking {
         // check delegator delegations
         let delegator_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
         assert!(
@@ -2938,9 +2954,10 @@ module initia_std::mock_mstaking {
         // check delegator delegations
         let delegator_delegations =
             get_delegator_delegations(
-                DelegatorDelegationsRequest {
+                DelegatorDelegationsRequestV2 {
                     delegator_addr: to_sdk(signer::address_of(delegator)),
-                    pagination: option::none()
+                    pagination: option::none(),
+                    status: string::utf8(b"BOND_STATUS_BONDED")
                 },
             );
         assert!(
