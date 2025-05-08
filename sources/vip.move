@@ -1028,7 +1028,7 @@ module vip::vip {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
-            module_store.stage >= challenge_stage,
+            module_store.stage > challenge_stage,
             error::permission_denied(EINVALID_CHALLENGE_STAGE)
         );
         let challenge_period = module_store.challenge_period;
@@ -1103,7 +1103,7 @@ module vip::vip {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         assert!(
-            module_store.stage >= challenge_stage,
+            module_store.stage > challenge_stage,
             error::permission_denied(EINVALID_CHALLENGE_STAGE)
         );
         let challenge_period = module_store.challenge_period;
