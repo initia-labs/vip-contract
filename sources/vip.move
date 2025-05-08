@@ -263,6 +263,13 @@ module vip::vip {
     }
 
     #[event]
+    struct ExecuteRollupChallengeEvent has drop, store {
+        bridge_id: u64,
+        version: u64,
+        stage: u64,
+    }
+
+    #[event]
     struct SubmitSnapshotEvent has drop, store {
         bridge_id: u64,
         version: u64,
@@ -1076,6 +1083,61 @@ module vip::vip {
                 api_uri: new_api_uri,
                 new_agent,
                 merkle_root: new_merkle_root
+            }
+        );
+    }
+
+    // In case of rollup submit wrong score, delete submission.
+    public entry fun execute_rollup_challenge(
+        chain: &signer,
+        bridge_id: u64,
+        challenge_stage: u64,
+    ) acquires ModuleStore {
+        utils::check_chain_permission(chain);
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        assert!(
+            module_store.stage >= challenge_stage,
+            error::permission_denied(EINVALID_CHALLENGE_STAGE)
+        );
+        let challenge_period = module_store.challenge_period;
+        let (_, execution_time) = block::get_block_info();
+        //check challenge period
+        let (is_registered, version) = get_last_bridge_version(module_store, bridge_id);
+        assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
+
+        let snapshot = load_snapshot_imut(
+            module_store,
+            challenge_stage,
+            bridge_id,
+            version
+        );
+
+        assert!(
+            snapshot.create_time + challenge_period > execution_time,
+            error::permission_denied(EINVALID_CHALLENGE_PERIOD)
+        );
+
+        // delete snapshot data
+        let stage_key = table_key::encode_u64(challenge_stage);
+
+        let stage_data =
+            table::borrow_mut(
+                &mut module_store.stage_data,
+                table_key::encode_u64(challenge_stage)
+            );
+
+        let key = SnapshotKey {
+            bridge_id: table_key::encode_u64(bridge_id),
+            version: table_key::encode_u64(version)
+        };
+    
+        table::remove(&mut stage_data.snapshots, key);
+
+        event::emit(
+            ExecuteRollupChallengeEvent {
+                bridge_id,
+                version,
+                stage: challenge_stage,
             }
         );
     }
