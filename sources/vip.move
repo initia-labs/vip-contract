@@ -1118,8 +1118,6 @@ module vip::vip {
         );
 
         // delete snapshot data
-        let stage_key = table_key::encode_u64(challenge_stage);
-
         let stage_data =
             table::borrow_mut(
                 &mut module_store.stage_data,
