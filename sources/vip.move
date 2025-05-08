@@ -270,6 +270,13 @@ module vip::vip {
     }
 
     #[event]
+    struct UpdateScoreContractEvent has drop, store {
+        bridge_id: u64,
+        version: u64,
+        score_contract: string::String
+    }
+
+    #[event]
     struct SubmitSnapshotEvent has drop, store {
         bridge_id: u64,
         version: u64,
@@ -1713,6 +1720,14 @@ module vip::vip {
         assert!(is_registered, error::unavailable(EBRIDGE_NOT_REGISTERED));
         let bridge = load_registered_bridge_mut(module_store, bridge_id, version);
         bridge.vip_l2_score_contract = new_vip_l2_score_contract;
+
+        event::emit(
+            UpdateScoreContractEvent {
+                bridge_id,
+                version,
+                score_contract: new_vip_l2_score_contract,
+            }
+        );
     }
 
     public entry fun update_operator(
