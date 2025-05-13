@@ -638,7 +638,7 @@ module vip::vip {
 
                 event::emit(
                     LockStakeEvent {
-                        account: signer::address_of(account),
+                        account: account_addr,
                         bridge_id,
                         version,
                         stage: *s,
