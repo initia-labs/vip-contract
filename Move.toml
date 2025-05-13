@@ -4,8 +4,12 @@ version = "0.0.1"
 
 [addresses]
 std = "0x1"
-vip = "0x3a886b32a802582f2e446e74d4a24d1d7ed01adf46d2a8f65c5723887e708789"
-vesting = "0xb1a654f76c87b27b54cecf60dd950498fa385a7d65f628af8c63c3ff10d5b576"
+vip = "_"
+vesting = "_"
+
+[dev-addresses]
+vip = "0x2"
+vesting = "0x3"
 
 [dependencies]
 InitiaStdlib = { git = "https://github.com/initia-labs/move-natives.git", subdir = "initia_stdlib", rev = "main" }
