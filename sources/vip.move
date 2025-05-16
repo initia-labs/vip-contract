@@ -286,6 +286,15 @@ module vip::vip {
         create_time: u64
     }
 
+    #[event]
+    struct LockStakeEvent has drop, store {
+        account: address,
+        bridge_id: u64,
+        version: u64,
+        stage: u64,
+        amount: u64
+    }
+
     //
     // Implementations
     //
@@ -626,6 +635,16 @@ module vip::vip {
                     );
 
                 fungible_asset::merge(&mut esinit, withdrawn_asset);
+
+                event::emit(
+                    LockStakeEvent {
+                        account: account_addr,
+                        bridge_id,
+                        version,
+                        stage: *s,
+                        amount
+                    }
+                )
             }
         );
 
@@ -1766,12 +1785,12 @@ module vip::vip {
         let account_addr = signer::address_of(account);
         check_lock_stakable(account_addr, bridge_id, version, stage);
         let esinit =
-            vesting::withdraw_vesting(
-                account_addr,
+            withdraw_esinit_for_lock_stake(
+                account,
                 bridge_id,
                 version,
-                stage,
-                esinit_amount
+                vector[stage],
+                vector[esinit_amount]
             );
 
         lock_stake(
