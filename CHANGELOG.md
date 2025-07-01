@@ -1,5 +1,19 @@
 # Changelog
 
+## [v1.2.0]
+
+### Features
+
+- Add `update_operator_info` to allow changing `commission_max_rate` and `commission_max_change_rate` via governance proposal [`016f117`](https://github.com/initia-labs/vip-contract/commit/016f117c9cf4c5dcb673afb3258ab9076c2138f3)
+- Add `get_module_store` to get the module store for the `weight_vote` module [`488a3c4`](https://github.com/initia-labs/vip-contract/commit/488a3c451c36994cd676fcfd53776eb01e0eee9e)
+- Add `vote_with_amount` to enable weighted voting with exact amounts [`6d0c3dd`](https://github.com/initia-labs/vip-contract/commit/6d0c3dd48854457131278afc0aa5df7115c32fb4)
+
+### Updates
+
+- As `0x1::dex` support unproportional liquidity provision, calculate and provide a proportional counterparty coin [`a436300`](https://github.com/initia-labs/vip-contract/commit/a436300372dcfc6fdc355c21614cdc167b4b1fb5)
+
+---
+
 ## [v1.1.0]
 
 ### Features
