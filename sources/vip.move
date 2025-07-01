@@ -486,53 +486,65 @@ module vip::vip {
         );
     }
 
+    /// lock stake esinit, only allow proportional provide
     fun lock_stake(
         account: &signer,
         lp_metadata: Object<Metadata>,
         min_liquidity: option::Option<u64>,
         validator: string::String,
         esinit: FungibleAsset,
-        stakelisted_metadata: Object<Metadata>,
-        stakelisted_amount: u64,
         release_time_option: Option<u64>
     ) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let account_addr = signer::address_of(account);
-        assert!(
-            primary_fungible_store::balance(account_addr, stakelisted_metadata)
-                >= stakelisted_amount,
-            error::invalid_argument(ESTAKELISTED_NOT_ENOUGH)
-        );
-        assert!(
-            fungible_asset::amount(&esinit) > 0 && stakelisted_amount > 0,
-            error::invalid_argument(EINVALID_LOCK_STAKING_AMOUNT)
-        );
 
-        let stakelisted =
+        // get pair infos
+        let pair = object::convert<Metadata, dex::Config>(lp_metadata);
+        let (coin_a_amount, coin_b_amount, _, _, _) = dex::pool_info(pair, true);
+        let (coin_a_metadata, coin_b_metadata) = dex::pool_metadata(pair);
+
+        // calculate proportional amount
+        let esinit_metadata = fungible_asset::asset_metadata(&esinit);
+        let esinit_amount = fungible_asset::amount(&esinit);
+
+        let is_coin_a_init = esinit_metadata == coin_a_metadata;
+
+        let (counterparty_amount, counterparty_metadata) =
+            if (is_coin_a_init) {
+                (utils::mul_div_u64(esinit_amount, coin_b_amount, coin_a_amount), coin_b_metadata)
+            } else {
+                (utils::mul_div_u64(esinit_amount, coin_a_amount, coin_b_amount), coin_a_metadata)
+            };
+
+        // do not allow 0 amount provide
+        if (counterparty_amount == 0) {
+            counterparty_amount = 1
+        };
+
+        assert!(esinit_amount > 0, error::invalid_argument(EINVALID_LOCK_STAKING_AMOUNT));
+
+        // withdraw counterparty coin
+        let counterparty =
             primary_fungible_store::withdraw(
                 account,
-                stakelisted_metadata,
-                stakelisted_amount
+                counterparty_metadata,
+                counterparty_amount
             );
 
+        // validate and get release time
         let release_time = get_release_time(module_store, release_time_option);
-
-        let pair = object::convert<Metadata, dex::Config>(lp_metadata);
-        let esinit_metadata = fungible_asset::asset_metadata(&esinit);
-
-        let (coin_a_metadata, coin_b_metadata) = dex::pool_metadata(pair);
 
         // if pair is reversed, swap coin_a and coin_b
         let (coin_a, coin_b) =
-            if (coin_a_metadata == esinit_metadata) {
-                (esinit, stakelisted)
-            } else if (coin_b_metadata == esinit_metadata) {
-                (stakelisted, esinit)
+            if (is_coin_a_init) {
+                (esinit, counterparty)
             } else {
-                abort error::invalid_argument(EINVALID_POOL)
+                (counterparty, esinit)
             };
 
+        // provide liquidity
         let liquidity = dex::provide_liquidity(pair, coin_a, coin_b, min_liquidity);
+
+        // lock stake liquidity
         lock_staking::delegate_internal(account, liquidity, release_time, validator);
     }
 
@@ -1115,9 +1127,7 @@ module vip::vip {
 
     // In case of rollup submit wrong score, delete submission.
     public entry fun execute_rollup_challenge(
-        chain: &signer,
-        bridge_id: u64,
-        challenge_stage: u64
+        chain: &signer, bridge_id: u64, challenge_stage: u64
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -1278,6 +1288,7 @@ module vip::vip {
         module_store.agent_data = AgentData { agent: new_agent, api_uri: new_api_uri };
     }
 
+    /// Update operator info via gov proposal
     public entry fun update_operator_info(
         chain: &signer,
         bridge_id: u64,
@@ -1793,8 +1804,8 @@ module vip::vip {
         validator: string::String,
         stage: u64,
         esinit_amount: u64,
-        stakelisted_metadata: Object<Metadata>,
-        stakelisted_amount: u64,
+        _stakelisted_metadata: Object<Metadata>, // Deprecated, kept for backward compatibility with the interface
+        _stakelisted_amount: u64, // Deprecated, kept for backward compatibility with the interface
         release_time: Option<u64>
     ) acquires ModuleStore {
         let account_addr = signer::address_of(account);
@@ -1814,8 +1825,6 @@ module vip::vip {
             min_liquidity,
             validator,
             esinit,
-            stakelisted_metadata,
-            stakelisted_amount,
             release_time
         );
     }
@@ -1829,8 +1838,8 @@ module vip::vip {
         validator: string::String,
         stage: vector<u64>,
         esinit_amount: vector<u64>,
-        stakelisted_metadata: Object<Metadata>,
-        stakelisted_amount: u64,
+        _stakelisted_metadata: Object<Metadata>, // Deprecated, kept for backward compatibility with the interface
+        _stakelisted_amount: u64, // Deprecated, kept for backward compatibility with the interface
         lock_stake_period: Option<u64>
     ) acquires ModuleStore {
         let esinit =
@@ -1848,8 +1857,6 @@ module vip::vip {
             min_liquidity,
             validator,
             esinit,
-            stakelisted_metadata,
-            stakelisted_amount,
             lock_stake_period
         );
     }

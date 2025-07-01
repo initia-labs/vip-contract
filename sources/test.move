@@ -876,7 +876,7 @@ module vip::test {
             chain,
             receiver_addr,
             usdc_metadata(),
-            1_000_000
+            2_250_000
         );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
@@ -960,7 +960,7 @@ module vip::test {
             chain,
             receiver_addr,
             usdc_metadata(),
-            1_000_000
+            2_500_000
         );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
         // submit snapshot of stage 1; total score: 1000, receiver's score : 100
@@ -1705,7 +1705,7 @@ module vip::test {
             chain,
             receiver_addr,
             usdc_metadata(),
-            1_000_000
+            2_500_000
         );
         let (stages, merkle_proofs, l2_scores) = reset_claim_args();
 
