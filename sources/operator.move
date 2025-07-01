@@ -2,6 +2,7 @@ module vip::operator {
     use std::error;
     use std::event;
     use std::signer;
+    use std::option::{Self, Option};
     use std::vector;
 
     use initia_std::bigdecimal::{Self, BigDecimal};
@@ -47,6 +48,15 @@ module vip::operator {
         version: u64,
         stage: u64,
         commission_rate: BigDecimal
+    }
+
+    #[event]
+    struct UpdateOperatorInfo has drop, store {
+        bridge_id: u64,
+        version: u64,
+        operator_addr: Option<address>,
+        commission_max_rate: Option<BigDecimal>,
+        commission_max_change_rate: Option<BigDecimal>
     }
 
     fun init_module(vip: &signer) {
@@ -128,6 +138,55 @@ module vip::operator {
                 commission_rate
             }
         );
+    }
+
+    public(friend) fun update_operator_info(
+        chain: &signer,
+        bridge_id: u64,
+        version: u64,
+        operator_addr: Option<address>,
+        commission_max_rate: Option<BigDecimal>,
+        commission_max_change_rate: Option<BigDecimal>
+    ) acquires ModuleStore {
+        utils::check_chain_permission(chain);
+
+        // load module store
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+
+        // load operator info
+        let key = generate_key(bridge_id, version);
+        let operator_info = table::borrow_mut(&mut module_store.operator_infos, key);
+
+        // update operator info
+        if (option::is_some(&operator_addr)) {
+            operator_info.operator_addr = *option::borrow(&operator_addr);
+        };
+
+        if (option::is_some(&commission_max_rate)) {
+            operator_info.commission_max_rate = *option::borrow(&commission_max_rate);
+        };
+
+        if (option::is_some(&commission_max_change_rate)) {
+            operator_info.commission_max_change_rate =
+                *option::borrow(&commission_max_change_rate);
+        };
+
+        // validate commission rates
+        check_valid_commission_rates(
+            &operator_info.commission_max_rate,
+            &operator_info.commission_max_change_rate,
+            &operator_info.commission_rate
+        );
+
+        event::emit(
+            UpdateOperatorInfo {
+                bridge_id,
+                version,
+                operator_addr,
+                commission_max_rate,
+                commission_max_change_rate
+            }
+        )
     }
 
     public(friend) fun update_operator_commission(

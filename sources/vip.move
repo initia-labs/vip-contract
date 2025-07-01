@@ -266,7 +266,7 @@ module vip::vip {
     struct ExecuteRollupChallengeEvent has drop, store {
         bridge_id: u64,
         version: u64,
-        stage: u64,
+        stage: u64
     }
 
     #[event]
@@ -1117,7 +1117,7 @@ module vip::vip {
     public entry fun execute_rollup_challenge(
         chain: &signer,
         bridge_id: u64,
-        challenge_stage: u64,
+        challenge_stage: u64
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -1154,15 +1154,11 @@ module vip::vip {
             bridge_id: table_key::encode_u64(bridge_id),
             version: table_key::encode_u64(version)
         };
-    
+
         table::remove(&mut stage_data.snapshots, key);
 
         event::emit(
-            ExecuteRollupChallengeEvent {
-                bridge_id,
-                version,
-                stage: challenge_stage,
-            }
+            ExecuteRollupChallengeEvent { bridge_id, version, stage: challenge_stage }
         );
     }
 
@@ -1280,6 +1276,25 @@ module vip::vip {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         module_store.agent_data = AgentData { agent: new_agent, api_uri: new_api_uri };
+    }
+
+    public entry fun update_operator_info(
+        chain: &signer,
+        bridge_id: u64,
+        version: u64,
+        operator_addr: Option<address>,
+        commission_max_rate: Option<BigDecimal>,
+        commission_max_change_rate: Option<BigDecimal>
+    ) {
+        utils::check_chain_permission(chain);
+        operator::update_operator_info(
+            chain,
+            bridge_id,
+            version,
+            operator_addr,
+            commission_max_rate,
+            commission_max_change_rate
+        );
     }
 
     // add tvl snapshot of all bridges on this stage
@@ -1744,7 +1759,7 @@ module vip::vip {
             UpdateScoreContractEvent {
                 bridge_id,
                 version,
-                score_contract: new_vip_l2_score_contract,
+                score_contract: new_vip_l2_score_contract
             }
         );
     }
@@ -2265,8 +2280,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun unpack_module_store():
-        (
+    public fun unpack_module_store(): (
         u64, // stage
         u64, // stage_interval
         u64, // vesting_period
@@ -2444,8 +2458,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun merkle_root_and_proof_scene1():
-        (
+    public fun merkle_root_and_proof_scene1(): (
         SimpleMap<u64, vector<u8>>,
         SimpleMap<u64, vector<vector<u8>>>,
         SimpleMap<u64, u64>,
@@ -2716,8 +2729,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun merkle_root_and_proof_scene2():
-        (
+    public fun merkle_root_and_proof_scene2(): (
         SimpleMap<u64, vector<u8>>,
         SimpleMap<u64, vector<vector<u8>>>,
         SimpleMap<u64, u64>,
