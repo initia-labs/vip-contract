@@ -251,90 +251,40 @@ module vip::weight_vote {
         vip::add_tvl_snapshot();
         let addr = signer::address_of(account);
         let max_voting_power = get_voting_power(addr);
-        assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
-        assert!(
-            vector::length(&bridge_ids) == vector::length(&weights),
-            EINVALID_ARGS_LENGTH
-        );
 
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (_, time) = get_block_info();
-
-        // check bridge valid
-        vector::for_each(
-            bridge_ids,
-            |bridge_id| {
-                assert!(
-                    vip::is_registered(bridge_id),
-                    error::invalid_argument(EINVALID_BRIDGE)
-                );
-            }
-        );
-        let weight_sum = bigdecimal::zero();
-        vector::for_each_ref(
-            &weights,
-            |weight| {
-                weight_sum = bigdecimal::add(weight_sum, *weight);
-            }
-        );
-        assert!(
-            bigdecimal::le(weight_sum, bigdecimal::one()),
-            error::invalid_argument(EINVALID_PARAMETER)
-        );
-        let voting_power_used =
-            bigdecimal::mul_by_u64_truncate(weight_sum, max_voting_power);
-        // check vote condition
-        let cycle_key = table_key::encode_u64(cycle);
-        assert!(
-            table::contains(&module_store.proposals, cycle_key),
-            error::not_found(ECYCLE_NOT_FOUND)
-        );
-        let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
-        assert!(
-            time <= proposal.voting_end_time,
-            error::invalid_state(EVOTING_END)
-        );
-
-        // remove former vote
-        if (table::contains(&proposal.votes, addr)) {
-            let WeightVote { max_voting_power, voting_power: _, weights } =
-                table::remove(&mut proposal.votes, addr);
-            remove_vote(proposal, max_voting_power, weights);
-        };
-
-        let weight_vector = vector[];
-        vector::zip_reverse(
-            bridge_ids,
-            weights,
-            |bridge_id, weight| {
-                vector::push_back(&mut weight_vector, Weight { bridge_id, weight });
-            }
-        );
-
-        // apply vote
-        apply_vote(proposal, max_voting_power, weight_vector);
-
-        // store user votes
-        table::add(
-            &mut proposal.votes,
+        vote_internal(
             addr,
-            WeightVote {
-                max_voting_power,
-                voting_power: voting_power_used,
-                weights: weight_vector
-            }
+            cycle,
+            max_voting_power,
+            bridge_ids,
+            weights
+        );
+    }
+
+    public entry fun vote_with_amount(
+        account: &signer,
+        cycle: u64,
+        bridge_ids: vector<u64>,
+        amounts: vector<u64>
+    ) acquires ModuleStore {
+        create_proposal();
+        vip::add_tvl_snapshot();
+        let addr = signer::address_of(account);
+        let max_voting_power = get_voting_power(addr);
+
+        // get weights
+        let weights = vector::map(
+            amounts,
+            |amount| { get_weight_ratio(max_voting_power, amount) }
         );
 
-        // emit event
-        event::emit(
-            VoteEvent {
-                account: addr,
-                cycle,
-                max_voting_power,
-                voting_power: voting_power_used,
-                weights: weight_vector
-            }
-        )
+        vote_internal(
+            addr,
+            cycle,
+            max_voting_power,
+            bridge_ids,
+            weights
+        );
     }
 
     public entry fun create_proposal() acquires ModuleStore {
@@ -465,6 +415,107 @@ module vip::weight_vote {
     }
 
     // weight vote
+
+    fun vote_internal(
+        addr: address,
+        cycle: u64,
+        max_voting_power: u64,
+        bridge_ids: vector<u64>,
+        weights: vector<BigDecimal>
+    ) acquires ModuleStore {
+        assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
+        assert!(
+            vector::length(&bridge_ids) == vector::length(&weights),
+            EINVALID_ARGS_LENGTH
+        );
+
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let (_, time) = get_block_info();
+
+        // check bridge valid
+        vector::for_each(
+            bridge_ids,
+            |bridge_id| {
+                assert!(
+                    vip::is_registered(bridge_id),
+                    error::invalid_argument(EINVALID_BRIDGE)
+                );
+            }
+        );
+        let weight_sum = bigdecimal::zero();
+        vector::for_each_ref(
+            &weights,
+            |weight| {
+                weight_sum = bigdecimal::add(weight_sum, *weight);
+            }
+        );
+        assert!(
+            bigdecimal::le(weight_sum, bigdecimal::one()),
+            error::invalid_argument(EINVALID_PARAMETER)
+        );
+        let voting_power_used =
+            bigdecimal::mul_by_u64_truncate(weight_sum, max_voting_power);
+        // check vote condition
+        let cycle_key = table_key::encode_u64(cycle);
+        assert!(
+            table::contains(&module_store.proposals, cycle_key),
+            error::not_found(ECYCLE_NOT_FOUND)
+        );
+        let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
+        assert!(
+            time <= proposal.voting_end_time,
+            error::invalid_state(EVOTING_END)
+        );
+
+        // remove former vote
+        if (table::contains(&proposal.votes, addr)) {
+            let WeightVote { max_voting_power, voting_power: _, weights } =
+                table::remove(&mut proposal.votes, addr);
+            remove_vote(proposal, max_voting_power, weights);
+        };
+
+        let weight_vector = vector[];
+        vector::zip_reverse(
+            bridge_ids,
+            weights,
+            |bridge_id, weight| {
+                vector::push_back(&mut weight_vector, Weight { bridge_id, weight });
+            }
+        );
+
+        // apply vote
+        apply_vote(proposal, max_voting_power, weight_vector);
+
+        // store user votes
+        table::add(
+            &mut proposal.votes,
+            addr,
+            WeightVote {
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector
+            }
+        );
+
+        // emit event
+        event::emit(
+            VoteEvent {
+                account: addr,
+                cycle,
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector
+            }
+        )
+    }
+
+    // calculate ratio from amount
+    fun get_weight_ratio(total: u64, amount: u64): BigDecimal {
+        // to prevent rounding error, use slightly higher value
+        // a / b < (a * 2 + 1) / (b * 2) <  (a + 1) / b
+        return bigdecimal::from_ratio_u128((amount as u128) * 10 + 9, (total as u128)
+            * 10)
+    }
 
     fun remove_vote(
         proposal: &mut Proposal, max_voting_power: u64, weights: vector<Weight>
@@ -1332,5 +1383,15 @@ module vip::weight_vote {
                 == bigdecimal::from_u64(max_multiplier),
             6
         );
+    }
+
+    #[test]
+    fun test_get_weight_ratio() {
+        let total = 129381946982171283;
+        let amount = 12387214896283;
+
+        let weight = get_weight_ratio(total, amount);
+
+        assert!(amount == bigdecimal::mul_by_u64_truncate(weight, total));
     }
 }
