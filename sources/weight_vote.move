@@ -513,8 +513,7 @@ module vip::weight_vote {
     fun get_weight_ratio(total: u64, amount: u64): BigDecimal {
         // to prevent rounding error, use slightly higher value
         // a / b < (a * 2 + 1) / (b * 2) <  (a + 1) / b
-        return bigdecimal::from_ratio_u128((amount as u128) * 10 + 9, (total as u128)
-            * 10)
+        return bigdecimal::from_ratio_u128((amount as u128) * 2 + 1, (total as u128) * 2)
     }
 
     fun remove_vote(
