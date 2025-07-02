@@ -1242,9 +1242,8 @@ module vip::vip {
         );
 
         // add initial tvl snapshot
-        let tvl = primary_fungible_store::balance(
-            bridge_address, vault::reward_metadata()
-        );
+        let tvl =
+            primary_fungible_store::balance(bridge_address, vault::reward_metadata());
         tvl_manager::add_initial_snapshot(module_store.stage, bridge_id, tvl);
     }
 

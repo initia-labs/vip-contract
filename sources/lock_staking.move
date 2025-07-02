@@ -1758,9 +1758,10 @@ module vip::lock_staking {
             |denom| {
                 vector::push_back(
                     &mut balance,
-                    Coin { denom: *denom, amount: *simple_map::borrow(
-                        &balance_map, denom
-                    ) }
+                    Coin {
+                        denom: *denom,
+                        amount: *simple_map::borrow(&balance_map, denom)
+                    }
                 );
             }
         );

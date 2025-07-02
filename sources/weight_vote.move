@@ -716,23 +716,43 @@ module vip::weight_vote {
 
         let tally_responses: vector<TallyResponse> = vector[];
 
-        let (bridge_ids, _) = vip::get_whitelisted_bridge_ids();
+        // if cycle is current cycle, show only for whitelisted tally
+        if (module_store.current_cycle == cycle) {
+            let (bridge_ids, _) = vip::get_whitelisted_bridge_ids();
 
-        vector::for_each(
-            bridge_ids,
-            |bridge_id| {
-                let tally =
-                    table::borrow_with_default(
-                        &proposal.tallies,
-                        table_key::encode_u64(bridge_id),
-                        &0
-                    );
+            vector::for_each(
+                bridge_ids,
+                |bridge_id| {
+                    let tally =
+                        table::borrow_with_default(
+                            &proposal.tallies,
+                            table_key::encode_u64(bridge_id),
+                            &0
+                        );
+                    vector::push_back(
+                        &mut tally_responses,
+                        TallyResponse { bridge_id, tally: *tally }
+                    )
+                }
+            );
+        } else {
+            let iter =
+                table::iter<vector<u8>, u64>(
+                    &proposal.tallies,
+                    option::none(),
+                    option::none(),
+                    1
+                );
+
+            while (table::prepare(iter)) {
+                let (key, tally) = table::next<vector<u8>, u64>(iter);
+                let bridge_id = table_key::decode_u64(key);
                 vector::push_back(
                     &mut tally_responses,
                     TallyResponse { bridge_id, tally: *tally }
                 )
-            }
-        );
+            };
+        };
 
         return tally_responses
     }
