@@ -11,6 +11,11 @@
 ### Updates
 
 - As `0x1::dex` support unproportional liquidity provision, calculate and provide a proportional counterparty coin [`a436300`](https://github.com/initia-labs/vip-contract/commit/a436300372dcfc6fdc355c21614cdc167b4b1fb5)
+- To show delisted rollup's tally, show all tallies if cycle is not a current cycle. [`fee5340`](https://github.com/initia-labs/vip-contract/commit/fee534072554be1ee1f1d4a0a4ad96870234f7b2)
+
+### Bug Fixes
+
+- If rollup register right before the stage end, it can cause error because there is no tvl snapshot. To avoid this, add initial snapshot when rollup register. [`525de50`](https://github.com/initia-labs/vip-contract/commit/525de5010d94be606b337fb4f81376958ac4ac56)
 
 ---
 
