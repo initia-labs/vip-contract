@@ -510,9 +510,15 @@ module vip::vip {
 
         let (counterparty_amount, counterparty_metadata) =
             if (is_coin_a_init) {
-                (utils::mul_div_u64(esinit_amount, coin_b_amount, coin_a_amount), coin_b_metadata)
+                (
+                    utils::mul_div_u64(esinit_amount, coin_b_amount, coin_a_amount),
+                    coin_b_metadata
+                )
             } else {
-                (utils::mul_div_u64(esinit_amount, coin_a_amount, coin_b_amount), coin_a_metadata)
+                (
+                    utils::mul_div_u64(esinit_amount, coin_a_amount, coin_b_amount),
+                    coin_a_metadata
+                )
             };
 
         // do not allow 0 amount provide
@@ -1234,6 +1240,12 @@ module vip::vip {
                 vm_type
             }
         );
+
+        // add initial tvl snapshot
+        let tvl = primary_fungible_store::balance(
+            bridge_address, vault::reward_metadata()
+        );
+        tvl_manager::add_initial_snapshot(module_store.stage, bridge_id, tvl);
     }
 
     public entry fun deregister(chain: &signer, bridge_id: u64) acquires ModuleStore {
@@ -1352,21 +1364,17 @@ module vip::vip {
         check_agent_permission(agent);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         add_tvl_snapshot_internal(module_store);
-        // update stage
-        module_store.stage = module_store.stage + 1;
-        add_tvl_snapshot_internal(module_store);
-        let fund_stage = module_store.stage;
-        let stage_end_time = module_store.stage_end_time;
-        let stage_interval = module_store.stage_interval;
+
+        // check stage end
         assert!(
-            stage_end_time <= fund_time,
+            module_store.stage_end_time <= fund_time,
             error::invalid_state(ETOO_EARLY_FUND)
         );
 
-        // update stage start_time
-        module_store.stage_start_time = stage_end_time;
-        module_store.stage_end_time = stage_end_time + stage_interval;
+        // fund reward
         let initial_reward_amount = vault::reward_per_stage();
+        let fund_stage = module_store.stage + 1;
+
         let (
             total_operator_funded_reward,
             total_user_funded_reward,
@@ -1377,6 +1385,21 @@ module vip::vip {
             fund_stage,
             initial_reward_amount
         );
+
+        // update stage
+        // update stage current stage
+        module_store.stage = module_store.stage + 1;
+
+        // set start time to previous end time
+        module_store.stage_start_time = module_store.stage_end_time;
+
+        // set end time to curret start time + stage interval
+        module_store.stage_end_time =
+            module_store.stage_start_time + module_store.stage_interval;
+
+        // add tvl snapshot for current stage
+        add_tvl_snapshot_internal(module_store);
+
         table::add(
             &mut module_store.stage_data,
             table_key::encode_u64(fund_stage),
@@ -2868,6 +2891,7 @@ module vip::vip {
         primary_fungible_store::init_module_for_test();
         vesting::init_module_for_test(vip);
         let (_, _, mint_cap, _) = initialize_coin(chain, string::utf8(b"uinit"));
+        tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
         coin::mint_to(
@@ -4220,6 +4244,7 @@ module vip::vip {
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
+        tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
         move_to(
@@ -4277,6 +4302,7 @@ module vip::vip {
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
+        tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
         move_to(

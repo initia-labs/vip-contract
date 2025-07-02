@@ -293,6 +293,7 @@ module vip::test {
                 10000000000000000
             );
         tvl_manager::init_module_for_test(vip);
+        tvl_manager::update_snapshot_interval(vip, 0);
         vip::init_module_for_test(vip);
         vesting::init_module_for_test(vip);
 
@@ -352,7 +353,10 @@ module vip::test {
         vip::update_vip_weights(
             vip,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[bigdecimal::from_ratio_u64(1, 2), bigdecimal::from_ratio_u64(1, 2)]
+            vector[
+                bigdecimal::from_ratio_u64(1, 2),
+                bigdecimal::from_ratio_u64(1, 2)
+            ]
         );
         move_to(vip, TestState { last_submitted_stage: 0 });
         dex::create_pair_script(
@@ -2448,7 +2452,10 @@ module vip::test {
         vip::update_vip_weights(
             chain,
             vector[get_bridge_id(), get_bridge2_id()],
-            vector[bigdecimal::from_ratio_u64(3, 5), bigdecimal::from_ratio_u64(2, 5)]
+            vector[
+                bigdecimal::from_ratio_u64(3, 5),
+                bigdecimal::from_ratio_u64(2, 5)
+            ]
         );
 
         submit_snapshot_and_fund_reward(
@@ -2603,12 +2610,12 @@ module vip::test {
         assert!(user_distributed_reward1 == 0, 2);
         assert!(user_distributed_reward2 == 0, 2);
 
-        // transfer some coin to bridge_id()
+        // transfer some coin to bridge_id() to reach min eligible tvl
         coin::transfer(
             chain,
             get_bridge_address(),
             vault::reward_metadata(),
-            1
+            2
         );
 
         // stage 6
