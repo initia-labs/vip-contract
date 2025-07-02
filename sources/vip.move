@@ -786,7 +786,7 @@ module vip::vip {
 
     // fund reward to distribute to operators and users and distribute previous stage rewards
     fun fund_reward(
-        module_store: &mut ModuleStore, stage: u64, initial_reward_amount: u64
+        module_store: &mut ModuleStore, initial_reward_amount: u64
     ): (u64, u64, Table<u64, u64>, Table<u64, u64>) {
         let (bridge_ids, versions) = get_whitelisted_bridge_ids_internal(module_store);
         let shares = calculate_share(module_store);
@@ -797,7 +797,7 @@ module vip::vip {
             operator_funded_rewards,
             user_funded_rewards
         ) = split_reward(
-            stage,
+            module_store.stage + 1,
             &shares,
             initial_reward_amount,
             bridge_ids,
@@ -1372,7 +1372,6 @@ module vip::vip {
 
         // fund reward
         let initial_reward_amount = vault::reward_per_stage();
-        let fund_stage = module_store.stage + 1;
 
         let (
             total_operator_funded_reward,
@@ -1381,7 +1380,6 @@ module vip::vip {
             user_funded_rewards
         ) = fund_reward(
             module_store,
-            fund_stage,
             initial_reward_amount
         );
 
@@ -1401,7 +1399,7 @@ module vip::vip {
 
         table::add(
             &mut module_store.stage_data,
-            table_key::encode_u64(fund_stage),
+            table_key::encode_u64(module_store.stage),
             StageData {
                 stage_start_time: module_store.stage_start_time,
                 stage_end_time: module_store.stage_end_time,
@@ -1418,7 +1416,7 @@ module vip::vip {
 
         event::emit(
             StageAdvanceEvent {
-                stage: fund_stage,
+                stage: module_store.stage,
                 stage_start_time: module_store.stage_start_time,
                 stage_end_time: module_store.stage_end_time,
                 pool_split_ratio: module_store.pool_split_ratio,
