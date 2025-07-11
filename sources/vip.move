@@ -796,13 +796,14 @@ module vip::vip {
             total_user_funded_reward,
             operator_funded_rewards,
             user_funded_rewards
-        ) = split_reward(
-            module_store.stage + 1,
-            &shares,
-            initial_reward_amount,
-            bridge_ids,
-            versions
-        );
+        ) =
+            split_reward(
+                module_store.stage + 1,
+                &shares,
+                initial_reward_amount,
+                bridge_ids,
+                versions
+            );
 
         (
             total_operator_funded_reward,
@@ -1378,10 +1379,7 @@ module vip::vip {
             total_user_funded_reward,
             operator_funded_rewards,
             user_funded_rewards
-        ) = fund_reward(
-            module_store,
-            initial_reward_amount
-        );
+        ) = fund_reward(module_store, initial_reward_amount);
 
         // update stage
         // update stage current stage
