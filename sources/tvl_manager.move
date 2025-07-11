@@ -117,6 +117,42 @@ module vip::tvl_manager {
         );
     }
 
+    // Add initial snapshot, bypass snapshot interval condition
+    public(friend) fun add_initial_snapshot(
+        stage: u64, bridge_id: u64, tvl: u64
+    ) acquires ModuleStore {
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let (_, curr_time) = block::get_block_info();
+
+        // generate key
+        let summary_table_key = generate_key(stage, bridge_id);
+
+        // to handle delist and re-register case, use borrow with default
+        let summary =
+            table::borrow_mut_with_default(
+                &mut module_store.summary,
+                summary_table_key,
+                TvlSummary { count: 0, tvl: 0 }
+            );
+
+        // update tvl
+        let new_count = summary.count + 1;
+        let new_average_tvl =
+            (((summary.count as u128) * (summary.tvl as u128) + (tvl as u128))
+                / (new_count as u128));
+
+        table::upsert(
+            &mut module_store.summary,
+            summary_table_key,
+            TvlSummary { count: new_count, tvl: (new_average_tvl as u64) }
+        );
+
+        // emit event
+        event::emit(
+            TVLSnapshotEvent { stage, bridge_id, time: curr_time, tvl }
+        );
+    }
+
     // get the average tvl of the bridge from accumulated snapshots of the stage
     #[view]
     public fun get_average_tvl(stage: u64, bridge_id: u64): u64 acquires ModuleStore {

@@ -1112,12 +1112,8 @@ module vip::lock_staking {
         res: &mut vector<LockedDelegationResponse>,
         staking_account_addr: address,
         delegations: SimpleMap<String, DelegationResponseInner>,
-        non_existence_handler: |(
-            &mut SimpleMap<String, DelegationResponseInner>,
-            &StakingAccount,
-            String,
-            address
-        )| bool
+        non_existence_handler: |&mut SimpleMap<String, DelegationResponseInner>, &StakingAccount, String, address
+        | bool
     ) acquires StakingAccount {
         let staking_account = borrow_global<StakingAccount>(staking_account_addr);
         let iter =
@@ -1758,10 +1754,9 @@ module vip::lock_staking {
             |denom| {
                 vector::push_back(
                     &mut balance,
-                    Coin {
-                        denom: *denom,
-                        amount: *simple_map::borrow(&balance_map, denom)
-                    }
+                    Coin { denom: *denom, amount: *simple_map::borrow(
+                        &balance_map, denom
+                    ) }
                 );
             }
         );

@@ -108,6 +108,17 @@ module vip::weight_vote {
         tally: u64
     }
 
+    struct ModuleStoreResponse has drop {
+        current_cycle: u64,
+        cycle_interval: u64,
+        cycle_start_time: u64,
+        cycle_end_time: u64,
+        voting_period: u64,
+        core_vesting_creator: address,
+        max_lock_period_multiplier: u64,
+        min_lock_period_multiplier: u64
+    }
+
     // events
 
     #[event]
@@ -240,90 +251,40 @@ module vip::weight_vote {
         vip::add_tvl_snapshot();
         let addr = signer::address_of(account);
         let max_voting_power = get_voting_power(addr);
-        assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
-        assert!(
-            vector::length(&bridge_ids) == vector::length(&weights),
-            EINVALID_ARGS_LENGTH
-        );
 
-        let module_store = borrow_global_mut<ModuleStore>(@vip);
-        let (_, time) = get_block_info();
-
-        // check bridge valid
-        vector::for_each(
-            bridge_ids,
-            |bridge_id| {
-                assert!(
-                    vip::is_registered(bridge_id),
-                    error::invalid_argument(EINVALID_BRIDGE)
-                );
-            }
-        );
-        let weight_sum = bigdecimal::zero();
-        vector::for_each_ref(
-            &weights,
-            |weight| {
-                weight_sum = bigdecimal::add(weight_sum, *weight);
-            }
-        );
-        assert!(
-            bigdecimal::le(weight_sum, bigdecimal::one()),
-            error::invalid_argument(EINVALID_PARAMETER)
-        );
-        let voting_power_used =
-            bigdecimal::mul_by_u64_truncate(weight_sum, max_voting_power);
-        // check vote condition
-        let cycle_key = table_key::encode_u64(cycle);
-        assert!(
-            table::contains(&module_store.proposals, cycle_key),
-            error::not_found(ECYCLE_NOT_FOUND)
-        );
-        let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
-        assert!(
-            time <= proposal.voting_end_time,
-            error::invalid_state(EVOTING_END)
-        );
-
-        // remove former vote
-        if (table::contains(&proposal.votes, addr)) {
-            let WeightVote { max_voting_power, voting_power: _, weights } =
-                table::remove(&mut proposal.votes, addr);
-            remove_vote(proposal, max_voting_power, weights);
-        };
-
-        let weight_vector = vector[];
-        vector::zip_reverse(
-            bridge_ids,
-            weights,
-            |bridge_id, weight| {
-                vector::push_back(&mut weight_vector, Weight { bridge_id, weight });
-            }
-        );
-
-        // apply vote
-        apply_vote(proposal, max_voting_power, weight_vector);
-
-        // store user votes
-        table::add(
-            &mut proposal.votes,
+        vote_internal(
             addr,
-            WeightVote {
-                max_voting_power,
-                voting_power: voting_power_used,
-                weights: weight_vector
-            }
+            cycle,
+            max_voting_power,
+            bridge_ids,
+            weights
+        );
+    }
+
+    public entry fun vote_with_amount(
+        account: &signer,
+        cycle: u64,
+        bridge_ids: vector<u64>,
+        amounts: vector<u64>
+    ) acquires ModuleStore {
+        create_proposal();
+        vip::add_tvl_snapshot();
+        let addr = signer::address_of(account);
+        let max_voting_power = get_voting_power(addr);
+
+        // get weights
+        let weights = vector::map(
+            amounts,
+            |amount| { get_weight_ratio(max_voting_power, amount) }
         );
 
-        // emit event
-        event::emit(
-            VoteEvent {
-                account: addr,
-                cycle,
-                max_voting_power,
-                voting_power: voting_power_used,
-                weights: weight_vector
-            }
-        )
+        vote_internal(
+            addr,
+            cycle,
+            max_voting_power,
+            bridge_ids,
+            weights
+        );
     }
 
     public entry fun create_proposal() acquires ModuleStore {
@@ -455,6 +416,106 @@ module vip::weight_vote {
 
     // weight vote
 
+    fun vote_internal(
+        addr: address,
+        cycle: u64,
+        max_voting_power: u64,
+        bridge_ids: vector<u64>,
+        weights: vector<BigDecimal>
+    ) acquires ModuleStore {
+        assert!(max_voting_power != 0, error::unavailable(EINVALID_VOTING_POWER));
+        assert!(
+            vector::length(&bridge_ids) == vector::length(&weights),
+            EINVALID_ARGS_LENGTH
+        );
+
+        let module_store = borrow_global_mut<ModuleStore>(@vip);
+        let (_, time) = get_block_info();
+
+        // check bridge valid
+        vector::for_each(
+            bridge_ids,
+            |bridge_id| {
+                assert!(
+                    vip::is_registered(bridge_id),
+                    error::invalid_argument(EINVALID_BRIDGE)
+                );
+            }
+        );
+        let weight_sum = bigdecimal::zero();
+        vector::for_each_ref(
+            &weights,
+            |weight| {
+                weight_sum = bigdecimal::add(weight_sum, *weight);
+            }
+        );
+        assert!(
+            bigdecimal::le(weight_sum, bigdecimal::one()),
+            error::invalid_argument(EINVALID_PARAMETER)
+        );
+        let voting_power_used =
+            bigdecimal::mul_by_u64_truncate(weight_sum, max_voting_power);
+        // check vote condition
+        let cycle_key = table_key::encode_u64(cycle);
+        assert!(
+            table::contains(&module_store.proposals, cycle_key),
+            error::not_found(ECYCLE_NOT_FOUND)
+        );
+        let proposal = table::borrow_mut(&mut module_store.proposals, cycle_key);
+        assert!(
+            time <= proposal.voting_end_time,
+            error::invalid_state(EVOTING_END)
+        );
+
+        // remove former vote
+        if (table::contains(&proposal.votes, addr)) {
+            let WeightVote { max_voting_power, voting_power: _, weights } =
+                table::remove(&mut proposal.votes, addr);
+            remove_vote(proposal, max_voting_power, weights);
+        };
+
+        let weight_vector = vector[];
+        vector::zip_reverse(
+            bridge_ids,
+            weights,
+            |bridge_id, weight| {
+                vector::push_back(&mut weight_vector, Weight { bridge_id, weight });
+            }
+        );
+
+        // apply vote
+        apply_vote(proposal, max_voting_power, weight_vector);
+
+        // store user votes
+        table::add(
+            &mut proposal.votes,
+            addr,
+            WeightVote {
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector
+            }
+        );
+
+        // emit event
+        event::emit(
+            VoteEvent {
+                account: addr,
+                cycle,
+                max_voting_power,
+                voting_power: voting_power_used,
+                weights: weight_vector
+            }
+        )
+    }
+
+    // calculate ratio from amount
+    fun get_weight_ratio(total: u64, amount: u64): BigDecimal {
+        // to prevent rounding error, use slightly higher value
+        // a / b < (a * 2 + 1) / (b * 2) <  (a + 1) / b
+        return bigdecimal::from_ratio_u128((amount as u128) * 2 + 1, (total as u128) * 2)
+    }
+
     fun remove_vote(
         proposal: &mut Proposal, max_voting_power: u64, weights: vector<Weight>
     ) {
@@ -549,8 +610,9 @@ module vip::weight_vote {
 
         // slope = (max_multiplier - min_multiplier) / (max_lock_period - min_lock_period)
         // multiplier = slope * (lock_period - min_lock_period) + min_multiplier
-        let numerator = (max_multiplier - min_multiplier) * (lock_period
-            - min_lock_period);
+        let numerator = (max_multiplier - min_multiplier) * (
+            lock_period - min_lock_period
+        );
         let denominator = (max_lock_period - min_lock_period);
         bigdecimal::add_by_u64(
             bigdecimal::from_ratio_u64(numerator, denominator),
@@ -654,23 +716,43 @@ module vip::weight_vote {
 
         let tally_responses: vector<TallyResponse> = vector[];
 
-        let (bridge_ids, _) = vip::get_whitelisted_bridge_ids();
+        // if cycle is current cycle, show only for whitelisted tally
+        if (module_store.current_cycle == cycle) {
+            let (bridge_ids, _) = vip::get_whitelisted_bridge_ids();
 
-        vector::for_each(
-            bridge_ids,
-            |bridge_id| {
-                let tally =
-                    table::borrow_with_default(
-                        &proposal.tallies,
-                        table_key::encode_u64(bridge_id),
-                        &0
-                    );
+            vector::for_each(
+                bridge_ids,
+                |bridge_id| {
+                    let tally =
+                        table::borrow_with_default(
+                            &proposal.tallies,
+                            table_key::encode_u64(bridge_id),
+                            &0
+                        );
+                    vector::push_back(
+                        &mut tally_responses,
+                        TallyResponse { bridge_id, tally: *tally }
+                    )
+                }
+            );
+        } else {
+            let iter =
+                table::iter<vector<u8>, u64>(
+                    &proposal.tallies,
+                    option::none(),
+                    option::none(),
+                    1
+                );
+
+            while (table::prepare(iter)) {
+                let (key, tally) = table::next<vector<u8>, u64>(iter);
+                let bridge_id = table_key::decode_u64(key);
                 vector::push_back(
                     &mut tally_responses,
                     TallyResponse { bridge_id, tally: *tally }
                 )
-            }
-        );
+            };
+        };
 
         return tally_responses
     }
@@ -769,6 +851,58 @@ module vip::weight_vote {
         )
     }
 
+    #[view]
+    public fun get_module_store(): ModuleStoreResponse acquires ModuleStore {
+        let module_store = borrow_global<ModuleStore>(@vip);
+        return ModuleStoreResponse {
+            current_cycle: module_store.current_cycle,
+            cycle_interval: module_store.cycle_interval,
+            cycle_start_time: module_store.cycle_start_time,
+            cycle_end_time: module_store.cycle_end_time,
+            voting_period: module_store.voting_period,
+            core_vesting_creator: module_store.core_vesting_creator,
+            max_lock_period_multiplier: module_store.max_lock_period_multiplier,
+            min_lock_period_multiplier: module_store.min_lock_period_multiplier
+        }
+    }
+
+    //
+    // Unpack functions
+    //
+
+    public fun unpack_proposal_response(proposal: &ProposalResponse): (u64, u64, bool) {
+        (proposal.total_tally, proposal.voting_end_time, proposal.executed)
+    }
+
+    public fun unpack_weight_vote_response(
+        weight_vote: &WeightVoteResponse
+    ): (u64, u64, vector<Weight>) {
+        (weight_vote.max_voting_power, weight_vote.voting_power, weight_vote.weights)
+    }
+
+    public fun unpack_weight(weight: &Weight): (u64, BigDecimal) {
+        (weight.bridge_id, weight.weight)
+    }
+
+    public fun unpack_tally_response(tally: &TallyResponse): (u64, u64) {
+        (tally.bridge_id, tally.tally)
+    }
+
+    public fun unpack_module_store_response(
+        module_store: &ModuleStoreResponse
+    ): (u64, u64, u64, u64, u64, address, u64, u64) {
+        (
+            module_store.current_cycle,
+            module_store.cycle_interval,
+            module_store.cycle_start_time,
+            module_store.cycle_end_time,
+            module_store.voting_period,
+            module_store.core_vesting_creator,
+            module_store.max_lock_period_multiplier,
+            module_store.min_lock_period_multiplier
+        )
+    }
+
     #[test_only]
     struct TestState has key {
         capability: AdminCapability
@@ -830,7 +964,9 @@ module vip::weight_vote {
     }
 
     #[test_only]
-    fun init_test(chain: &signer, vip: &signer, vesting_creator: &signer) {
+    fun init_test(
+        chain: &signer, vip: &signer, vesting_creator: &signer
+    ) {
         let cycle_start_time = 100;
         let cycle_interval = 100;
         let voting_period = 80;
@@ -892,9 +1028,15 @@ module vip::weight_vote {
     }
 
     // test calculate voting power by comsos staking(mstaking), lock staking
-    #[test(
-        chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102
-    )]
+    #[
+        test(
+            chain = @0x1,
+            vip = @vip,
+            vesting_creator = @initia_std,
+            u1 = @0x101,
+            u2 = @0x102
+        )
+    ]
     fun test_get_voting_power(
         chain: &signer,
         vip: &signer,
@@ -968,9 +1110,15 @@ module vip::weight_vote {
 
     }
 
-    #[test(
-        chain = @0x1, vip = @vip, vesting_creator = @initia_std, u1 = @0x101, u2 = @0x102
-    )]
+    #[
+        test(
+            chain = @0x1,
+            vip = @vip,
+            vesting_creator = @initia_std,
+            u1 = @0x101,
+            u2 = @0x102
+        )
+    ]
     fun test_vote_with_dynamic_voting_power(
         chain: &signer,
         vip: &signer,
@@ -993,14 +1141,20 @@ module vip::weight_vote {
             u1,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)] // 2, 8
+            vector[
+                bigdecimal::from_ratio_u64(1, 5),
+                bigdecimal::from_ratio_u64(4, 5)
+            ] // 2, 8
         );
 
         vote(
             u2,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)] // 8, 12
+            vector[
+                bigdecimal::from_ratio_u64(2, 5),
+                bigdecimal::from_ratio_u64(3, 5)
+            ] // 8, 12
         );
 
         let proposal = get_proposal(1);
@@ -1019,7 +1173,10 @@ module vip::weight_vote {
             u1,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(1, 2), bigdecimal::from_ratio_u64(1, 2)] // 7 / 7
+            vector[
+                bigdecimal::from_ratio_u64(1, 2),
+                bigdecimal::from_ratio_u64(1, 2)
+            ] // 7 / 7
         );
 
         proposal = get_proposal(1);
@@ -1035,7 +1192,10 @@ module vip::weight_vote {
             u2,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(1, 3), bigdecimal::from_ratio_u64(1, 3)] // 4 / 4 -> truncate error?
+            vector[
+                bigdecimal::from_ratio_u64(1, 3),
+                bigdecimal::from_ratio_u64(1, 3)
+            ] // 4 / 4 -> truncate error?
         );
 
         proposal = get_proposal(1);
@@ -1085,28 +1245,40 @@ module vip::weight_vote {
             u1,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(1, 5), bigdecimal::from_ratio_u64(4, 5)] // 2, 8
+            vector[
+                bigdecimal::from_ratio_u64(1, 5),
+                bigdecimal::from_ratio_u64(4, 5)
+            ] // 2, 8
         );
 
         vote(
             u2,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(3, 5)] // 8, 12
+            vector[
+                bigdecimal::from_ratio_u64(2, 5),
+                bigdecimal::from_ratio_u64(3, 5)
+            ] // 8, 12
         );
 
         vote(
             u3,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(2, 5), bigdecimal::from_ratio_u64(2, 5)] // 12, 12
+            vector[
+                bigdecimal::from_ratio_u64(2, 5),
+                bigdecimal::from_ratio_u64(2, 5)
+            ] // 12, 12
         );
 
         vote(
             u4,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(3, 5), bigdecimal::from_ratio_u64(1, 5)] // 24, 8 // user can vote with
+            vector[
+                bigdecimal::from_ratio_u64(3, 5),
+                bigdecimal::from_ratio_u64(1, 5)
+            ] // 24, 8 // user can vote with
         );
 
         let proposal = get_proposal(1);
@@ -1126,7 +1298,10 @@ module vip::weight_vote {
             u4,
             cycle,
             vector[1, 2],
-            vector[bigdecimal::from_ratio_u64(4, 5), bigdecimal::from_ratio_u64(1, 5)] // 32, 8 // user can vote with
+            vector[
+                bigdecimal::from_ratio_u64(4, 5),
+                bigdecimal::from_ratio_u64(1, 5)
+            ] // 32, 8 // user can vote with
         );
 
         vote1 = get_tally(1, 1);
@@ -1227,5 +1402,15 @@ module vip::weight_vote {
                 == bigdecimal::from_u64(max_multiplier),
             6
         );
+    }
+
+    #[test]
+    fun test_get_weight_ratio() {
+        let total = 129381946982171283;
+        let amount = 12387214896283;
+
+        let weight = get_weight_ratio(total, amount);
+
+        assert!(amount == bigdecimal::mul_by_u64_truncate(weight, total));
     }
 }
