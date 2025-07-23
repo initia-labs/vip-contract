@@ -51,7 +51,7 @@ module vip::operator {
     }
 
     #[event]
-    struct UpdateOperatorInfo has drop, store {
+    struct UpdateOperatorInfoEvent has drop, store {
         bridge_id: u64,
         version: u64,
         operator_addr: Option<address>,
@@ -179,7 +179,7 @@ module vip::operator {
         );
 
         event::emit(
-            UpdateOperatorInfo {
+            UpdateOperatorInfoEvent {
                 bridge_id,
                 version,
                 operator_addr,
