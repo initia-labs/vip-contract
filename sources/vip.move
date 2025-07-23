@@ -266,7 +266,7 @@ module vip::vip {
     struct ExecuteRollupChallengeEvent has drop, store {
         bridge_id: u64,
         version: u64,
-        stage: u64,
+        stage: u64
     }
 
     #[event]
@@ -486,53 +486,71 @@ module vip::vip {
         );
     }
 
+    /// lock stake esinit, only allow proportional provide
     fun lock_stake(
         account: &signer,
         lp_metadata: Object<Metadata>,
         min_liquidity: option::Option<u64>,
         validator: string::String,
         esinit: FungibleAsset,
-        stakelisted_metadata: Object<Metadata>,
-        stakelisted_amount: u64,
         release_time_option: Option<u64>
     ) acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
-        let account_addr = signer::address_of(account);
-        assert!(
-            primary_fungible_store::balance(account_addr, stakelisted_metadata)
-                >= stakelisted_amount,
-            error::invalid_argument(ESTAKELISTED_NOT_ENOUGH)
-        );
-        assert!(
-            fungible_asset::amount(&esinit) > 0 && stakelisted_amount > 0,
-            error::invalid_argument(EINVALID_LOCK_STAKING_AMOUNT)
-        );
 
-        let stakelisted =
+        // get pair infos
+        let pair = object::convert<Metadata, dex::Config>(lp_metadata);
+        let (coin_a_amount, coin_b_amount, _, _, _) = dex::pool_info(pair, true);
+        let (coin_a_metadata, coin_b_metadata) = dex::pool_metadata(pair);
+
+        // calculate proportional amount
+        let esinit_metadata = fungible_asset::asset_metadata(&esinit);
+        let esinit_amount = fungible_asset::amount(&esinit);
+
+        let is_coin_a_init = esinit_metadata == coin_a_metadata;
+
+        let (counterparty_amount, counterparty_metadata) =
+            if (is_coin_a_init) {
+                (
+                    utils::mul_div_u64(esinit_amount, coin_b_amount, coin_a_amount),
+                    coin_b_metadata
+                )
+            } else {
+                (
+                    utils::mul_div_u64(esinit_amount, coin_a_amount, coin_b_amount),
+                    coin_a_metadata
+                )
+            };
+
+        // do not allow 0 amount provide
+        if (counterparty_amount == 0) {
+            counterparty_amount = 1
+        };
+
+        assert!(esinit_amount > 0, error::invalid_argument(EINVALID_LOCK_STAKING_AMOUNT));
+
+        // withdraw counterparty coin
+        let counterparty =
             primary_fungible_store::withdraw(
                 account,
-                stakelisted_metadata,
-                stakelisted_amount
+                counterparty_metadata,
+                counterparty_amount
             );
 
+        // validate and get release time
         let release_time = get_release_time(module_store, release_time_option);
-
-        let pair = object::convert<Metadata, dex::Config>(lp_metadata);
-        let esinit_metadata = fungible_asset::asset_metadata(&esinit);
-
-        let (coin_a_metadata, coin_b_metadata) = dex::pool_metadata(pair);
 
         // if pair is reversed, swap coin_a and coin_b
         let (coin_a, coin_b) =
-            if (coin_a_metadata == esinit_metadata) {
-                (esinit, stakelisted)
-            } else if (coin_b_metadata == esinit_metadata) {
-                (stakelisted, esinit)
+            if (is_coin_a_init) {
+                (esinit, counterparty)
             } else {
-                abort error::invalid_argument(EINVALID_POOL)
+                (counterparty, esinit)
             };
 
+        // provide liquidity
         let liquidity = dex::provide_liquidity(pair, coin_a, coin_b, min_liquidity);
+
+        // lock stake liquidity
         lock_staking::delegate_internal(account, liquidity, release_time, validator);
     }
 
@@ -768,7 +786,7 @@ module vip::vip {
 
     // fund reward to distribute to operators and users and distribute previous stage rewards
     fun fund_reward(
-        module_store: &mut ModuleStore, stage: u64, initial_reward_amount: u64
+        module_store: &mut ModuleStore, initial_reward_amount: u64
     ): (u64, u64, Table<u64, u64>, Table<u64, u64>) {
         let (bridge_ids, versions) = get_whitelisted_bridge_ids_internal(module_store);
         let shares = calculate_share(module_store);
@@ -778,13 +796,14 @@ module vip::vip {
             total_user_funded_reward,
             operator_funded_rewards,
             user_funded_rewards
-        ) = split_reward(
-            stage,
-            &shares,
-            initial_reward_amount,
-            bridge_ids,
-            versions
-        );
+        ) =
+            split_reward(
+                module_store.stage + 1,
+                &shares,
+                initial_reward_amount,
+                bridge_ids,
+                versions
+            );
 
         (
             total_operator_funded_reward,
@@ -1115,9 +1134,7 @@ module vip::vip {
 
     // In case of rollup submit wrong score, delete submission.
     public entry fun execute_rollup_challenge(
-        chain: &signer,
-        bridge_id: u64,
-        challenge_stage: u64,
+        chain: &signer, bridge_id: u64, challenge_stage: u64
     ) acquires ModuleStore {
         utils::check_chain_permission(chain);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
@@ -1154,15 +1171,11 @@ module vip::vip {
             bridge_id: table_key::encode_u64(bridge_id),
             version: table_key::encode_u64(version)
         };
-    
+
         table::remove(&mut stage_data.snapshots, key);
 
         event::emit(
-            ExecuteRollupChallengeEvent {
-                bridge_id,
-                version,
-                stage: challenge_stage,
-            }
+            ExecuteRollupChallengeEvent { bridge_id, version, stage: challenge_stage }
         );
     }
 
@@ -1228,6 +1241,11 @@ module vip::vip {
                 vm_type
             }
         );
+
+        // add initial tvl snapshot
+        let tvl =
+            primary_fungible_store::balance(bridge_address, vault::reward_metadata());
+        tvl_manager::add_initial_snapshot(module_store.stage, bridge_id, tvl);
     }
 
     public entry fun deregister(chain: &signer, bridge_id: u64) acquires ModuleStore {
@@ -1282,6 +1300,26 @@ module vip::vip {
         module_store.agent_data = AgentData { agent: new_agent, api_uri: new_api_uri };
     }
 
+    /// Update operator info via gov proposal
+    public entry fun update_operator_info(
+        chain: &signer,
+        bridge_id: u64,
+        version: u64,
+        operator_addr: Option<address>,
+        commission_max_rate: Option<BigDecimal>,
+        commission_max_change_rate: Option<BigDecimal>
+    ) {
+        utils::check_chain_permission(chain);
+        operator::update_operator_info(
+            chain,
+            bridge_id,
+            version,
+            operator_addr,
+            commission_max_rate,
+            commission_max_change_rate
+        );
+    }
+
     // add tvl snapshot of all bridges on this stage
     public entry fun add_tvl_snapshot() acquires ModuleStore {
         let module_store = borrow_global<ModuleStore>(@vip);
@@ -1326,34 +1364,40 @@ module vip::vip {
         check_agent_permission(agent);
         let module_store = borrow_global_mut<ModuleStore>(@vip);
         add_tvl_snapshot_internal(module_store);
-        // update stage
-        module_store.stage = module_store.stage + 1;
-        add_tvl_snapshot_internal(module_store);
-        let fund_stage = module_store.stage;
-        let stage_end_time = module_store.stage_end_time;
-        let stage_interval = module_store.stage_interval;
+
+        // check stage end
         assert!(
-            stage_end_time <= fund_time,
+            module_store.stage_end_time <= fund_time,
             error::invalid_state(ETOO_EARLY_FUND)
         );
 
-        // update stage start_time
-        module_store.stage_start_time = stage_end_time;
-        module_store.stage_end_time = stage_end_time + stage_interval;
+        // fund reward
         let initial_reward_amount = vault::reward_per_stage();
+
         let (
             total_operator_funded_reward,
             total_user_funded_reward,
             operator_funded_rewards,
             user_funded_rewards
-        ) = fund_reward(
-            module_store,
-            fund_stage,
-            initial_reward_amount
-        );
+        ) = fund_reward(module_store, initial_reward_amount);
+
+        // update stage
+        // update stage current stage
+        module_store.stage = module_store.stage + 1;
+
+        // set start time to previous end time
+        module_store.stage_start_time = module_store.stage_end_time;
+
+        // set end time to curret start time + stage interval
+        module_store.stage_end_time =
+            module_store.stage_start_time + module_store.stage_interval;
+
+        // add tvl snapshot for current stage
+        add_tvl_snapshot_internal(module_store);
+
         table::add(
             &mut module_store.stage_data,
-            table_key::encode_u64(fund_stage),
+            table_key::encode_u64(module_store.stage),
             StageData {
                 stage_start_time: module_store.stage_start_time,
                 stage_end_time: module_store.stage_end_time,
@@ -1370,7 +1414,7 @@ module vip::vip {
 
         event::emit(
             StageAdvanceEvent {
-                stage: fund_stage,
+                stage: module_store.stage,
                 stage_start_time: module_store.stage_start_time,
                 stage_end_time: module_store.stage_end_time,
                 pool_split_ratio: module_store.pool_split_ratio,
@@ -1744,7 +1788,7 @@ module vip::vip {
             UpdateScoreContractEvent {
                 bridge_id,
                 version,
-                score_contract: new_vip_l2_score_contract,
+                score_contract: new_vip_l2_score_contract
             }
         );
     }
@@ -1778,8 +1822,8 @@ module vip::vip {
         validator: string::String,
         stage: u64,
         esinit_amount: u64,
-        stakelisted_metadata: Object<Metadata>,
-        stakelisted_amount: u64,
+        _stakelisted_metadata: Object<Metadata>, // Deprecated, kept for backward compatibility with the interface
+        _stakelisted_amount: u64, // Deprecated, kept for backward compatibility with the interface
         release_time: Option<u64>
     ) acquires ModuleStore {
         let account_addr = signer::address_of(account);
@@ -1799,8 +1843,6 @@ module vip::vip {
             min_liquidity,
             validator,
             esinit,
-            stakelisted_metadata,
-            stakelisted_amount,
             release_time
         );
     }
@@ -1814,8 +1856,8 @@ module vip::vip {
         validator: string::String,
         stage: vector<u64>,
         esinit_amount: vector<u64>,
-        stakelisted_metadata: Object<Metadata>,
-        stakelisted_amount: u64,
+        _stakelisted_metadata: Object<Metadata>, // Deprecated, kept for backward compatibility with the interface
+        _stakelisted_amount: u64, // Deprecated, kept for backward compatibility with the interface
         lock_stake_period: Option<u64>
     ) acquires ModuleStore {
         let esinit =
@@ -1833,8 +1875,6 @@ module vip::vip {
             min_liquidity,
             validator,
             esinit,
-            stakelisted_metadata,
-            stakelisted_amount,
             lock_stake_period
         );
     }
@@ -2265,8 +2305,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun unpack_module_store():
-        (
+    public fun unpack_module_store(): (
         u64, // stage
         u64, // stage_interval
         u64, // vesting_period
@@ -2444,8 +2483,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun merkle_root_and_proof_scene1():
-        (
+    public fun merkle_root_and_proof_scene1(): (
         SimpleMap<u64, vector<u8>>,
         SimpleMap<u64, vector<vector<u8>>>,
         SimpleMap<u64, u64>,
@@ -2716,8 +2754,7 @@ module vip::vip {
     }
 
     #[test_only]
-    public fun merkle_root_and_proof_scene2():
-        (
+    public fun merkle_root_and_proof_scene2(): (
         SimpleMap<u64, vector<u8>>,
         SimpleMap<u64, vector<vector<u8>>>,
         SimpleMap<u64, u64>,
@@ -2849,6 +2886,7 @@ module vip::vip {
         primary_fungible_store::init_module_for_test();
         vesting::init_module_for_test(vip);
         let (_, _, mint_cap, _) = initialize_coin(chain, string::utf8(b"uinit"));
+        tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
         coin::mint_to(
@@ -4201,6 +4239,7 @@ module vip::vip {
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
+        tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
         move_to(
@@ -4258,6 +4297,7 @@ module vip::vip {
         vesting::init_module_for_test(vip);
         let (burn_cap, freeze_cap, mint_cap, _) =
             initialize_coin(chain, string::utf8(b"uinit"));
+        tvl_manager::init_module_for_test(vip);
         init_module_for_test(vip);
 
         move_to(
