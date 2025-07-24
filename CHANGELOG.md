@@ -10,7 +10,7 @@
 
 ### Updates
 
-- As `0x1::dex` support unproportional liquidity provision, calculate and provide a proportional counterparty coin [`a436300`](https://github.com/initia-labs/vip-contract/commit/a436300372dcfc6fdc355c21614cdc167b4b1fb5)
+- As `0x1::dex` support unproportional liquidity provision, calculate and provide a proportional counterparty coin [`a436300`](https://github.com/initia-labs/vip-contract/commit/a436300372dcfc6fdc355c21614cdc167b4b1fb5) and remove `get_exact_provide_amount` [`2e86d72`](https://github.com/initia-labs/vip-contract/commit/2e86d72d96ecf62c1409218a42aa67f25663a58c)
 - To show delisted rollup's tally, show all tallies if cycle is not a current cycle. [`fee5340`](https://github.com/initia-labs/vip-contract/commit/fee534072554be1ee1f1d4a0a4ad96870234f7b2)
 
 ### Bug Fixes
